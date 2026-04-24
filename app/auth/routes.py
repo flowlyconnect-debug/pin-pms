@@ -92,14 +92,9 @@ def two_factor_setup():
         user.totp_secret = pyotp.random_base32()
         db.session.commit()
 
-    print("SECRET:", user.totp_secret)
-
     if request.method == "POST":
         code = request.form.get("code")
         code = (code or "").replace(" ", "").strip()
-        print("SECRET:", user.totp_secret)
-        print("INPUT:", code)
-        print("EXPECTED:", pyotp.TOTP(user.totp_secret).now())
         totp = pyotp.TOTP(user.totp_secret)
         if totp.verify(code, valid_window=1):
             user.is_2fa_enabled = True
@@ -136,10 +131,6 @@ def two_factor_verify():
     if request.method == "POST":
         code = request.form.get("code")
         code = (code or "").replace(" ", "").strip()
-
-        print("SECRET:", user.totp_secret)
-        print("INPUT:", code)
-        print("EXPECTED:", pyotp.TOTP(user.totp_secret).now())
 
         totp = pyotp.TOTP(user.totp_secret)
         if totp.verify(code, valid_window=1):

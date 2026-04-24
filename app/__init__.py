@@ -25,16 +25,18 @@ def create_app(config_name: str | None = None) -> Flask:
     register_blueprints(app)
     register_cli_commands(app)
     register_security_guards(app)
+    register_error_handlers(app)
 
     return app
 
 
 def register_models() -> None:
     # Ensure model metadata is loaded before Flask-Migrate autogenerate.
+    from app.api.models import ApiKey
     from app.organizations.models import Organization
     from app.users.models import User
 
-    _ = (Organization, User)
+    _ = (ApiKey, Organization, User)
 
 
 @login_manager.user_loader
@@ -56,7 +58,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(core_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
-    app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(api_bp, url_prefix="/api/v1")
     app.register_blueprint(users_bp, url_prefix="/users")
     app.register_blueprint(email_bp, url_prefix="/email")
     app.register_blueprint(backups_bp, url_prefix="/backups")
@@ -89,3 +91,25 @@ def register_security_guards(app: Flask) -> None:
         if current_user.is_2fa_enabled:
             return redirect(url_for("auth.two_factor_verify"))
         return redirect(url_for("auth.two_factor_setup"))
+
+
+def register_error_handlers(app: Flask) -> None:
+    """Return JSON-shaped errors for any request under ``/api/``.
+
+    Non-API paths keep Flask's default HTML error pages.
+    """
+
+    from werkzeug.exceptions import HTTPException
+
+    from app.api.schemas import json_error
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(err: HTTPException):
+        if request.path.startswith("/api/"):
+            name = (err.name or "http_error").lower().replace(" ", "_")
+            return json_error(
+                code=name,
+                message=err.description or err.name or "HTTP error",
+                status=err.code or 500,
+            )
+        return err

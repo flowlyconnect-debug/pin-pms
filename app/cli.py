@@ -2,6 +2,7 @@ import click
 from flask import Flask
 from werkzeug.security import generate_password_hash
 
+from app.api.models import ApiKey
 from app.extensions import db
 from app.organizations.models import Organization
 from app.users.models import User, UserRole
@@ -127,3 +128,45 @@ def register_cli_commands(app: Flask) -> None:
             f"Created user '{user.email}' with role '{user.role}' "
             f"in organization '{user.organization.name}'."
         )
+
+    @app.cli.command("create-api-key")
+    @click.option("--name", prompt=True, help="Human-readable key name, e.g. 'Production integration'")
+    @click.option("--user-email", prompt=True, help="Email of the user that owns the key")
+    @click.option(
+        "--scopes",
+        default="",
+        show_default=True,
+        help="Comma-separated list of scope identifiers (optional)",
+    )
+    def create_api_key(name: str, user_email: str, scopes: str) -> None:
+        """Issue a new API key scoped to a user's organization.
+
+        The plaintext key is printed once. It cannot be recovered afterwards —
+        store it in a secret manager immediately.
+        """
+
+        normalized_email = user_email.strip().lower()
+        user = User.query.filter_by(email=normalized_email).first()
+        if user is None:
+            raise click.ClickException(f"User '{normalized_email}' not found.")
+        if not user.is_active:
+            raise click.ClickException(
+                f"User '{normalized_email}' is not active. Reactivate before issuing keys."
+            )
+
+        api_key, raw_key = ApiKey.issue(
+            name=name,
+            organization_id=user.organization_id,
+            user_id=user.id,
+            scopes=scopes,
+        )
+        db.session.add(api_key)
+        db.session.commit()
+
+        click.echo("")
+        click.echo(f"API key issued for {user.email} (organization: {user.organization.name}).")
+        click.echo(f"  Name:   {api_key.name}")
+        click.echo(f"  Prefix: {api_key.key_prefix}")
+        click.echo(f"  Key:    {raw_key}")
+        click.echo("")
+        click.echo("Store this key securely. It will NOT be shown again.")
