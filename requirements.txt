@@ -1,6 +1,8 @@
 Flask
 flask-sqlalchemy
 flask-migrate
+flask-login
+Werkzeug
 psycopg2-binary
 python-dotenv
 pytest
