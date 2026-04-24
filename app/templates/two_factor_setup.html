@@ -1,0 +1,35 @@
+<form method="post" action="/2fa/setup">
+  <label for="code">Verification code</label>
+  <input type="text" name="code" required>
+  <button type="submit">Enable 2FA</button>
+</form>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>2FA Setup</title>
+  </head>
+  <body>
+    <h1>Set up 2FA</h1>
+    <p>Scan this QR code in your authenticator app, then enter the 6-digit code.</p>
+
+    <div>{{ qr_svg|safe }}</div>
+    <p>Secret: <code>{{ secret }}</code></p>
+
+    {% if error %}
+      <p style="color: red;">{{ error }}</p>
+    {% endif %}
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <p style="color: red;">{{ messages[0] }}</p>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" action="/2fa/setup">
+      <label for="code">Verification code</label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+      <button type="submit">Enable 2FA</button>
+    </form>
+  </body>
+</html>

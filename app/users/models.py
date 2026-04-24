@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from flask_login import UserMixin
+import pyotp
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
@@ -35,6 +36,8 @@ class User(UserMixin, db.Model):
         default=UserRole.USER.value,
     )
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    totp_secret = db.Column(db.String(32), nullable=True)
+    is_2fa_enabled = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
@@ -48,3 +51,18 @@ class User(UserMixin, db.Model):
 
     def check_password(self, raw_password: str) -> bool:
         return check_password_hash(self.password_hash, raw_password)
+
+    @property
+    def is_superadmin(self) -> bool:
+        return self.role == UserRole.SUPERADMIN.value
+
+    def ensure_totp_secret(self) -> str:
+        if not self.totp_secret:
+            self.totp_secret = pyotp.random_base32()
+        return self.totp_secret
+
+    def verify_totp(self, code: str) -> bool:
+        if not self.totp_secret:
+            return False
+        normalized_code = (code or "").strip()
+        return pyotp.TOTP(self.totp_secret).verify(normalized_code, valid_window=1)

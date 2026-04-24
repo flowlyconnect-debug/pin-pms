@@ -1,4 +1,6 @@
 from flask import Flask
+from flask import redirect, request, session, url_for
+from flask_login import current_user
 
 from app.cli import register_cli_commands
 from app.config import config_by_name
@@ -22,6 +24,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     register_blueprints(app)
     register_cli_commands(app)
+    register_security_guards(app)
 
     return app
 
@@ -57,3 +60,29 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(users_bp, url_prefix="/users")
     app.register_blueprint(email_bp, url_prefix="/email")
     app.register_blueprint(backups_bp, url_prefix="/backups")
+
+
+def register_security_guards(app: Flask) -> None:
+    @app.before_request
+    def enforce_superadmin_2fa():
+        allowed_endpoints = {
+            "auth.login",
+            "auth.logout",
+            "auth.two_factor_setup",
+            "static",
+            "core.health",
+        }
+
+        if not current_user.is_authenticated:
+            return None
+
+        if not getattr(current_user, "is_superadmin", False):
+            return None
+
+        if session.get("is_2fa_verified"):
+            return None
+
+        if request.endpoint in allowed_endpoints:
+            return None
+
+        return redirect(url_for("auth.two_factor_setup"))
