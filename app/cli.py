@@ -3,6 +3,8 @@ from flask import Flask
 from werkzeug.security import generate_password_hash
 
 from app.api.models import ApiKey
+from app.audit import record as audit_record
+from app.audit.models import ActorType, AuditStatus
 from app.extensions import db
 from app.organizations.models import Organization
 from app.users.models import User, UserRole
@@ -56,6 +58,22 @@ def _create_user(
     )
 
     db.session.add(user)
+    db.session.flush()  # Needs ``user.id`` for the audit row.
+
+    is_superadmin = normalized_role == UserRole.SUPERADMIN.value
+    audit_record(
+        "superadmin.created" if is_superadmin else "user.created",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.SYSTEM,
+        organization_id=organization.id,
+        target_type="user",
+        target_id=user.id,
+        context={
+            "email": user.email,
+            "role": user.role,
+            "organization": organization.name,
+        },
+    )
     db.session.commit()
     return user
 
@@ -161,6 +179,22 @@ def register_cli_commands(app: Flask) -> None:
             scopes=scopes,
         )
         db.session.add(api_key)
+        db.session.flush()  # Needs ``api_key.id`` for the audit row.
+
+        audit_record(
+            "apikey.created",
+            status=AuditStatus.SUCCESS,
+            actor_type=ActorType.SYSTEM,
+            organization_id=api_key.organization_id,
+            target_type="api_key",
+            target_id=api_key.id,
+            context={
+                "name": api_key.name,
+                "prefix": api_key.key_prefix,
+                "user_email": user.email,
+                "scopes": api_key.scope_list,
+            },
+        )
         db.session.commit()
 
         click.echo("")

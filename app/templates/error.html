@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ code }} {{ title }} — Pindora PMS</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        margin: 0;
+        color: #1a1a1a;
+        background: #fafafa;
+        display: flex;
+        min-height: 100vh;
+        align-items: center;
+        justify-content: center;
+      }
+      main {
+        max-width: 36rem;
+        padding: 2.5rem 2rem;
+        background: #fff;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+      }
+      .code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 3rem;
+        font-weight: 600;
+        color: #b91c1c;
+        line-height: 1;
+        margin: 0 0 .25rem 0;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 1rem 0;
+      }
+      p { line-height: 1.55; color: #333; margin: .5rem 0 1.5rem; }
+      nav a {
+        color: #1d4ed8;
+        text-decoration: none;
+        margin-right: 1rem;
+      }
+      nav a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="code">{{ code }}</div>
+      <h1>{{ title }}</h1>
+      <p>{{ message }}</p>
+      <nav>
+        <a href="{{ url_for('core.index') }}">Home</a>
+        {% if login_link %}
+          <a href="{{ url_for('auth.login') }}">Sign in</a>
+        {% endif %}
+      </nav>
+    </main>
+  </body>
+</html>

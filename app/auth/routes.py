@@ -7,6 +7,8 @@ import qrcode.image.svg
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
+from app.audit import record as audit_record
+from app.audit.models import ActorType, AuditStatus
 from app.extensions import db
 from app.auth.services import authenticate_user
 
@@ -61,6 +63,17 @@ def login():
         user = authenticate_user(email, password)
         if user:
             login_user(user)
+            audit_record(
+                "auth.login.success",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.USER,
+                actor_id=user.id,
+                actor_email=user.email,
+                organization_id=user.organization_id,
+                target_type="user",
+                target_id=user.id,
+                commit=True,
+            )
             if user.is_superadmin:
                 session["2fa_verified"] = False
                 return redirect(url_for("auth.two_factor_verify"))
@@ -69,6 +82,15 @@ def login():
             next_url = _safe_next_url(request.args.get("next"))
             return redirect(next_url or url_for("core.index"))
 
+        # Record failed login with the attempted email so admins can spot
+        # enumeration / brute-force attempts. We do *not* log the password.
+        audit_record(
+            "auth.login.failure",
+            status=AuditStatus.FAILURE,
+            actor_type=ActorType.ANONYMOUS,
+            actor_email=email or None,
+            commit=True,
+        )
         error = "Invalid email or password."
 
     return render_template(
@@ -98,9 +120,22 @@ def two_factor_setup():
         totp = pyotp.TOTP(user.totp_secret)
         if totp.verify(code, valid_window=1):
             user.is_2fa_enabled = True
+            audit_record(
+                "auth.2fa.enabled",
+                status=AuditStatus.SUCCESS,
+                target_type="user",
+                target_id=user.id,
+            )
             db.session.commit()
             session["2fa_verified"] = False
             return redirect(url_for("auth.two_factor_verify"))
+        audit_record(
+            "auth.2fa.setup_failed",
+            status=AuditStatus.FAILURE,
+            target_type="user",
+            target_id=user.id,
+            commit=True,
+        )
         flash("Invalid verification code")
 
     provisioning_uri = pyotp.TOTP(user.totp_secret).provisioning_uri(
@@ -135,8 +170,22 @@ def two_factor_verify():
         totp = pyotp.TOTP(user.totp_secret)
         if totp.verify(code, valid_window=1):
             session["2fa_verified"] = True
+            audit_record(
+                "auth.2fa.verified",
+                status=AuditStatus.SUCCESS,
+                target_type="user",
+                target_id=user.id,
+                commit=True,
+            )
             return redirect(url_for("auth.superadmin_test"))
 
+        audit_record(
+            "auth.2fa.failed",
+            status=AuditStatus.FAILURE,
+            target_type="user",
+            target_id=user.id,
+            commit=True,
+        )
         flash("Invalid verification code")
 
     return render_template("two_factor_verify.html")
@@ -151,6 +200,13 @@ def superadmin_test():
 @auth_bp.route("/logout")
 @login_required
 def logout():
+    # Resolve actor identity *before* ``logout_user`` clears the session so
+    # the audit row still reflects who logged out.
+    audit_record(
+        "auth.logout",
+        status=AuditStatus.SUCCESS,
+        commit=True,
+    )
     session.pop("2fa_verified", None)
     logout_user()
     return redirect(url_for("auth.login"))

@@ -1,10 +1,27 @@
+import logging
+
 from flask import Flask
-from flask import redirect, request, session, url_for
+from flask import redirect, render_template, request, session, url_for
 from flask_login import current_user
 
 from app.cli import register_cli_commands
 from app.config import config_by_name
 from app.extensions import db, login_manager, migrate
+
+
+# Human-facing copy for each error code. Keep messages short and avoid
+# exposing internal details; if Werkzeug gives us a more specific description
+# (e.g. from a custom ``abort(403, "You are not the owner")``) we prefer it.
+ERROR_COPY: dict[int, tuple[str, str]] = {
+    400: ("Bad Request", "Your request could not be understood."),
+    401: ("Unauthorized", "You must sign in to access this page."),
+    403: ("Forbidden", "You do not have permission to access this page."),
+    404: ("Not Found", "The page you requested does not exist."),
+    405: ("Method Not Allowed", "This resource does not support that kind of request."),
+    413: ("Payload Too Large", "The data you submitted is too large."),
+    429: ("Too Many Requests", "You are making requests too quickly. Please wait and try again."),
+    500: ("Internal Server Error", "Something went wrong on our side. The error has been recorded."),
+}
 
 
 def create_app(config_name: str | None = None) -> Flask:
@@ -33,10 +50,11 @@ def create_app(config_name: str | None = None) -> Flask:
 def register_models() -> None:
     # Ensure model metadata is loaded before Flask-Migrate autogenerate.
     from app.api.models import ApiKey
+    from app.audit.models import AuditLog
     from app.organizations.models import Organization
     from app.users.models import User
 
-    _ = (ApiKey, Organization, User)
+    _ = (ApiKey, AuditLog, Organization, User)
 
 
 @login_manager.user_loader
@@ -94,22 +112,75 @@ def register_security_guards(app: Flask) -> None:
 
 
 def register_error_handlers(app: Flask) -> None:
-    """Return JSON-shaped errors for any request under ``/api/``.
+    """Register uniform error handlers.
 
-    Non-API paths keep Flask's default HTML error pages.
+    * ``/api/``        → JSON body ``{success, data, error}`` at the matching status.
+    * everything else  → a branded ``error.html`` template at the matching status.
+    * unhandled exceptions get logged and roll back the DB session so the
+      caller does not leak an aborted transaction into the next request.
     """
 
     from werkzeug.exceptions import HTTPException
 
     from app.api.schemas import json_error
 
+    logger = logging.getLogger("app.errors")
+
+    def _render_error(code: int, description: str | None = None):
+        """Return an HTML response for the given status code."""
+
+        title, default_message = ERROR_COPY.get(
+            code, ("HTTP Error", "An unexpected error occurred.")
+        )
+        # Respect custom messages passed into abort(code, "...").
+        message = description if description else default_message
+        # Show a login link for auth-related codes.
+        login_link = code in (401, 403) and not current_user.is_authenticated
+        return render_template(
+            "error.html",
+            code=code,
+            title=title,
+            message=message,
+            login_link=login_link,
+        ), code
+
     @app.errorhandler(HTTPException)
     def handle_http_exception(err: HTTPException):
+        code = err.code or 500
         if request.path.startswith("/api/"):
             name = (err.name or "http_error").lower().replace(" ", "_")
             return json_error(
                 code=name,
                 message=err.description or err.name or "HTTP error",
-                status=err.code or 500,
+                status=code,
             )
-        return err
+        # Werkzeug's default description is sometimes helpful (e.g. "The method
+        # is not allowed for the requested URL."). Fall back to our copy if the
+        # description is generic or missing.
+        description = err.description if err.description else None
+        return _render_error(code, description)
+
+    @app.errorhandler(Exception)
+    def handle_unhandled_exception(err: Exception):
+        # Flask chooses the most specific handler first, so HTTPExceptions
+        # are already routed to ``handle_http_exception``. This handler only
+        # fires for genuine bugs — but we defensively delegate just in case.
+        if isinstance(err, HTTPException):
+            return handle_http_exception(err)
+
+        logger.exception("Unhandled exception during request")
+
+        # Roll back any pending DB changes so the next request starts clean.
+        try:
+            db.session.rollback()
+        except Exception:  # noqa: BLE001 — rollback must never raise further.
+            logger.exception("Rollback failed after unhandled exception")
+
+        if request.path.startswith("/api/"):
+            return json_error(
+                code="internal_server_error",
+                message="Internal server error.",
+                status=500,
+            )
+
+        return _render_error(500)
