@@ -5,6 +5,7 @@ flask-login
 Werkzeug
 psycopg2-binary
 python-dotenv
+gunicorn
 pytest
 pyotp
 qrcode

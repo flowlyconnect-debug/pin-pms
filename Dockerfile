@@ -17,4 +17,11 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+# Production default: Gunicorn serving the Flask app from run.py.
+# Local dev overrides this via docker-compose.yml (uses `flask run` for auto-reload).
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:5000", \
+     "--workers", "3", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "run:app"]

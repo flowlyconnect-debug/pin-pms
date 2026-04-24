@@ -4,6 +4,9 @@ services:
     container_name: pindora-web
     env_file:
       - .env
+    # Override the image's production CMD (gunicorn) with Flask's dev server
+    # so local changes auto-reload. Remove this block to mimic production.
+    command: ["flask", "run", "--host=0.0.0.0", "--port=5000", "--debug"]
     ports:
       - "5000:5000"
     depends_on:
