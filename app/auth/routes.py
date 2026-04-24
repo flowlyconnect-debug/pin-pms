@@ -1,14 +1,33 @@
+from functools import wraps
+from urllib.parse import urlparse
+
 import pyotp
 import qrcode
 import qrcode.image.svg
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
-from functools import wraps
 
 from app.extensions import db
 from app.auth.services import authenticate_user
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _safe_next_url(target: str | None) -> str | None:
+    """Return ``target`` only if it is a safe, same-origin relative path.
+
+    Prevents open-redirect issues by rejecting absolute URLs or protocol-relative
+    paths that could send the user to an external host after login.
+    """
+
+    if not target:
+        return None
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    if not target.startswith("/"):
+        return None
+    return target
 
 
 def require_superadmin_2fa(view_func):
@@ -47,7 +66,8 @@ def login():
                 return redirect(url_for("auth.two_factor_verify"))
 
             session["2fa_verified"] = True
-            return redirect(url_for("auth.login"))
+            next_url = _safe_next_url(request.args.get("next"))
+            return redirect(next_url or url_for("core.index"))
 
         error = "Invalid email or password."
 
