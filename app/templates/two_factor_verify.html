@@ -6,12 +6,14 @@
     <title>2FA Verify</title>
   </head>
   <body>
-    <h1>Two-factor verification</h1>
-    <p>Enter the current code from your authenticator app.</p>
+    <h1>Verify 2FA</h1>
+    <p>Enter the 6-digit code from your authenticator app.</p>
 
-    {% if error %}
-      <p style="color: red;">{{ error }}</p>
-    {% endif %}
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <p style="color: red;">{{ messages[0] }}</p>
+      {% endif %}
+    {% endwith %}
 
     <form method="post" action="/2fa/verify">
       <label for="code">Verification code</label>

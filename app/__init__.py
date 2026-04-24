@@ -69,6 +69,7 @@ def register_security_guards(app: Flask) -> None:
             "auth.login",
             "auth.logout",
             "auth.two_factor_setup",
+            "auth.two_factor_verify",
             "static",
             "core.health",
         }
@@ -79,10 +80,12 @@ def register_security_guards(app: Flask) -> None:
         if not getattr(current_user, "is_superadmin", False):
             return None
 
-        if session.get("is_2fa_verified"):
+        if session.get("2fa_verified"):
             return None
 
         if request.endpoint in allowed_endpoints:
             return None
 
+        if current_user.is_2fa_enabled:
+            return redirect(url_for("auth.two_factor_verify"))
         return redirect(url_for("auth.two_factor_setup"))
