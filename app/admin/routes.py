@@ -14,7 +14,7 @@ from app.audit import record as audit_record
 from app.audit.models import AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
 from app.backups.models import Backup, BackupTrigger
-from app.backups.services import BackupError, create_backup
+from app.backups.services import BackupError, create_backup, restore_backup
 from app.email.models import EmailTemplate
 from app.email.services import render_strings as render_email_strings
 from app.extensions import db
@@ -233,3 +233,85 @@ def backups_create():
 
     flash(f"Backup created: {backup.filename} ({backup.size_human}).")
     return redirect(url_for("admin.backups_list"))
+
+
+@admin_bp.route("/backups/<int:backup_id>/restore", methods=["GET", "POST"])
+@require_superadmin_2fa
+def backups_restore(backup_id: int):
+    """Restore the database from a previously taken backup.
+
+    Per project brief section 8 the operator must confirm by re-entering
+    their password and a fresh TOTP code before the destructive load runs.
+    The view enforces that order: a GET shows the warning + form; the POST
+    re-validates the credentials, takes a safe-copy of the current state,
+    and then loads the chosen file inside a single transaction.
+    """
+
+    import pyotp
+
+    from app.audit import record as audit_record_local  # alias for clarity
+    from app.audit.models import AuditStatus as _AuditStatus
+    from app.users.models import User
+
+    backup = Backup.query.get(backup_id)
+    if backup is None:
+        abort(404)
+    if backup.status != "success":
+        abort(404)  # Only completed backups can be restored.
+
+    error: str | None = None
+
+    if request.method == "POST":
+        password = request.form.get("password") or ""
+        totp_code = (request.form.get("totp_code") or "").replace(" ", "").strip()
+
+        # Re-fetch the user so we read the password hash and totp_secret as
+        # they currently sit in the DB, not from the cached session object.
+        user: User = User.query.get(current_user.id)
+
+        # Step 1: password.
+        if not user or not user.check_password(password):
+            audit_record_local(
+                "backup.restore.auth_failed",
+                status=_AuditStatus.FAILURE,
+                target_type="backup",
+                target_id=backup.id,
+                context={"stage": "password"},
+                commit=True,
+            )
+            error = "Password did not match."
+        # Step 2: 2FA.
+        elif not user.totp_secret or not pyotp.TOTP(user.totp_secret).verify(
+            totp_code, valid_window=1
+        ):
+            audit_record_local(
+                "backup.restore.auth_failed",
+                status=_AuditStatus.FAILURE,
+                target_type="backup",
+                target_id=backup.id,
+                context={"stage": "2fa"},
+                commit=True,
+            )
+            error = "Verification code did not match."
+        else:
+            # Step 3: safe-copy + restore.
+            try:
+                safe_copy = restore_backup(
+                    filename=backup.filename,
+                    actor_user_id=current_user.id,
+                )
+            except BackupError as err:
+                flash(f"Restore failed: {err}")
+                return redirect(url_for("admin.backups_list"))
+
+            flash(
+                f"Restore complete from {backup.filename}. A safe-copy of the "
+                f"previous state was saved as {safe_copy.filename}."
+            )
+            return redirect(url_for("admin.backups_list"))
+
+    return render_template(
+        "admin_backup_restore.html",
+        backup=backup,
+        error=error,
+    )

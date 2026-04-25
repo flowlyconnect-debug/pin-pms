@@ -6,7 +6,7 @@ from app.api.models import ApiKey
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
 from app.backups.models import BackupTrigger
-from app.backups.services import BackupError, create_backup
+from app.backups.services import BackupError, create_backup, restore_backup
 from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import ensure_seed_templates, send_template
 from app.extensions import db
@@ -272,6 +272,49 @@ def register_cli_commands(app: Flask) -> None:
         click.echo(f"  Filename: {backup.filename}")
         click.echo(f"  Location: {backup.location}")
         click.echo(f"  Size:     {backup.size_human}")
+
+    @app.cli.command("backup-restore")
+    @click.option(
+        "--filename",
+        prompt=True,
+        help="Backup filename inside BACKUP_DIR, e.g. pindora-20260425T030000Z.sql.gz",
+    )
+    @click.option(
+        "--no-confirm",
+        is_flag=True,
+        default=False,
+        help="Skip the interactive confirmation prompt (use with care).",
+    )
+    def backup_restore(filename: str, no_confirm: bool) -> None:
+        """Load a backup file over the current database.
+
+        The web UI gates this behind a password + 2FA challenge; the CLI
+        assumes the operator already has shell access to the host (which is
+        equivalent in trust) and only requires an interactive confirmation
+        unless ``--no-confirm`` is passed (e.g. for automated drills).
+        """
+
+        click.echo(
+            click.style(
+                "WARNING: this will overwrite the current database with the contents "
+                f"of {filename!r}. A safe-copy of the current state is taken first.",
+                fg="red",
+                bold=True,
+            )
+        )
+        if not no_confirm:
+            click.confirm("Proceed with restore?", abort=True)
+
+        click.echo("Restoring…")
+        try:
+            safe_copy = restore_backup(filename=filename, actor_user_id=None)
+        except BackupError as err:
+            raise click.ClickException(f"Restore failed: {err}")
+
+        click.echo(
+            f"Restore complete. Pre-restore safe-copy saved as {safe_copy.filename} "
+            f"({safe_copy.size_human})."
+        )
 
     @app.cli.command("seed-email-templates")
     def seed_email_templates() -> None:

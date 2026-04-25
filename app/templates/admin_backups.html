@@ -59,6 +59,7 @@
           <th>Status</th>
           <th>Trigger</th>
           <th>Error</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -76,9 +77,16 @@
                 —
               {% endif %}
             </td>
+            <td>
+              {% if r.status == 'success' %}
+                <a href="{{ url_for('admin.backups_restore', backup_id=r.id) }}">Restore…</a>
+              {% else %}
+                —
+              {% endif %}
+            </td>
           </tr>
         {% else %}
-          <tr><td colspan="6">No backups yet.</td></tr>
+          <tr><td colspan="7">No backups yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>

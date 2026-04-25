@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Restore backup · Pindora PMS</title>
+    <style>
+      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2rem; color: #1a1a1a; max-width: 50rem; }
+      h1 { font-size: 1.5rem; margin: 0 0 1rem 0; color: #b91c1c; }
+      nav a { color: #1d4ed8; text-decoration: none; margin-right: 1rem; }
+      nav a:hover { text-decoration: underline; }
+      .warning {
+        background: #fef2f2;
+        border: 2px solid #b91c1c;
+        border-radius: 6px;
+        padding: 1rem 1.25rem;
+        margin: 1rem 0;
+      }
+      .warning h2 { margin-top: 0; font-size: 1.05rem; color: #b91c1c; }
+      .warning ul { margin: .5rem 0 0 1.25rem; }
+      .meta { background: #f9fafb; border: 1px solid #e5e5e5; border-radius: 4px; padding: .75rem 1rem; margin: 1rem 0; }
+      .meta dt { font-weight: 600; font-size: .85rem; color: #555; }
+      .meta dd { margin: .15rem 0 .5rem 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
+      label { display: block; font-weight: 600; margin: 1rem 0 .25rem 0; font-size: .9rem; }
+      input { width: 100%; box-sizing: border-box; padding: .55rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 4px; }
+      .actions { margin-top: 1.5rem; }
+      button { padding: .6rem 1.1rem; margin-right: .5rem; font-size: .95rem; border-radius: 4px; cursor: pointer; }
+      button.danger { background: #b91c1c; color: white; border: 1px solid #b91c1c; }
+      button.cancel { background: white; color: #555; border: 1px solid #ccc; text-decoration: none; }
+      .error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; padding: .5rem .75rem; border-radius: 4px; margin: 1rem 0; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="{{ url_for('core.index') }}">Home</a>
+      <a href="{{ url_for('admin.backups_list') }}">Backups</a>
+      <a href="{{ url_for('admin.audit') }}">Audit log</a>
+    </nav>
+
+    <h1>Restore from backup</h1>
+
+    <div class="warning">
+      <h2>This action will overwrite the current database.</h2>
+      <ul>
+        <li>Every row currently in the database will be replaced by the contents of the backup.</li>
+        <li>Sessions and recent edits made after this backup was taken will be lost.</li>
+        <li>If your account does not exist in the backup, you will be logged out on the next request.</li>
+        <li>A "pre-restore" safe-copy of the current state is taken automatically and saved alongside other backups, so the change can be reverted by restoring that file.</li>
+      </ul>
+    </div>
+
+    <dl class="meta">
+      <dt>File</dt>
+      <dd>{{ backup.filename }}</dd>
+      <dt>Created</dt>
+      <dd>{{ backup.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</dd>
+      <dt>Size</dt>
+      <dd>{{ backup.size_human }}</dd>
+      <dt>Trigger</dt>
+      <dd>{{ backup.trigger }}</dd>
+    </dl>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <p>To proceed, re-enter your password <em>and</em> a fresh 2FA code. Both must match.</p>
+
+    <form method="post" action="{{ url_for('admin.backups_restore', backup_id=backup.id) }}" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label for="password">Your password</label>
+      <input id="password" name="password" type="password" required autocomplete="current-password">
+
+      <label for="totp_code">Authenticator code</label>
+      <input id="totp_code" name="totp_code" type="text" inputmode="numeric"
+             autocomplete="one-time-code" required>
+
+      <div class="actions">
+        <button type="submit" class="danger">Yes, restore from this backup</button>
+        <a href="{{ url_for('admin.backups_list') }}" class="cancel" style="display:inline-block;padding:.6rem 1.1rem;">Cancel</a>
+      </div>
+    </form>
+  </body>
+</html>
