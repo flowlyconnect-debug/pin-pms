@@ -4,15 +4,31 @@ from urllib.parse import urlparse
 import pyotp
 import qrcode
 import qrcode.image.svg
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask_login import current_user, login_required, login_user, logout_user
 
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
-from app.extensions import db
+from app.extensions import db, limiter
 from app.auth.services import authenticate_user
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _login_rate_limit() -> str:
+    """Return the configured login rate limit (env-driven, spec section 18)."""
+
+    return current_app.config["LOGIN_RATE_LIMIT"]
 
 
 def _safe_next_url(target: str | None) -> str | None:
@@ -53,6 +69,11 @@ def require_superadmin_2fa(view_func):
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
+@limiter.limit(
+    _login_rate_limit,
+    methods=["POST"],
+    error_message="Too many login attempts. Please wait and try again.",
+)
 def login():
     error = None
 

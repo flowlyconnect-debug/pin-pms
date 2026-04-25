@@ -13,6 +13,13 @@ class BaseConfig:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
 
+    # Rate limit values per project brief section 18. They are env-driven so
+    # ops can tighten or relax them without a redeploy. Use Flask-Limiter's
+    # human-readable syntax: ``"<count>/<period>"`` (e.g. ``5/minute``,
+    # ``100/hour``).
+    LOGIN_RATE_LIMIT = os.getenv("LOGIN_RATE_LIMIT", "5/minute")
+    API_RATE_LIMIT = os.getenv("API_RATE_LIMIT", "100/hour")
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True

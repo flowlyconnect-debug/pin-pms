@@ -6,7 +6,7 @@ from flask_login import current_user
 
 from app.cli import register_cli_commands
 from app.config import config_by_name
-from app.extensions import csrf, db, login_manager, migrate
+from app.extensions import csrf, db, limiter, login_manager, migrate
 
 
 # Human-facing copy for each error code. Keep messages short and avoid
@@ -39,6 +39,7 @@ def create_app(config_name: str | None = None) -> Flask:
     login_manager.init_app(app)
     login_manager.login_message = "Please log in to continue."
     csrf.init_app(app)
+    limiter.init_app(app)
 
     register_blueprints(app)
     register_cli_commands(app)
@@ -87,6 +88,12 @@ def register_blueprints(app: Flask) -> None:
     # break programmatic clients (curl, SDKs, cron jobs) without adding
     # security, so the entire ``/api/v1`` surface is exempted.
     csrf.exempt(api_bp)
+
+    # Apply the per-bucket API rate limit to every ``/api/v1/*`` route. The
+    # bucket key (per-API-key when authenticated, per-IP otherwise) is
+    # resolved by ``app.extensions._rate_limit_key``. Login uses a stricter,
+    # endpoint-local limit applied directly on the view.
+    limiter.limit(app.config["API_RATE_LIMIT"])(api_bp)
 
 
 def register_security_guards(app: Flask) -> None:

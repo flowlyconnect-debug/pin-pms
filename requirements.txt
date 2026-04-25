@@ -3,6 +3,7 @@ flask-sqlalchemy
 flask-migrate
 flask-login
 Flask-WTF
+Flask-Limiter
 Werkzeug
 psycopg2-binary
 python-dotenv
