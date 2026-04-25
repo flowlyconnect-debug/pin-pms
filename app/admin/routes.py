@@ -18,6 +18,8 @@ from app.backups.services import BackupError, create_backup, restore_backup
 from app.email.models import EmailTemplate
 from app.email.services import render_strings as render_email_strings
 from app.extensions import db
+from app.settings import services as settings_service
+from app.settings.models import Setting, SettingType
 
 
 PAGE_SIZE_DEFAULT = 50
@@ -315,3 +317,163 @@ def backups_restore(backup_id: int):
         backup=backup,
         error=error,
     )
+
+
+# ---------------------------------------------------------------------------
+# Settings — list + edit + create. Project brief, section 9.
+# ---------------------------------------------------------------------------
+
+
+@admin_bp.get("/settings")
+@require_superadmin_2fa
+def settings_list():
+    """Show every application setting, alphabetical, secrets masked."""
+
+    rows = settings_service.get_all()
+    return render_template(
+        "admin_settings.html",
+        rows=rows,
+        mask=settings_service.mask_for_display,
+    )
+
+
+@admin_bp.route("/settings/new", methods=["GET", "POST"])
+@require_superadmin_2fa
+def settings_new():
+    """Create a new setting row.
+
+    Key is required and must be unique. Type is required and immutable
+    afterwards — changing a setting's type is a separate (manual) operation
+    because it implies a value migration.
+    """
+
+    error: str | None = None
+
+    form = {
+        "key": "",
+        "value": "",
+        "type": SettingType.STRING,
+        "description": "",
+        "is_secret": False,
+    }
+
+    if request.method == "POST":
+        form["key"] = (request.form.get("key") or "").strip()
+        form["value"] = request.form.get("value") or ""
+        form["type"] = (request.form.get("type") or SettingType.STRING).strip()
+        form["description"] = (request.form.get("description") or "").strip()
+        form["is_secret"] = bool(request.form.get("is_secret"))
+
+        if not form["key"]:
+            error = "Key is required."
+        elif form["type"] not in SettingType.ALL:
+            error = f"Type must be one of: {', '.join(SettingType.ALL)}."
+        elif settings_service.find(form["key"]) is not None:
+            error = f"A setting with key {form['key']!r} already exists."
+        else:
+            try:
+                settings_service.set_value(
+                    form["key"],
+                    _coerce_form_value(form["value"], form["type"]),
+                    type_=form["type"],
+                    description=form["description"],
+                    is_secret=form["is_secret"],
+                    actor_user_id=current_user.id,
+                )
+            except settings_service.SettingValueError as err:
+                error = f"Invalid value for type {form['type']!r}: {err}"
+            else:
+                flash(f"Setting {form['key']!r} created.")
+                return redirect(url_for("admin.settings_edit", key=form["key"]))
+
+    return render_template(
+        "admin_settings_new.html",
+        form=form,
+        types=SettingType.ALL,
+        error=error,
+    )
+
+
+@admin_bp.route("/settings/<key>", methods=["GET", "POST"])
+@require_superadmin_2fa
+def settings_edit(key: str):
+    """Edit one setting — value, description, is_secret. Key + type are stable."""
+
+    row = settings_service.find(key)
+    if row is None:
+        abort(404)
+
+    error: str | None = None
+    # Pre-fill the value field with the *masked* display when this is a
+    # secret, so the page never sends the live secret back over the wire on
+    # GET. The user must re-enter the secret to update it.
+    if row.is_secret:
+        form_value = ""
+    else:
+        form_value = settings_service.mask_for_display(row)
+
+    form_description = row.description
+    form_is_secret = row.is_secret
+
+    if request.method == "POST":
+        form_value = request.form.get("value") or ""
+        form_description = (request.form.get("description") or "").strip()
+        form_is_secret = bool(request.form.get("is_secret"))
+
+        # If the row is currently a secret and the user submits an empty
+        # value, treat that as "leave value unchanged" rather than wiping it
+        # — the masked display means the textarea was empty on GET. We re-
+        # read through the public service API instead of touching the row
+        # directly so the rule "always go through the service" holds.
+        if row.is_secret and form_value == "":
+            new_value = settings_service.get(row.key)
+        else:
+            try:
+                new_value = _coerce_form_value(form_value, row.type)
+            except (ValueError, settings_service.SettingValueError) as err:
+                error = f"Invalid value for type {row.type!r}: {err}"
+                new_value = None  # silence type-checker
+
+        if error is None:
+            try:
+                settings_service.set_value(
+                    row.key,
+                    new_value,
+                    description=form_description,
+                    is_secret=form_is_secret,
+                    actor_user_id=current_user.id,
+                )
+            except settings_service.SettingValueError as err:
+                error = str(err)
+            else:
+                flash("Setting saved.")
+                return redirect(url_for("admin.settings_edit", key=row.key))
+
+    return render_template(
+        "admin_settings_edit.html",
+        setting=row,
+        form_value=form_value,
+        form_description=form_description,
+        form_is_secret=form_is_secret,
+        error=error,
+    )
+
+
+def _coerce_form_value(raw: str, type_: str):
+    """Translate a form string into the native value the service expects."""
+
+    if type_ == SettingType.STRING:
+        return raw
+    if type_ == SettingType.INT:
+        if raw.strip() == "":
+            return 0
+        return int(raw)  # ValueError surfaces in the caller
+    if type_ == SettingType.BOOL:
+        return raw.strip().lower() in {"true", "1", "yes", "on"}
+    if type_ == SettingType.JSON:
+        # Pass the raw string through; ``set_value`` will round-trip via JSON.
+        # We delegate parsing to the service so error messages stay consistent.
+        import json as _json
+
+        return _json.loads(raw) if raw.strip() else None
+    return raw

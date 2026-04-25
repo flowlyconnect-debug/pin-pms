@@ -82,9 +82,10 @@ def register_models() -> None:
     from app.backups.models import Backup
     from app.email.models import EmailTemplate
     from app.organizations.models import Organization
+    from app.settings.models import Setting
     from app.users.models import User
 
-    _ = (ApiKey, AuditLog, Backup, EmailTemplate, Organization, User)
+    _ = (ApiKey, AuditLog, Backup, EmailTemplate, Organization, Setting, User)
 
 
 @login_manager.user_loader

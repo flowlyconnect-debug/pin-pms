@@ -11,6 +11,7 @@ from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import ensure_seed_templates, send_template
 from app.extensions import db
 from app.organizations.models import Organization
+from app.settings.services import ensure_seed_settings
 from app.users.models import User, UserRole
 
 
@@ -332,3 +333,17 @@ def register_cli_commands(app: Flask) -> None:
             click.echo(f"Inserted missing templates: {', '.join(added)}")
         else:
             click.echo("All seed templates are already present.")
+
+    @app.cli.command("seed-settings")
+    def seed_settings() -> None:
+        """Insert any default settings that are not yet in the database.
+
+        Idempotent — existing rows are not touched, so admin edits survive a
+        re-run. Useful after adding a new setting key in seed_data.
+        """
+
+        added = ensure_seed_settings()
+        if added:
+            click.echo(f"Inserted missing settings: {', '.join(added)}")
+        else:
+            click.echo("All seed settings are already present.")
