@@ -253,6 +253,93 @@ def register_cli_commands(app: Flask) -> None:
                 f"Failed to send template '{template}' — check the application log."
             )
 
+    @app.cli.command("rotate-api-key")
+    @click.option(
+        "--prefix",
+        prompt=True,
+        help="Prefix of the API key to rotate (e.g. 'pms_abcd1234'). "
+        "Visible in /admin or in 'flask shell' via ApiKey.query.",
+    )
+    def rotate_api_key(prefix: str) -> None:
+        """Issue a fresh API key as a replacement for an existing one.
+
+        Per project brief section 19: rotation must keep the *same logical
+        identity* (organization, owning user, scopes, name) so consumers can
+        switch from old to new without re-onboarding the integration. The
+        old row stays in the database for forensics — it is just deactivated
+        so further auth attempts fail.
+
+        The plaintext value is printed once. It cannot be recovered.
+        """
+
+        normalized_prefix = prefix.strip()
+        if not normalized_prefix:
+            raise click.ClickException("Prefix is required.")
+
+        # Find the active key matching the prefix. We refuse to rotate an
+        # already-deactivated key — that is more likely a typo than the
+        # operator's intent, and silently issuing a new key in that case
+        # would obscure history.
+        candidates = (
+            ApiKey.query.filter_by(key_prefix=normalized_prefix, is_active=True).all()
+        )
+        if not candidates:
+            raise click.ClickException(
+                f"No active API key found with prefix {normalized_prefix!r}."
+            )
+        if len(candidates) > 1:
+            ids = ", ".join(str(c.id) for c in candidates)
+            raise click.ClickException(
+                f"Prefix {normalized_prefix!r} matches multiple active keys "
+                f"(ids: {ids}). Refusing to guess — deactivate one first."
+            )
+
+        old = candidates[0]
+
+        new_api_key, raw_key = ApiKey.issue(
+            name=old.name,
+            organization_id=old.organization_id,
+            user_id=old.user_id,
+            scopes=old.scopes,
+            expires_at=old.expires_at,
+        )
+        db.session.add(new_api_key)
+        db.session.flush()  # Need ``new_api_key.id`` for the audit row.
+
+        # Deactivate the old key only after the new row is persisted so a
+        # crash in the middle does not leave the integration with no usable
+        # key.
+        old.is_active = False
+
+        audit_record(
+            "apikey.rotated",
+            status=AuditStatus.SUCCESS,
+            actor_type=ActorType.SYSTEM,
+            organization_id=new_api_key.organization_id,
+            target_type="api_key",
+            target_id=new_api_key.id,
+            context={
+                "old_id": old.id,
+                "old_prefix": old.key_prefix,
+                "new_id": new_api_key.id,
+                "new_prefix": new_api_key.key_prefix,
+                "name": new_api_key.name,
+                "scopes": new_api_key.scope_list,
+            },
+        )
+        db.session.commit()
+
+        click.echo("")
+        click.echo(
+            f"API key rotated for organization {new_api_key.organization.name!r}."
+        )
+        click.echo(f"  Old prefix: {old.key_prefix} (now inactive, kept for audit)")
+        click.echo(f"  New name:   {new_api_key.name}")
+        click.echo(f"  New prefix: {new_api_key.key_prefix}")
+        click.echo(f"  New key:    {raw_key}")
+        click.echo("")
+        click.echo("Store the new key securely. It will NOT be shown again.")
+
     @app.cli.command("backup-create")
     def backup_create() -> None:
         """Run pg_dump now and write a gzipped backup to BACKUP_DIR.
