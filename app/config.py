@@ -61,8 +61,45 @@ class ProductionConfig(BaseConfig):
     SESSION_COOKIE_SECURE = True
 
 
+class TestConfig(BaseConfig):
+    """Configuration for the pytest suite.
+
+    Connects to a separate ``pindora_test`` database on the same Postgres
+    instance used by the application — keeping the test schema isolated from
+    development data while still exercising the real DB engine (so things like
+    ``BigInteger`` columns and Postgres-specific JSON behaviour are honoured).
+
+    Disables the rate limiter and CSRF protection so tests can hammer endpoints
+    and POST forms without the harness having to reach into the limiter or
+    pluck CSRF tokens out of HTML.
+    """
+
+    TESTING = True
+    DEBUG = False
+    SESSION_COOKIE_SECURE = False
+
+    # Pytest connects synchronously and exercises endpoints directly; rate
+    # limiting only adds noise. CSRF tokens are validated separately by the
+    # CSRF tests added in CSRF tasks (#37–#39).
+    RATELIMIT_ENABLED = False
+    WTF_CSRF_ENABLED = False
+
+    # Never hit Mailgun from a test run, even by accident.
+    MAIL_DEV_LOG_ONLY = True
+
+    # Never run the backup scheduler under pytest — the scheduler thread would
+    # outlive the test session and could fire spurious dumps.
+    BACKUP_SCHEDULER_ENABLED = False
+
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "TEST_DATABASE_URL",
+        "postgresql+psycopg2://postgres:postgres@db:5432/pindora_test",
+    )
+
+
 config_by_name = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
+    "testing": TestConfig,
     "default": DevelopmentConfig,
 }
