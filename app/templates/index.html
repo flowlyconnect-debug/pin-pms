@@ -10,7 +10,11 @@
     {% if current_user.is_authenticated %}
       <p>Signed in as <strong>{{ current_user.email }}</strong> ({{ current_user.role }}).</p>
       {% if current_user.is_superadmin %}
-        <p><a href="{{ url_for('admin.audit') }}">Audit log</a></p>
+        <p>
+          <a href="{{ url_for('admin.audit') }}">Audit log</a>
+          ·
+          <a href="{{ url_for('admin.email_templates_list') }}">Email templates</a>
+        </p>
       {% endif %}
       <p><a href="{{ url_for('auth.logout') }}">Logout</a></p>
     {% else %}

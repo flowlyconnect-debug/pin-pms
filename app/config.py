@@ -20,6 +20,19 @@ class BaseConfig:
     LOGIN_RATE_LIMIT = os.getenv("LOGIN_RATE_LIMIT", "5/minute")
     API_RATE_LIMIT = os.getenv("API_RATE_LIMIT", "100/hour")
 
+    # Mailgun outbound email — project brief section 7. Templates themselves
+    # live in the ``email_templates`` table so superadmins can edit them at
+    # runtime; only the transport credentials are read from env.
+    MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY", "")
+    MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN", "")
+    MAILGUN_BASE_URL = os.getenv("MAILGUN_BASE_URL", "https://api.mailgun.net/v3")
+    MAIL_FROM = os.getenv("MAIL_FROM", "noreply@example.com")
+    MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Pindora PMS")
+    # When set to "1" / "true", emails are *logged* instead of sent. Useful for
+    # local development without a real Mailgun account. Production deployments
+    # must keep this off.
+    MAIL_DEV_LOG_ONLY = os.getenv("MAIL_DEV_LOG_ONLY", "0").lower() in {"1", "true", "yes"}
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True

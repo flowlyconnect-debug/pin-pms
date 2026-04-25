@@ -53,10 +53,11 @@ def register_models() -> None:
     # Ensure model metadata is loaded before Flask-Migrate autogenerate.
     from app.api.models import ApiKey
     from app.audit.models import AuditLog
+    from app.email.models import EmailTemplate
     from app.organizations.models import Organization
     from app.users.models import User
 
-    _ = (ApiKey, AuditLog, Organization, User)
+    _ = (ApiKey, AuditLog, EmailTemplate, Organization, User)
 
 
 @login_manager.user_loader

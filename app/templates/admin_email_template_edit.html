@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Edit {{ template.key }} · Pindora PMS</title>
+    <style>
+      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2rem; color: #1a1a1a; max-width: 60rem; }
+      h1 { font-size: 1.4rem; margin: 0 0 .5rem 0; }
+      h2 { font-size: 1rem; margin: 1.5rem 0 .5rem 0; }
+      nav a { color: #1d4ed8; text-decoration: none; margin-right: 1rem; }
+      nav a:hover { text-decoration: underline; }
+      label { display: block; font-weight: 600; margin: 1rem 0 .25rem 0; font-size: .9rem; }
+      input[type="text"], textarea { width: 100%; box-sizing: border-box; padding: .5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; border: 1px solid #ccc; border-radius: 4px; }
+      textarea { resize: vertical; }
+      .meta { color: #777; font-size: .85rem; margin-bottom: 1rem; }
+      .vars code { background: #f5f5f5; padding: .15rem .4rem; border-radius: 3px; margin-right: .25rem; font-size: .85rem; }
+      .actions { margin-top: 1rem; }
+      button { padding: .5rem 1rem; margin-right: .5rem; font-size: .95rem; border: 1px solid #1d4ed8; background: #1d4ed8; color: white; border-radius: 4px; cursor: pointer; }
+      button.secondary { background: white; color: #1d4ed8; }
+      .error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; padding: .5rem .75rem; border-radius: 4px; margin: 1rem 0; }
+      .flash { color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; padding: .5rem .75rem; border-radius: 4px; margin: 1rem 0; }
+      .preview { background: #f9fafb; border: 1px solid #e5e5e5; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
+      .preview pre { background: #fff; padding: .5rem; border-radius: 3px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="{{ url_for('core.index') }}">Home</a>
+      <a href="{{ url_for('admin.email_templates_list') }}">All templates</a>
+      <a href="{{ url_for('admin.audit') }}">Audit log</a>
+    </nav>
+
+    <h1>Edit <code>{{ template.key }}</code></h1>
+    <p class="meta">{{ template.description }}</p>
+
+    {% if template.available_variables %}
+      <p class="vars">
+        <strong>Available variables:</strong>
+        {% for v in template.available_variables %}
+          <code>{{ '{{' }} {{ v }} {{ '}}' }}</code>
+        {% endfor %}
+      </p>
+    {% endif %}
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash">{{ messages[0] }}</div>
+      {% endif %}
+    {% endwith %}
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('admin.email_template_edit', key=template.key) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label for="subject">Subject</label>
+      <input id="subject" name="subject" type="text" required value="{{ form_subject }}">
+
+      <label for="body_text">Plain-text body (required)</label>
+      <textarea id="body_text" name="body_text" rows="10" required>{{ form_body_text }}</textarea>
+
+      <label for="body_html">HTML body (optional)</label>
+      <textarea id="body_html" name="body_html" rows="10">{{ form_body_html }}</textarea>
+
+      <div class="actions">
+        <button type="submit" name="action" value="save">Save</button>
+        <button type="submit" name="action" value="preview" class="secondary">Preview</button>
+      </div>
+    </form>
+
+    {% if preview_subject is not none %}
+      <h2>Preview</h2>
+      <div class="preview">
+        <p><strong>Subject:</strong> {{ preview_subject }}</p>
+        <p><strong>Plain text:</strong></p>
+        <pre>{{ preview_text }}</pre>
+        {% if preview_html %}
+          <p><strong>HTML:</strong></p>
+          <pre>{{ preview_html }}</pre>
+        {% endif %}
+      </div>
+    {% endif %}
+  </body>
+</html>

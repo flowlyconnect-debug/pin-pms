@@ -5,6 +5,8 @@ from werkzeug.security import generate_password_hash
 from app.api.models import ApiKey
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
+from app.email.models import EmailTemplate, TemplateKey
+from app.email.services import ensure_seed_templates, send_template
 from app.extensions import db
 from app.organizations.models import Organization
 from app.users.models import User, UserRole
@@ -204,3 +206,63 @@ def register_cli_commands(app: Flask) -> None:
         click.echo(f"  Key:    {raw_key}")
         click.echo("")
         click.echo("Store this key securely. It will NOT be shown again.")
+
+    @app.cli.command("send-test-email")
+    @click.option("--to", prompt=True, help="Recipient email address")
+    @click.option(
+        "--template",
+        default=TemplateKey.ADMIN_NOTIFICATION,
+        show_default=True,
+        type=click.Choice(list(TemplateKey.ALL), case_sensitive=False),
+        help="Template key to render",
+    )
+    def send_test_email(to: str, template: str) -> None:
+        """Render and send a template to verify Mailgun configuration.
+
+        Honors ``MAIL_DEV_LOG_ONLY``: if set, the email is logged instead of
+        sent and the command still reports success.
+        """
+
+        # Provide harmless placeholder values for every variable the seed
+        # templates reference so the render does not blow up on missing keys.
+        sample_context = {
+            "user_email": to,
+            "organization_name": "Test Organization",
+            "login_url": "https://example.com/login",
+            "reset_url": "https://example.com/reset/abc123",
+            "expires_minutes": 30,
+            "code": "123 456",
+            "backup_name": "test-backup-2026-04-25",
+            "completed_at": "2026-04-25 10:00:00 UTC",
+            "size_human": "12.3 MB",
+            "location": "/var/backups/pindora/test-backup.sql.gz",
+            "failed_at": "2026-04-25 10:00:00 UTC",
+            "error_message": "pg_dump: connection refused (test message)",
+            "subject_line": "Test admin notification",
+            "message": "This is a test message sent via 'flask send-test-email'.",
+        }
+
+        ok = send_template(template, to=to, context=sample_context)
+        if ok:
+            click.echo(f"Sent template '{template}' to {to}.")
+        else:
+            raise click.ClickException(
+                f"Failed to send template '{template}' — check the application log."
+            )
+
+    @app.cli.command("seed-email-templates")
+    def seed_email_templates() -> None:
+        """Insert any default email templates that are not yet in the database.
+
+        Idempotent — existing rows are not touched, so admin edits survive a
+        re-run. Useful after adding a new template key in code.
+        """
+
+        before = {row.key for row in EmailTemplate.query.all()}
+        ensure_seed_templates()
+        after = {row.key for row in EmailTemplate.query.all()}
+        added = sorted(after - before)
+        if added:
+            click.echo(f"Inserted missing templates: {', '.join(added)}")
+        else:
+            click.echo("All seed templates are already present.")
