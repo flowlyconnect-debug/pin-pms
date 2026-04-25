@@ -45,19 +45,46 @@ def create_app(config_name: str | None = None) -> Flask:
     register_cli_commands(app)
     register_security_guards(app)
     register_error_handlers(app)
+    _maybe_start_backup_scheduler(app)
 
     return app
+
+
+def _maybe_start_backup_scheduler(app: Flask) -> None:
+    """Boot the backup scheduler only for long-running web processes.
+
+    The scheduler must not run during ``flask db upgrade``, CLI commands like
+    ``flask create-superadmin``, or pytest — the threads outlive those
+    invocations and would either fire spurious dumps or block exit. We detect
+    those contexts by inspecting ``sys.argv`` (CLI invocations always start
+    with ``flask <command>``) and the ``TESTING`` config flag.
+    """
+
+    import sys
+
+    if app.config.get("TESTING"):
+        return
+
+    argv = " ".join(sys.argv)
+    is_cli = "flask" in argv and "flask run" not in argv
+    if is_cli:
+        return
+
+    from app.backups.scheduler import init_scheduler
+
+    init_scheduler(app)
 
 
 def register_models() -> None:
     # Ensure model metadata is loaded before Flask-Migrate autogenerate.
     from app.api.models import ApiKey
     from app.audit.models import AuditLog
+    from app.backups.models import Backup
     from app.email.models import EmailTemplate
     from app.organizations.models import Organization
     from app.users.models import User
 
-    _ = (ApiKey, AuditLog, EmailTemplate, Organization, User)
+    _ = (ApiKey, AuditLog, Backup, EmailTemplate, Organization, User)
 
 
 @login_manager.user_loader

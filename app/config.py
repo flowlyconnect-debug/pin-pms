@@ -33,6 +33,19 @@ class BaseConfig:
     # must keep this off.
     MAIL_DEV_LOG_ONLY = os.getenv("MAIL_DEV_LOG_ONLY", "0").lower() in {"1", "true", "yes"}
 
+    # Database backups — project brief section 8. ``BACKUP_DIR`` is mounted
+    # as a Docker volume (see docker-compose.yml). The cron expression follows
+    # APScheduler's CronTrigger syntax: ``minute hour day month day_of_week``.
+    BACKUP_DIR = os.getenv("BACKUP_DIR", "/var/backups/pindora")
+    BACKUP_SCHEDULE_CRON = os.getenv("BACKUP_SCHEDULE_CRON", "0 3 * * *")
+    BACKUP_SCHEDULER_ENABLED = os.getenv("BACKUP_SCHEDULER_ENABLED", "1").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    # Where to send backup_completed / backup_failed notifications.
+    BACKUP_NOTIFY_EMAIL = os.getenv("BACKUP_NOTIFY_EMAIL", "")
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True

@@ -5,6 +5,8 @@ from werkzeug.security import generate_password_hash
 from app.api.models import ApiKey
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
+from app.backups.models import BackupTrigger
+from app.backups.services import BackupError, create_backup
 from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import ensure_seed_templates, send_template
 from app.extensions import db
@@ -249,6 +251,27 @@ def register_cli_commands(app: Flask) -> None:
             raise click.ClickException(
                 f"Failed to send template '{template}' — check the application log."
             )
+
+    @app.cli.command("backup-create")
+    def backup_create() -> None:
+        """Run pg_dump now and write a gzipped backup to BACKUP_DIR.
+
+        Equivalent to clicking "Create backup now" in /admin/backups, but
+        usable from a host cron / one-off Docker exec when the web UI is not
+        accessible. The result is recorded in the ``backups`` table and the
+        audit log just like a scheduled run.
+        """
+
+        click.echo("Running pg_dump…")
+        try:
+            backup = create_backup(trigger=BackupTrigger.MANUAL)
+        except BackupError as err:
+            raise click.ClickException(f"Backup failed: {err}")
+
+        click.echo(f"Backup complete:")
+        click.echo(f"  Filename: {backup.filename}")
+        click.echo(f"  Location: {backup.location}")
+        click.echo(f"  Size:     {backup.size_human}")
 
     @app.cli.command("seed-email-templates")
     def seed_email_templates() -> None:

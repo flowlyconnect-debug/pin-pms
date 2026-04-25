@@ -13,6 +13,8 @@ from app.admin import admin_bp
 from app.audit import record as audit_record
 from app.audit.models import AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
+from app.backups.models import Backup, BackupTrigger
+from app.backups.services import BackupError, create_backup
 from app.email.models import EmailTemplate
 from app.email.services import render_strings as render_email_strings
 from app.extensions import db
@@ -189,3 +191,45 @@ def _preview_context() -> dict[str, object]:
         "subject_line": "Preview admin notification",
         "message": "This is a preview message.",
     }
+
+
+# ---------------------------------------------------------------------------
+# Backups — list + manual trigger. Project brief, section 8.
+# ---------------------------------------------------------------------------
+
+
+@admin_bp.get("/backups")
+@require_superadmin_2fa
+def backups_list():
+    """Show recent backups, newest first."""
+
+    rows = (
+        Backup.query.order_by(Backup.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return render_template("admin_backups.html", rows=rows)
+
+
+@admin_bp.post("/backups/create")
+@require_superadmin_2fa
+def backups_create():
+    """Run a manual backup synchronously and redirect back to the list.
+
+    Backups are seconds-to-minutes; running the dump in-request keeps the
+    feedback loop tight (the page either flashes "completed" with a size or
+    "failed" with the error). For very large datasets a background job would
+    be a sensible upgrade, but the call site here would not change.
+    """
+
+    try:
+        backup = create_backup(
+            trigger=BackupTrigger.MANUAL,
+            actor_user_id=current_user.id,
+        )
+    except BackupError as err:
+        flash(f"Backup failed: {err}")
+        return redirect(url_for("admin.backups_list"))
+
+    flash(f"Backup created: {backup.filename} ({backup.size_human}).")
+    return redirect(url_for("admin.backups_list"))
