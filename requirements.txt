@@ -2,6 +2,7 @@ Flask
 flask-sqlalchemy
 flask-migrate
 flask-login
+Flask-WTF
 Werkzeug
 psycopg2-binary
 python-dotenv

@@ -6,7 +6,7 @@ from flask_login import current_user
 
 from app.cli import register_cli_commands
 from app.config import config_by_name
-from app.extensions import db, login_manager, migrate
+from app.extensions import csrf, db, login_manager, migrate
 
 
 # Human-facing copy for each error code. Keep messages short and avoid
@@ -38,6 +38,7 @@ def create_app(config_name: str | None = None) -> Flask:
     migrate.init_app(app, db)
     login_manager.init_app(app)
     login_manager.login_message = "Please log in to continue."
+    csrf.init_app(app)
 
     register_blueprints(app)
     register_cli_commands(app)
@@ -80,6 +81,12 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(users_bp, url_prefix="/users")
     app.register_blueprint(email_bp, url_prefix="/email")
     app.register_blueprint(backups_bp, url_prefix="/backups")
+
+    # The public API authenticates with long-lived, per-client API keys and
+    # has no cookie-bound session to defend against. CSRF tokens would only
+    # break programmatic clients (curl, SDKs, cron jobs) without adding
+    # security, so the entire ``/api/v1`` surface is exempted.
+    csrf.exempt(api_bp)
 
 
 def register_security_guards(app: Flask) -> None:

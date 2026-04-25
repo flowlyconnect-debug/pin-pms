@@ -16,6 +16,7 @@
     {% endwith %}
 
     <form method="post" action="/2fa/verify">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="code">Verification code</label>
       <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
       <button type="submit">Verify</button>
