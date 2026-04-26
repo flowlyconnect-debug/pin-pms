@@ -2,7 +2,8 @@ import logging
 
 from flask import Flask
 from flask import redirect, render_template, request, session, url_for
-from flask_login import current_user
+from flask_login import current_user, logout_user
+from sqlalchemy.orm.exc import ObjectDeletedError
 
 from app.cli import register_cli_commands
 from app.config import config_by_name
@@ -24,11 +25,14 @@ ERROR_COPY: dict[int, tuple[str, str]] = {
 }
 
 
-def create_app(config_name: str | None = None) -> Flask:
+def create_app(config_object: str = "config.Config") -> Flask:
     app = Flask(__name__)
 
-    selected_config = config_name or "default"
-    app.config.from_object(config_by_name[selected_config])
+    selected_config = config_object or "default"
+    if selected_config in config_by_name:
+        app.config.from_object(config_by_name[selected_config])
+    else:
+        app.config.from_object(selected_config)
 
     if selected_config == "production" and not app.config.get("SECRET_KEY"):
         raise RuntimeError("SECRET_KEY must be set in production.")
@@ -41,6 +45,7 @@ def create_app(config_name: str | None = None) -> Flask:
     csrf.init_app(app)
     limiter.init_app(app)
 
+    # Blueprint registration lives in one place for easier future module growth.
     register_blueprints(app)
     register_cli_commands(app)
     register_security_guards(app)
@@ -82,10 +87,23 @@ def register_models() -> None:
     from app.backups.models import Backup
     from app.email.models import EmailTemplate
     from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
     from app.settings.models import Setting
     from app.users.models import User
 
-    _ = (ApiKey, AuditLog, Backup, EmailTemplate, Organization, Setting, User)
+    _ = (
+        ApiKey,
+        AuditLog,
+        Backup,
+        EmailTemplate,
+        Organization,
+        Property,
+        Reservation,
+        Setting,
+        Unit,
+        User,
+    )
 
 
 @login_manager.user_loader
@@ -137,7 +155,16 @@ def register_security_guards(app: Flask) -> None:
             "core.health",
         }
 
-        if not current_user.is_authenticated:
+        try:
+            is_authenticated = current_user.is_authenticated
+        except ObjectDeletedError:
+            # If a stale session references a deleted user row, clear auth
+            # state and continue as anonymous instead of returning HTTP 500.
+            logout_user()
+            session.pop("2fa_verified", None)
+            return None
+
+        if not is_authenticated:
             return None
 
         if not getattr(current_user, "is_superadmin", False):

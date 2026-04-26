@@ -1,4 +1,4 @@
-"""Default content for the six email templates required by section 7.
+"""Default content for system email templates.
 
 The values here are seeded by the migration that creates the
 ``email_templates`` table and are also consulted at runtime by
@@ -172,6 +172,64 @@ SEED_TEMPLATES: list[TemplateSeed] = [
         "available_variables": [
             "subject_line",
             "message",
+            "from_name",
+        ],
+    },
+    {
+        "key": "reservation_confirmation",
+        "subject": "Reservation confirmed (#{{ reservation_id }})",
+        "body_text": (
+            "Hello {{ user_email }},\n\n"
+            "Your reservation #{{ reservation_id }} is confirmed.\n"
+            "Unit: {{ unit_name }}\n"
+            "Dates: {{ start_date }} to {{ end_date }}\n\n"
+            "— {{ from_name }}\n"
+        ),
+        "body_html": (
+            "<p>Hello <strong>{{ user_email }}</strong>,</p>"
+            "<p>Your reservation <strong>#{{ reservation_id }}</strong> is confirmed.</p>"
+            "<ul>"
+            "<li>Unit: {{ unit_name }}</li>"
+            "<li>Dates: {{ start_date }} to {{ end_date }}</li>"
+            "</ul>"
+            "<p>— {{ from_name }}</p>"
+        ),
+        "description": "Sent to the guest when a reservation is created.",
+        "available_variables": [
+            "user_email",
+            "reservation_id",
+            "unit_name",
+            "start_date",
+            "end_date",
+            "from_name",
+        ],
+    },
+    {
+        "key": "reservation_cancelled",
+        "subject": "Reservation cancelled (#{{ reservation_id }})",
+        "body_text": (
+            "Hello {{ user_email }},\n\n"
+            "Your reservation #{{ reservation_id }} has been cancelled.\n"
+            "Unit: {{ unit_name }}\n"
+            "Original dates: {{ start_date }} to {{ end_date }}\n\n"
+            "— {{ from_name }}\n"
+        ),
+        "body_html": (
+            "<p>Hello <strong>{{ user_email }}</strong>,</p>"
+            "<p>Your reservation <strong>#{{ reservation_id }}</strong> has been cancelled.</p>"
+            "<ul>"
+            "<li>Unit: {{ unit_name }}</li>"
+            "<li>Original dates: {{ start_date }} to {{ end_date }}</li>"
+            "</ul>"
+            "<p>— {{ from_name }}</p>"
+        ),
+        "description": "Sent to the guest when a reservation is cancelled.",
+        "available_variables": [
+            "user_email",
+            "reservation_id",
+            "unit_name",
+            "start_date",
+            "end_date",
             "from_name",
         ],
     },

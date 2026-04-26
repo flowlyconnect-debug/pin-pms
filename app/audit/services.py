@@ -23,6 +23,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Mapping, Optional
 
+from sqlalchemy.orm.exc import ObjectDeletedError
+
 from app.audit.models import ActorType, AuditLog, AuditStatus
 from app.extensions import db
 
@@ -48,6 +50,13 @@ def _resolve_actor() -> tuple[str, Optional[int], Optional[str], Optional[int]]:
     actor_email: Optional[str] = None
     organization_id: Optional[int] = None
 
+    def _safe_attr(obj: Any, name: str, default: Any = None) -> Any:
+        """Best-effort getattr that tolerates stale/deleted ORM instances."""
+        try:
+            return getattr(obj, name, default)
+        except ObjectDeletedError:
+            return default
+
     if not has_app_context():
         return actor_type, actor_id, actor_email, organization_id
 
@@ -57,10 +66,10 @@ def _resolve_actor() -> tuple[str, Optional[int], Optional[str], Optional[int]]:
     api_key = getattr(g, "api_key", None)
     if api_key is not None:
         actor_type = ActorType.API_KEY
-        actor_id = getattr(api_key, "id", None)
-        owner = getattr(api_key, "user", None)
-        actor_email = getattr(owner, "email", None) if owner is not None else None
-        organization_id = getattr(api_key, "organization_id", None)
+        actor_id = _safe_attr(api_key, "id", None)
+        owner = _safe_attr(api_key, "user", None)
+        actor_email = _safe_attr(owner, "email", None) if owner is not None else None
+        organization_id = _safe_attr(api_key, "organization_id", None)
         return actor_type, actor_id, actor_email, organization_id
 
     # 2) Logged-in user via Flask-Login.
@@ -70,11 +79,11 @@ def _resolve_actor() -> tuple[str, Optional[int], Optional[str], Optional[int]]:
         except ImportError:
             current_user = None  # type: ignore[assignment]
 
-        if current_user is not None and getattr(current_user, "is_authenticated", False):
+        if current_user is not None and _safe_attr(current_user, "is_authenticated", False):
             actor_type = ActorType.USER
-            actor_id = getattr(current_user, "id", None)
-            actor_email = getattr(current_user, "email", None)
-            organization_id = getattr(current_user, "organization_id", None)
+            actor_id = _safe_attr(current_user, "id", None)
+            actor_email = _safe_attr(current_user, "email", None)
+            organization_id = _safe_attr(current_user, "organization_id", None)
             return actor_type, actor_id, actor_email, organization_id
 
         # 3) No authenticated actor, but we are still inside a request →

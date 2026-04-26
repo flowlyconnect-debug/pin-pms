@@ -14,10 +14,12 @@ from typing import Any
 from flask import jsonify
 
 
-def json_ok(data: Any = None, status: int = 200):
+def json_ok(data: Any = None, status: int = 200, meta: Any = None):
     """Return a uniform success response."""
 
     payload = {"success": True, "data": data, "error": None}
+    if meta is not None:
+        payload["meta"] = meta
     return jsonify(payload), status
 
 

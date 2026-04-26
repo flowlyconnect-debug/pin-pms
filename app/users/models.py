@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from enum import Enum
 
 from flask_login import UserMixin
@@ -6,6 +5,7 @@ import pyotp
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
+from app.models import TimestampMixin
 
 
 class UserRole(str, Enum):
@@ -15,7 +15,17 @@ class UserRole(str, Enum):
     API_CLIENT = "api_client"
 
 
-class User(UserMixin, db.Model):
+class Organization(TimestampMixin, db.Model):
+    __tablename__ = "organizations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+
+    users = db.relationship("User", back_populates="organization", lazy="select")
+    properties = db.relationship("Property", back_populates="organization", lazy="select")
+
+
+class User(TimestampMixin, UserMixin, db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -38,13 +48,8 @@ class User(UserMixin, db.Model):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     totp_secret = db.Column(db.String(32), nullable=True)
     is_2fa_enabled = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(
-        db.DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-    )
-
     organization = db.relationship("Organization", back_populates="users", lazy="joined")
+    reservations = db.relationship("Reservation", back_populates="guest", lazy="select")
 
     def set_password(self, raw_password: str) -> None:
         self.password_hash = generate_password_hash(raw_password)

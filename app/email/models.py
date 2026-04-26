@@ -53,7 +53,7 @@ class EmailTemplate(db.Model):
 
 
 # ---------------------------------------------------------------------------
-# Template keys — the six required by the brief, exposed as constants so call
+# Template keys exposed as constants so call
 # sites do not pass raw strings around.
 # ---------------------------------------------------------------------------
 
@@ -65,6 +65,8 @@ class TemplateKey:
     BACKUP_COMPLETED = "backup_completed"
     BACKUP_FAILED = "backup_failed"
     ADMIN_NOTIFICATION = "admin_notification"
+    RESERVATION_CONFIRMATION = "reservation_confirmation"
+    RESERVATION_CANCELLED = "reservation_cancelled"
 
     ALL = (
         WELCOME_EMAIL,
@@ -73,4 +75,6 @@ class TemplateKey:
         BACKUP_COMPLETED,
         BACKUP_FAILED,
         ADMIN_NOTIFICATION,
+        RESERVATION_CONFIRMATION,
+        RESERVATION_CANCELLED,
     )
