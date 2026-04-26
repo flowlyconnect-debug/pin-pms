@@ -94,18 +94,15 @@ def get_calendar_events(
         guest_label = guest.email if guest is not None else "Guest"
         unit_name = unit.name if unit is not None else "Unit"
         property_id = unit.property_id if unit is not None else None
-        class_names = ["fc-event-cancelled"] if row.status == "cancelled" else []
         events.append(
             {
                 "id": row.id,
                 "title": f"{guest_label} / {unit_name}",
                 "start": row.start_date.isoformat(),
                 "end": row.end_date.isoformat(),
-                "allDay": True,
                 "status": row.status,
                 "unit_id": row.unit_id,
                 "property_id": property_id,
-                "classNames": class_names,
             }
         )
     return events

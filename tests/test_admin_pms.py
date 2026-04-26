@@ -954,7 +954,7 @@ def test_calendar_events_json_shape_and_cancelled_status(client, admin_user):
     statuses = []
     starts = set()
     for item in data:
-        assert required <= set(item.keys())
+        assert set(item.keys()) == required
         starts.add(item["start"])
         assert item["property_id"] == prop.id
         statuses.append(item["status"])
@@ -968,3 +968,50 @@ def test_calendar_events_invalid_start_returns_400(client, admin_user):
 
     response = client.get("/admin/calendar/events?start=not-a-date")
     assert response.status_code == 400
+
+
+def test_calendar_events_start_end_filter_excludes_outside_range(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Filter Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="A1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    inside = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 7, 5),
+        end_date=date(2026, 7, 10),
+        status="confirmed",
+    )
+    before_window = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 4, 1),
+        end_date=date(2026, 4, 5),
+        status="confirmed",
+    )
+    after_window = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 9, 1),
+        end_date=date(2026, 9, 5),
+        status="confirmed",
+    )
+    db.session.add(inside)
+    db.session.add(before_window)
+    db.session.add(after_window)
+    db.session.commit()
+
+    response = client.get("/admin/calendar/events?start=2026-07-01&end=2026-07-31")
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.get_json()}
+    assert inside.id in ids
+    assert before_window.id not in ids
+    assert after_window.id not in ids

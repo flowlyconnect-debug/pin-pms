@@ -34,6 +34,12 @@
             extraParams: function () { return {}; },
           },
         ],
+        eventDidMount: function (info) {
+          var st = info.event.extendedProps && info.event.extendedProps.status;
+          if (st === "cancelled") {
+            info.el.classList.add("fc-event-cancelled");
+          }
+        },
       });
       calendar.render();
     });
