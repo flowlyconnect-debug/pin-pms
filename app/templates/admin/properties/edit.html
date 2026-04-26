@@ -1,0 +1,23 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Edit Property · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.properties_detail', property_id=row.id) }}">Back to property</a>
+  </div>
+  <h1>Edit property</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" required value="{{ form.name }}">
+    <label for="address">Address</label>
+    <input id="address" name="address" type="text" value="{{ form.address }}">
+    <div class="actions">
+      <button type="submit">Save property</button>
+    </div>
+  </form>
+{% endblock %}

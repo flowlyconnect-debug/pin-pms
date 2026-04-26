@@ -1,58 +1,23 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Email templates · Pindora PMS</title>
-    <style>
-      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2rem; color: #1a1a1a; }
-      h1 { font-size: 1.5rem; margin: 0 0 1rem 0; }
-      nav a { color: #1d4ed8; text-decoration: none; margin-right: 1rem; }
-      nav a:hover { text-decoration: underline; }
-      table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-      th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
-      th { background: #f5f5f5; font-size: .85rem; text-transform: uppercase; letter-spacing: .03em; }
-      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
-      .desc { color: #555; font-size: .9rem; }
-      .updated { color: #777; font-size: .8rem; white-space: nowrap; }
-    </style>
-  </head>
-  <body>
-    <nav>
-      <a href="{{ url_for('core.index') }}">Home</a>
-      <a href="{{ url_for('admin.audit') }}">Audit log</a>
-    </nav>
+{% extends "admin/base.html" %}
 
-    <h1>Email templates</h1>
-    <p class="desc">
-      Six templates ship with the application; superadmins can edit subject and
-      body content here. Saves are recorded in the audit log
-      (<code>email_template.updated</code>).
-    </p>
+{% block title %}Email templates · Pindora PMS{% endblock %}
 
-    <table>
-      <thead>
+{% block content %}
+  <h1>Email templates</h1>
+  <p class="meta">Editable templates. Saves are logged as <code>email_template.updated</code>.</p>
+  <table>
+    <thead>
+      <tr><th>Key</th><th>Subject</th><th>Description</th><th>Updated</th></tr>
+    </thead>
+    <tbody>
+      {% for t in templates %}
         <tr>
-          <th>Key</th>
-          <th>Subject</th>
-          <th>Description</th>
-          <th>Updated</th>
+          <td><a href="{{ url_for('admin.email_template_edit', key=t.key) }}"><code>{{ t.key }}</code></a></td>
+          <td>{{ t.subject }}</td>
+          <td class="meta">{{ t.description }}</td>
+          <td class="meta">{{ t.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
         </tr>
-      </thead>
-      <tbody>
-        {% for t in templates %}
-          <tr>
-            <td>
-              <a href="{{ url_for('admin.email_template_edit', key=t.key) }}">
-                <code>{{ t.key }}</code>
-              </a>
-            </td>
-            <td>{{ t.subject }}</td>
-            <td class="desc">{{ t.description }}</td>
-            <td class="updated">{{ t.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </body>
-</html>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

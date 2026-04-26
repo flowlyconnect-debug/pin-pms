@@ -1,0 +1,26 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Reservation #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Back to reservations</a>
+  </div>
+  <h1>Reservation #{{ row.id }}</h1>
+  <div class="card">
+    <p><strong>Unit:</strong> {{ row.unit_id }}</p>
+    <p><strong>Guest:</strong> {{ row.guest_id }}</p>
+    <p><strong>Dates:</strong> {{ row.start_date }} → {{ row.end_date }}</p>
+    <p><strong>Status:</strong> {{ row.status }}</p>
+  </div>
+  {% if row.status != "cancelled" %}
+    <h2>Cancel reservation</h2>
+    <form method="post" action="{{ url_for('admin.reservations_cancel', reservation_id=row.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label><input type="checkbox" name="confirm_cancel" value="yes" required> I confirm cancellation</label>
+      <div class="actions">
+        <button type="submit" class="btn-danger">Cancel reservation</button>
+      </div>
+    </form>
+  {% endif %}
+{% endblock %}

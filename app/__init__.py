@@ -3,7 +3,7 @@ import logging
 from flask import Flask
 from flask import redirect, render_template, request, session, url_for
 from flask_login import current_user, logout_user
-from sqlalchemy.orm.exc import ObjectDeletedError
+from sqlalchemy.orm.exc import DetachedInstanceError, ObjectDeletedError
 
 from app.cli import register_cli_commands
 from app.config import config_by_name
@@ -157,7 +157,7 @@ def register_security_guards(app: Flask) -> None:
 
         try:
             is_authenticated = current_user.is_authenticated
-        except ObjectDeletedError:
+        except (ObjectDeletedError, DetachedInstanceError):
             # If a stale session references a deleted user row, clear auth
             # state and continue as anonymous instead of returning HTTP 500.
             logout_user()

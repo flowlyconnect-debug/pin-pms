@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Admin · Pindora PMS{% endblock %}</title>
+    <style>
+      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; color: #1a1a1a; background: #fafafa; }
+      header { background: #111827; color: #fff; padding: .85rem 1rem; }
+      header strong { margin-right: 1rem; font-size: 1rem; }
+      header nav { display: inline; }
+      header nav a { color: #e5e7eb; text-decoration: none; margin-right: .8rem; font-size: .92rem; }
+      header nav a:hover { text-decoration: underline; color: #fff; }
+      main { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem 2rem 1rem; }
+      h1 { margin: 0 0 .9rem 0; font-size: 1.45rem; }
+      h2 { margin: 1.2rem 0 .6rem 0; font-size: 1.05rem; }
+      p { margin: .4rem 0 .8rem 0; }
+      table { border-collapse: collapse; width: 100%; background: #fff; }
+      th, td { text-align: left; border-bottom: 1px solid #e5e7eb; padding: .55rem .7rem; vertical-align: top; }
+      th { background: #f3f4f6; font-size: .83rem; text-transform: uppercase; letter-spacing: .02em; }
+      a { color: #1d4ed8; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      input, select, textarea { border: 1px solid #d1d5db; border-radius: 4px; padding: .45rem; font: inherit; width: 100%; box-sizing: border-box; background: #fff; }
+      textarea { resize: vertical; }
+      label { font-weight: 600; font-size: .9rem; display: block; margin: .8rem 0 .25rem 0; }
+      .actions { margin-top: 1rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+      .btn, button { border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; border-radius: 4px; padding: .45rem .85rem; font-size: .9rem; text-decoration: none; cursor: pointer; display: inline-block; }
+      .btn-secondary { border-color: #9ca3af; background: #fff; color: #374151; }
+      .btn-danger { border-color: #b91c1c; background: #b91c1c; color: #fff; }
+      .meta { color: #6b7280; font-size: .88rem; }
+      .flash-wrap { margin-bottom: .8rem; }
+      .flash { padding: .55rem .7rem; border-radius: 4px; border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; margin-bottom: .45rem; }
+      .error { padding: .55rem .7rem; border-radius: 4px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; margin-bottom: .6rem; }
+      .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: .9rem; }
+    </style>
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body>
+    <header>
+      <strong>Pindora Admin</strong>
+      <nav>
+        <a href="{{ url_for('admin.admin_home') }}">Dashboard</a>
+        <a href="{{ url_for('admin.properties_list') }}">Properties</a>
+        <a href="{{ url_for('admin.reservations_list') }}">Reservations</a>
+        <a href="{{ url_for('admin.calendar_page') }}">Calendar</a>
+        <a href="{{ url_for('admin.reports_index') }}">Reports</a>
+        <a href="{{ url_for('admin.audit') }}">Audit log</a>
+        <a href="{{ url_for('admin.email_templates_list') }}">Email templates</a>
+        <a href="{{ url_for('admin.backups_list') }}">Backups</a>
+        <a href="{{ url_for('admin.settings_list') }}">Settings</a>
+        <a href="{{ url_for('auth.logout') }}">Logout</a>
+      </nav>
+    </header>
+    <main>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="flash-wrap">
+            {% for message in messages %}
+              <div class="flash">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

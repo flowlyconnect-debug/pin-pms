@@ -109,10 +109,65 @@ def get_property(*, organization_id: int, property_id: int) -> dict:
     return _serialize_property(row)
 
 
+def update_property(
+    *,
+    organization_id: int,
+    property_id: int,
+    name: str,
+    address: str | None,
+    actor_user_id: int | None = None,
+) -> dict:
+    row = Property.query.filter_by(id=property_id, organization_id=organization_id).first()
+    if row is None:
+        raise PropertyServiceError(
+            code="not_found",
+            message="Property not found.",
+            status=404,
+        )
+
+    normalized_name = (name or "").strip()
+    if not normalized_name:
+        raise PropertyServiceError(
+            code="validation_error",
+            message="Field 'name' is required.",
+            status=400,
+        )
+
+    row.name = normalized_name
+    row.address = (address or "").strip() or None
+    db.session.commit()
+    audit_record(
+        "property_updated",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="property",
+        target_id=row.id,
+        context={"user_id": actor_user_id} if actor_user_id is not None else None,
+        commit=True,
+    )
+    return _serialize_property(row)
+
+
 def list_units(*, organization_id: int, property_id: int) -> list[dict]:
     _ = get_property(organization_id=organization_id, property_id=property_id)
     rows = Unit.query.filter_by(property_id=property_id).order_by(Unit.id.asc()).all()
     return [_serialize_unit(row) for row in rows]
+
+
+def get_unit(*, organization_id: int, unit_id: int) -> dict:
+    row = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Unit.id == unit_id, Property.organization_id == organization_id)
+        .first()
+    )
+    if row is None:
+        raise PropertyServiceError(
+            code="not_found",
+            message="Unit not found.",
+            status=404,
+        )
+    return _serialize_unit(row)
 
 
 def create_unit(
@@ -151,6 +206,54 @@ def create_unit(
             {"property_id": property_id, "user_id": actor_user_id}
             if actor_user_id is not None
             else {"property_id": property_id}
+        ),
+        commit=True,
+    )
+    return _serialize_unit(row)
+
+
+def update_unit(
+    *,
+    organization_id: int,
+    unit_id: int,
+    name: str,
+    unit_type: str | None,
+    actor_user_id: int | None = None,
+) -> dict:
+    row = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Unit.id == unit_id, Property.organization_id == organization_id)
+        .first()
+    )
+    if row is None:
+        raise PropertyServiceError(
+            code="not_found",
+            message="Unit not found.",
+            status=404,
+        )
+
+    normalized_name = (name or "").strip()
+    if not normalized_name:
+        raise PropertyServiceError(
+            code="validation_error",
+            message="Field 'name' is required.",
+            status=400,
+        )
+
+    row.name = normalized_name
+    row.unit_type = (unit_type or "").strip() or None
+    db.session.commit()
+    audit_record(
+        "unit_updated",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="unit",
+        target_id=row.id,
+        context=(
+            {"property_id": row.property_id, "user_id": actor_user_id}
+            if actor_user_id is not None
+            else {"property_id": row.property_id}
         ),
         commit=True,
     )

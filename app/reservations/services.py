@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 import logging
 
 from app.audit import record as audit_record
@@ -21,6 +21,18 @@ class ReservationServiceError(Exception):
     code: str
     message: str
     status: int
+
+
+def parse_calendar_iso_bound(raw: str | None) -> date | None:
+    """Parse FullCalendar ``start`` / ``end`` query params (date or datetime ISO)."""
+
+    if raw is None or not str(raw).strip():
+        return None
+    value = str(raw).strip()
+    if "T" in value:
+        normalized = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(normalized).date()
+    return date.fromisoformat(value[:10])
 
 
 def _parse_iso_date(raw: str, field_name: str) -> date:
@@ -53,6 +65,50 @@ def _scoped_reservation_query(*, organization_id: int):
         .join(Property, Unit.property_id == Property.id)
         .filter(Property.organization_id == organization_id)
     )
+
+
+def get_calendar_events(
+    *,
+    organization_id: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> list[dict]:
+    """Reservations overlapping ``[start_date, end_date)`` for calendar display.
+
+    When both bounds are omitted, no date filter is applied (still tenant-scoped).
+    ``end`` in each event is the reservation checkout date (exclusive night boundary),
+    aligned with :class:`~app.reservations.models.Reservation` semantics.
+    """
+
+    query = _scoped_reservation_query(organization_id=organization_id)
+    if start_date is not None:
+        query = query.filter(Reservation.end_date > start_date)
+    if end_date is not None:
+        query = query.filter(Reservation.start_date < end_date)
+    rows = query.order_by(Reservation.start_date.asc(), Reservation.id.asc()).all()
+
+    events: list[dict] = []
+    for row in rows:
+        guest = row.guest
+        unit = row.unit
+        guest_label = guest.email if guest is not None else "Guest"
+        unit_name = unit.name if unit is not None else "Unit"
+        property_id = unit.property_id if unit is not None else None
+        class_names = ["fc-event-cancelled"] if row.status == "cancelled" else []
+        events.append(
+            {
+                "id": row.id,
+                "title": f"{guest_label} / {unit_name}",
+                "start": row.start_date.isoformat(),
+                "end": row.end_date.isoformat(),
+                "allDay": True,
+                "status": row.status,
+                "unit_id": row.unit_id,
+                "property_id": property_id,
+                "classNames": class_names,
+            }
+        )
+    return events
 
 
 def list_reservations(*, organization_id: int) -> list[dict]:

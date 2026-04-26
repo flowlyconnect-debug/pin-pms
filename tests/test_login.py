@@ -22,6 +22,35 @@ def test_login_success_redirects_authenticated_user(client, regular_user):
     assert response.headers["Location"].rstrip("/").endswith("")
 
 
+def test_login_success_redirects_admin_to_admin_home(client, admin_user):
+    response = client.post(
+        "/login",
+        data={
+            "email": admin_user.email,
+            "password": admin_user.password_plain,
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert "/admin" in response.headers["Location"]
+
+
+def test_login_ignores_unsafe_next_url(client, regular_user):
+    response = client.post(
+        "/login?next=https://evil.example/phish",
+        data={
+            "email": regular_user.email,
+            "password": regular_user.password_plain,
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert "evil.example" not in response.headers["Location"]
+    assert response.headers["Location"].rstrip("/").endswith("")
+
+
 def test_login_failure_with_wrong_password_returns_form_with_error(client, regular_user):
     """Wrong password keeps the user on the login page with a flashed error."""
 

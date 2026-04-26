@@ -62,3 +62,21 @@ def test_superadmin_with_verified_session_reaches_admin_pages(client, superadmin
     # Now /admin/audit must serve the page (200), not redirect.
     response = client.get("/admin/audit")
     assert response.status_code == 200
+
+
+def test_superadmin_after_2fa_redirects_to_admin_home(client, superadmin):
+    import pyotp
+
+    client.post(
+        "/login",
+        data={
+            "email": superadmin.email,
+            "password": superadmin.password_plain,
+        },
+    )
+
+    code = pyotp.TOTP(superadmin.totp_secret).now()
+    response = client.post("/2fa/verify", data={"code": code}, follow_redirects=False)
+
+    assert response.status_code == 302
+    assert "/admin" in response.headers["Location"]

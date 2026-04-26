@@ -1,0 +1,37 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Reservations · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn" href="{{ url_for('admin.reservations_new') }}">Create reservation</a>
+  </div>
+  <h1>Reservations</h1>
+  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Unit</th>
+        <th>Guest</th>
+        <th>Dates</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.unit_id }}</td>
+          <td>{{ row.guest_id }}</td>
+          <td>{{ row.start_date }} → {{ row.end_date }}</td>
+          <td>{{ row.status }}</td>
+          <td><a href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">View</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6"><em>No reservations yet.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

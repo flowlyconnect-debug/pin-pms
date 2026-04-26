@@ -9,6 +9,15 @@
     <h1>Pindora PMS</h1>
     {% if current_user.is_authenticated %}
       <p>Signed in as <strong>{{ current_user.email }}</strong> ({{ current_user.role }}).</p>
+      {% if current_user.role in ['admin', 'superadmin'] %}
+        <p>
+          <a href="{{ url_for('admin.properties_list') }}">Properties</a>
+          ·
+          <a href="{{ url_for('admin.reservations_list') }}">Reservations</a>
+          ·
+          <a href="{{ url_for('admin.reports_index') }}">Reports</a>
+        </p>
+      {% endif %}
       {% if current_user.is_superadmin %}
         <p>
           <a href="{{ url_for('admin.audit') }}">Audit log</a>

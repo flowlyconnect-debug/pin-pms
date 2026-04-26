@@ -1,0 +1,13 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Reports · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Reports</h1>
+  <table>
+    <tbody>
+      <tr><td>Occupancy report</td><td><a href="{{ url_for('admin.reports_occupancy') }}">Open</a></td></tr>
+      <tr><td>Reservation report</td><td><a href="{{ url_for('admin.reports_reservations') }}">Open</a></td></tr>
+    </tbody>
+  </table>
+{% endblock %}

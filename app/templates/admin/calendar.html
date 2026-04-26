@@ -1,0 +1,41 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Reservation calendar · Pindora PMS{% endblock %}
+
+{% block head_extra %}
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <style>
+    #calendar { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: .5rem; }
+    .fc .fc-event-title { font-size: .78rem; }
+    .fc-event-cancelled { opacity: .55; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <h1>Reservation calendar</h1>
+  <p class="meta">Read-only view of reservations by day. Cancelled stays appear faded.</p>
+  <div id="calendar"></div>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      var el = document.getElementById("calendar");
+      var calendar = new FullCalendar.Calendar(el, {
+        initialView: "dayGridMonth",
+        headerToolbar: {
+          left: "prev,next today",
+          center: "title",
+          right: "dayGridMonth,timeGridWeek,listMonth",
+        },
+        editable: false,
+        selectable: false,
+        eventSources: [
+          {
+            url: "{{ url_for('admin.calendar_events') }}",
+            method: "GET",
+            extraParams: function () { return {}; },
+          },
+        ],
+      });
+      calendar.render();
+    });
+  </script>
+{% endblock %}

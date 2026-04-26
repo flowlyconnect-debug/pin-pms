@@ -1,0 +1,14 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Reservation Report · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Reservation report</h1>
+  <table>
+    <tbody>
+      <tr><td>Total reservations</td><td>{{ data.total_reservations }}</td></tr>
+      <tr><td>Confirmed reservations</td><td>{{ data.confirmed_reservations }}</td></tr>
+      <tr><td>Cancelled reservations</td><td>{{ data.cancelled_reservations }}</td></tr>
+    </tbody>
+  </table>
+{% endblock %}

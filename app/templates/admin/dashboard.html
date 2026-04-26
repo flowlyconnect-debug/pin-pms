@@ -1,0 +1,38 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Admin Dashboard · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Admin dashboard</h1>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.7rem;margin-bottom:1rem;">
+    <div class="card"><strong>Total properties</strong><div style="font-size:1.3rem;">{{ summary.total_properties }}</div></div>
+    <div class="card"><strong>Total units</strong><div style="font-size:1.3rem;">{{ summary.total_units }}</div></div>
+    <div class="card"><strong>Active reservations</strong><div style="font-size:1.3rem;">{{ summary.active_reservations }}</div></div>
+    <div class="card"><strong>Cancelled reservations</strong><div style="font-size:1.3rem;">{{ summary.cancelled_reservations }}</div></div>
+    <div class="card"><strong>Occupancy % (today)</strong><div style="font-size:1.3rem;">{{ summary.occupancy_percent }}</div></div>
+    <div class="card"><strong>Arrivals today</strong><div style="font-size:1.3rem;">{{ summary.arrivals_today }}</div></div>
+    <div class="card"><strong>Departures today</strong><div style="font-size:1.3rem;">{{ summary.departures_today }}</div></div>
+    <div class="card"><strong>Current guests</strong><div style="font-size:1.3rem;">{{ summary.current_guests }}</div></div>
+    <div class="card"><strong>Upcoming reservations</strong><div style="font-size:1.3rem;">{{ summary.upcoming_reservations }}</div></div>
+  </div>
+
+  <h2>Latest audit events</h2>
+  <table>
+    <thead>
+      <tr><th>Time</th><th>Action</th><th>Status</th><th>Target</th></tr>
+    </thead>
+    <tbody>
+      {% for row in summary.latest_audit_events %}
+        <tr>
+          <td>{{ row.created_at or "" }}</td>
+          <td>{{ row.action }}</td>
+          <td>{{ row.status or "" }}</td>
+          <td>{% if row.target_type %}{{ row.target_type }}{% if row.target_id is not none %} #{{ row.target_id }}{% endif %}{% else %}—{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4"><em>No audit events yet.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

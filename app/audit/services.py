@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Mapping, Optional
 
-from sqlalchemy.orm.exc import ObjectDeletedError
+from sqlalchemy.orm.exc import DetachedInstanceError, ObjectDeletedError
 
 from app.audit.models import ActorType, AuditLog, AuditStatus
 from app.extensions import db
@@ -54,7 +54,7 @@ def _resolve_actor() -> tuple[str, Optional[int], Optional[str], Optional[int]]:
         """Best-effort getattr that tolerates stale/deleted ORM instances."""
         try:
             return getattr(obj, name, default)
-        except ObjectDeletedError:
+        except (ObjectDeletedError, DetachedInstanceError):
             return default
 
     if not has_app_context():

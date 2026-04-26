@@ -21,6 +21,7 @@ from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
 from app.extensions import db, limiter
 from app.auth.services import authenticate_user
+from app.users.models import UserRole
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -46,6 +47,12 @@ def _safe_next_url(target: str | None) -> str | None:
     if not target.startswith("/"):
         return None
     return target
+
+
+def _default_post_login_url_for(role: str | None) -> str:
+    if role in {UserRole.ADMIN.value, UserRole.SUPERADMIN.value}:
+        return url_for("admin.admin_home")
+    return url_for("core.index")
 
 
 def require_superadmin_2fa(view_func):
@@ -97,11 +104,12 @@ def login():
             )
             if user.is_superadmin:
                 session["2fa_verified"] = False
+                session["post_login_next"] = _safe_next_url(request.args.get("next"))
                 return redirect(url_for("auth.two_factor_verify"))
 
             session["2fa_verified"] = True
             next_url = _safe_next_url(request.args.get("next"))
-            return redirect(next_url or url_for("core.index"))
+            return redirect(next_url or _default_post_login_url_for(user.role))
 
         # Record failed login with the attempted email so admins can spot
         # enumeration / brute-force attempts. We do *not* log the password.
@@ -198,7 +206,8 @@ def two_factor_verify():
                 target_id=user.id,
                 commit=True,
             )
-            return redirect(url_for("auth.superadmin_test"))
+            next_url = _safe_next_url(session.pop("post_login_next", None))
+            return redirect(next_url or _default_post_login_url_for(user.role))
 
         audit_record(
             "auth.2fa.failed",
@@ -215,7 +224,7 @@ def two_factor_verify():
 @auth_bp.route("/superadmin/test")
 @require_superadmin_2fa
 def superadmin_test():
-    return "OK superadmin access", 200
+    return redirect(_default_post_login_url_for(current_user.role))
 
 
 @auth_bp.route("/logout")

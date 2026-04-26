@@ -160,21 +160,23 @@ def client(app):
 @pytest.fixture(autouse=True)
 def db_isolation(app):
     """Wipe every table after each test so ordering does not leak state."""
-
     from app.extensions import db
 
     yield
 
-    # ``sorted_tables`` returns parents-before-children; reversing flips that
-    # so we delete child rows before the parents they reference.
+    # If a test left an open/failed transaction, clear it first.
+    db.session.rollback()
+
+    # sorted_tables is parent->child; reverse so child rows are deleted first.
     for table in reversed(db.metadata.sorted_tables):
         db.session.execute(table.delete())
+
     db.session.commit()
 
+    # IMPORTANT: drop scoped-session identity map so stale ORM objects
+    # (like current_user from previous test) cannot be reused.
+    db.session.remove()
 
-# ---------------------------------------------------------------------------
-# Data fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -206,6 +208,27 @@ def regular_user(organization):
     db.session.commit()
 
     user.password_plain = "UserPass123!"
+    return user
+
+
+@pytest.fixture
+def admin_user(organization):
+    """Organization admin user. ``password_plain`` is stashed for tests."""
+
+    from app.extensions import db
+    from app.users.models import User, UserRole
+
+    user = User(
+        email="adminuser@test.local",
+        password_hash=generate_password_hash("AdminUserPass123!"),
+        organization_id=organization.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(user)
+    db.session.commit()
+
+    user.password_plain = "AdminUserPass123!"
     return user
 
 

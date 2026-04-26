@@ -1,0 +1,23 @@
+{% extends "admin/base.html" %}
+
+{% block title %}New Unit · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.units_list', property_id=property_row.id) }}">Back to units</a>
+  </div>
+  <h1>New unit for {{ property_row.name }}</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" required value="{{ form.name }}">
+    <label for="unit_type">Type</label>
+    <input id="unit_type" name="unit_type" type="text" value="{{ form.unit_type }}">
+    <div class="actions">
+      <button type="submit">Create unit</button>
+    </div>
+  </form>
+{% endblock %}

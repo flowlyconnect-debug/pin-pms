@@ -1,0 +1,32 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Occupancy Report · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Occupancy report</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="get" class="card">
+    <label for="start_date">Start date</label>
+    <input id="start_date" name="start_date" type="date" required value="{{ start_date }}">
+    <label for="end_date">End date</label>
+    <input id="end_date" name="end_date" type="date" required value="{{ end_date }}">
+    <div class="actions">
+      <button type="submit">Run report</button>
+    </div>
+  </form>
+  {% if data %}
+    <h2>Result</h2>
+    <table>
+      <tbody>
+        <tr><td>Date range</td><td>{{ data.start_date }} → {{ data.end_date }}</td></tr>
+        <tr><td>Total units</td><td>{{ data.total_units }}</td></tr>
+        <tr><td>Reserved units</td><td>{{ data.reserved_units }}</td></tr>
+        <tr><td>Occupancy %</td><td>{{ data.occupancy_percentage }}</td></tr>
+      </tbody>
+    </table>
+  {% elif not error %}
+    <p class="meta"><em>Select a date range to run the report.</em></p>
+  {% endif %}
+{% endblock %}

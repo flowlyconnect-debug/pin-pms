@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Property #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.properties_list') }}">Back to properties</a>
+    <a class="btn" href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Edit property</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.units_list', property_id=row.id) }}">Units</a>
+    <a class="btn" href="{{ url_for('admin.units_new', property_id=row.id) }}">New unit</a>
+  </div>
+  <h1>{{ row.name }}</h1>
+  <div class="card">
+    <p><strong>ID:</strong> {{ row.id }}</p>
+    <p><strong>Address:</strong> {{ row.address or "—" }}</p>
+  </div>
+{% endblock %}

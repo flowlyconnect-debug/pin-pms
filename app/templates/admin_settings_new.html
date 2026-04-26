@@ -1,66 +1,28 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>New setting · Pindora PMS</title>
-    <style>
-      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2rem; color: #1a1a1a; max-width: 50rem; }
-      h1 { font-size: 1.4rem; margin: 0 0 .5rem 0; }
-      nav a { color: #1d4ed8; text-decoration: none; margin-right: 1rem; }
-      nav a:hover { text-decoration: underline; }
-      label { display: block; font-weight: 600; margin: 1rem 0 .25rem 0; font-size: .9rem; }
-      input[type="text"], select, textarea { width: 100%; box-sizing: border-box; padding: .5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; border: 1px solid #ccc; border-radius: 4px; }
-      textarea { resize: vertical; }
-      .actions { margin-top: 1.25rem; }
-      button { padding: .5rem 1rem; margin-right: .5rem; font-size: .95rem; border: 1px solid #1d4ed8; background: #1d4ed8; color: white; border-radius: 4px; cursor: pointer; }
-      .error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; padding: .5rem .75rem; border-radius: 4px; margin: 1rem 0; }
-      .hint { color: #777; font-size: .85rem; margin-top: .25rem; }
-      .checkbox-row { margin-top: 1rem; }
-      .checkbox-row label { display: inline; font-weight: normal; }
-    </style>
-  </head>
-  <body>
-    <nav>
-      <a href="{{ url_for('core.index') }}">Home</a>
-      <a href="{{ url_for('admin.settings_list') }}">All settings</a>
-    </nav>
+{% extends "admin/base.html" %}
 
-    <h1>New setting</h1>
+{% block title %}New setting · Pindora PMS{% endblock %}
 
-    {% if error %}
-      <div class="error">{{ error }}</div>
-    {% endif %}
-
-    <form method="post" action="{{ url_for('admin.settings_new') }}" autocomplete="off">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-      <label for="key">Key</label>
-      <input id="key" name="key" type="text" required value="{{ form.key }}">
-      <div class="hint">Unique snake_case identifier, e.g. <code>company_name</code>. Cannot be changed later.</div>
-
-      <label for="type">Type</label>
-      <select id="type" name="type">
-        {% for t in types %}
-          <option value="{{ t }}" {% if form.type == t %}selected{% endif %}>{{ t }}</option>
-        {% endfor %}
-      </select>
-
-      <label for="value">Value</label>
-      <textarea id="value" name="value" rows="4">{{ form.value }}</textarea>
-      <div class="hint">Native form for the chosen type. Booleans accept <code>true</code>/<code>false</code>; JSON must parse.</div>
-
-      <label for="description">Description</label>
-      <input id="description" name="description" type="text" value="{{ form.description }}">
-
-      <div class="checkbox-row">
-        <input id="is_secret" name="is_secret" type="checkbox" {% if form.is_secret %}checked{% endif %}>
-        <label for="is_secret">Treat as secret</label>
-      </div>
-
-      <div class="actions">
-        <button type="submit">Create</button>
-      </div>
-    </form>
-  </body>
-</html>
+{% block content %}
+  <h1>New setting</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="{{ url_for('admin.settings_new') }}" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="key">Key</label>
+    <input id="key" name="key" type="text" required value="{{ form.key }}">
+    <p class="meta">Unique snake_case key, e.g. <code>company_name</code>.</p>
+    <label for="type">Type</label>
+    <select id="type" name="type">
+      {% for t in types %}
+        <option value="{{ t }}" {% if form.type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <label for="value">Value</label>
+    <textarea id="value" name="value" rows="4">{{ form.value }}</textarea>
+    <label for="description">Description</label>
+    <input id="description" name="description" type="text" value="{{ form.description }}">
+    <p><label><input id="is_secret" name="is_secret" type="checkbox" {% if form.is_secret %}checked{% endif %}> Treat as secret</label></p>
+    <div class="actions"><button type="submit">Create</button></div>
+  </form>
+{% endblock %}

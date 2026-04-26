@@ -1,0 +1,37 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Properties · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn" href="{{ url_for('admin.properties_new') }}">New property</a>
+  </div>
+  <h1>Properties</h1>
+  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Address</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.name }}</td>
+          <td>{{ row.address or "" }}</td>
+          <td>
+            <a href="{{ url_for('admin.properties_detail', property_id=row.id) }}">View</a>
+            · <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Edit</a>
+            · <a href="{{ url_for('admin.units_list', property_id=row.id) }}">Units</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4"><em>No properties yet.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

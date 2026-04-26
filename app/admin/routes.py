@@ -6,10 +6,13 @@ so the 2FA gate stays in a single place.
 """
 from __future__ import annotations
 
-from flask import abort, flash, redirect, render_template, request, url_for
-from flask_login import current_user
+from functools import wraps
+
+from flask import abort, flash, jsonify, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
 
 from app.admin import admin_bp
+from app.admin import services as admin_service
 from app.audit import record as audit_record
 from app.audit.models import AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
@@ -20,10 +23,430 @@ from app.email.services import render_strings as render_email_strings
 from app.extensions import db
 from app.settings import services as settings_service
 from app.settings.models import Setting, SettingType
+from app.properties import services as property_service
+from app.properties.models import Property, Unit
+from app.reports import services as report_service
+from app.reservations import services as reservation_service
+from app.users.models import User, UserRole
 
 
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
+
+
+def _is_admin_or_superadmin() -> bool:
+    return current_user.role in {UserRole.ADMIN.value, UserRole.SUPERADMIN.value}
+
+
+def require_admin_pms_access(view_func):
+    @wraps(view_func)
+    @login_required
+    def wrapped(*args, **kwargs):
+        if not _is_admin_or_superadmin():
+            abort(403)
+        return view_func(*args, **kwargs)
+
+    return wrapped
+
+
+def _pms_org_id() -> int:
+    # TODO: If a safe, explicit superadmin cross-tenant override is introduced
+    # in the future, centralize it here. For now we keep strict tenant scope.
+    return current_user.organization_id
+
+
+def _pms_pagination() -> tuple[int, int]:
+    try:
+        page = max(int(request.args.get("page", "1")), 1)
+    except ValueError:
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", "25"))
+    except ValueError:
+        per_page = 25
+    per_page = max(1, min(per_page, 100))
+    return page, per_page
+
+
+@admin_bp.get("")
+@admin_bp.get("/")
+@admin_bp.get("/dashboard")
+@require_admin_pms_access
+def admin_home():
+    summary = admin_service.get_dashboard_stats(organization_id=_pms_org_id())
+    return render_template("admin/dashboard.html", summary=summary)
+
+
+@admin_bp.get("/calendar")
+@require_admin_pms_access
+def calendar_page():
+    return render_template("admin/calendar.html")
+
+
+@admin_bp.get("/calendar/events")
+@require_admin_pms_access
+def calendar_events():
+    try:
+        start_d = reservation_service.parse_calendar_iso_bound(request.args.get("start"))
+        end_d = reservation_service.parse_calendar_iso_bound(request.args.get("end"))
+    except ValueError:
+        abort(400)
+    events = reservation_service.get_calendar_events(
+        organization_id=_pms_org_id(),
+        start_date=start_d,
+        end_date=end_d,
+    )
+    return jsonify(events)
+
+
+def _reservation_form_choices(*, organization_id: int) -> tuple[list[Unit], list[User]]:
+    units = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+        .order_by(Property.id.asc(), Unit.id.asc())
+        .all()
+    )
+    users = (
+        User.query.filter_by(organization_id=organization_id)
+        .order_by(User.id.asc())
+        .all()
+    )
+    return units, users
+
+
+@admin_bp.get("/properties")
+@require_admin_pms_access
+def properties_list():
+    page, per_page = _pms_pagination()
+    rows, total = property_service.list_properties_paginated(
+        organization_id=_pms_org_id(),
+        page=page,
+        per_page=per_page,
+    )
+    return render_template(
+        "admin/properties/list.html",
+        rows=rows,
+        page=page,
+        per_page=per_page,
+        total=total,
+    )
+
+
+@admin_bp.route("/properties/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def properties_new():
+    form = {"name": "", "address": ""}
+    error: str | None = None
+
+    if request.method == "POST":
+        form["name"] = (request.form.get("name") or "").strip()
+        form["address"] = (request.form.get("address") or "").strip()
+        try:
+            row = property_service.create_property(
+                organization_id=_pms_org_id(),
+                name=form["name"],
+                address=form["address"],
+                actor_user_id=current_user.id,
+            )
+        except property_service.PropertyServiceError as err:
+            error = err.message
+        else:
+            flash("Property created.")
+            return redirect(url_for("admin.properties_detail", property_id=row["id"]))
+
+    return render_template("admin/properties/new.html", form=form, error=error)
+
+
+@admin_bp.get("/properties/<int:property_id>")
+@require_admin_pms_access
+def properties_detail(property_id: int):
+    try:
+        row = property_service.get_property(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+        )
+    except property_service.PropertyServiceError:
+        abort(404)
+    return render_template("admin/properties/detail.html", row=row)
+
+
+@admin_bp.route("/properties/<int:property_id>/edit", methods=["GET", "POST"])
+@require_admin_pms_access
+def properties_edit(property_id: int):
+    try:
+        row = property_service.get_property(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+        )
+    except property_service.PropertyServiceError:
+        abort(404)
+
+    form = {
+        "name": row["name"],
+        "address": row["address"] or "",
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        form["name"] = (request.form.get("name") or "").strip()
+        form["address"] = (request.form.get("address") or "").strip()
+        try:
+            row = property_service.update_property(
+                organization_id=_pms_org_id(),
+                property_id=property_id,
+                name=form["name"],
+                address=form["address"],
+                actor_user_id=current_user.id,
+            )
+        except property_service.PropertyServiceError as err:
+            error = err.message
+        else:
+            flash("Property updated.")
+            return redirect(url_for("admin.properties_detail", property_id=row["id"]))
+
+    return render_template("admin/properties/edit.html", row=row, form=form, error=error)
+
+
+@admin_bp.get("/properties/<int:property_id>/units")
+@require_admin_pms_access
+def units_list(property_id: int):
+    try:
+        property_row = property_service.get_property(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+        )
+        rows = property_service.list_units(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+        )
+    except property_service.PropertyServiceError:
+        abort(404)
+    return render_template("admin/units/list.html", property_row=property_row, rows=rows)
+
+
+@admin_bp.route("/properties/<int:property_id>/units/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def units_new(property_id: int):
+    try:
+        property_row = property_service.get_property(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+        )
+    except property_service.PropertyServiceError:
+        abort(404)
+
+    form = {"name": "", "unit_type": ""}
+    error: str | None = None
+
+    if request.method == "POST":
+        form["name"] = (request.form.get("name") or "").strip()
+        form["unit_type"] = (request.form.get("unit_type") or "").strip()
+        try:
+            _ = property_service.create_unit(
+                organization_id=_pms_org_id(),
+                property_id=property_id,
+                name=form["name"],
+                unit_type=form["unit_type"],
+                actor_user_id=current_user.id,
+            )
+        except property_service.PropertyServiceError as err:
+            error = err.message
+        else:
+            flash("Unit created.")
+            return redirect(url_for("admin.units_list", property_id=property_id))
+
+    return render_template(
+        "admin/units/new.html",
+        property_row=property_row,
+        form=form,
+        error=error,
+    )
+
+
+@admin_bp.route("/units/<int:unit_id>/edit", methods=["GET", "POST"])
+@require_admin_pms_access
+def units_edit(unit_id: int):
+    try:
+        row = property_service.get_unit(
+            organization_id=_pms_org_id(),
+            unit_id=unit_id,
+        )
+    except property_service.PropertyServiceError:
+        abort(404)
+
+    form = {
+        "name": row["name"],
+        "unit_type": row["unit_type"] or "",
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        form["name"] = (request.form.get("name") or "").strip()
+        form["unit_type"] = (request.form.get("unit_type") or "").strip()
+        try:
+            row = property_service.update_unit(
+                organization_id=_pms_org_id(),
+                unit_id=unit_id,
+                name=form["name"],
+                unit_type=form["unit_type"],
+                actor_user_id=current_user.id,
+            )
+        except property_service.PropertyServiceError as err:
+            error = err.message
+        else:
+            flash("Unit updated.")
+            return redirect(url_for("admin.units_list", property_id=row["property_id"]))
+
+    return render_template("admin/units/edit.html", row=row, form=form, error=error)
+
+
+@admin_bp.get("/reservations")
+@require_admin_pms_access
+def reservations_list():
+    page, per_page = _pms_pagination()
+    rows, total = reservation_service.list_reservations_paginated(
+        organization_id=_pms_org_id(),
+        page=page,
+        per_page=per_page,
+    )
+    return render_template(
+        "admin/reservations/list.html",
+        rows=rows,
+        page=page,
+        per_page=per_page,
+        total=total,
+    )
+
+
+@admin_bp.route("/reservations/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def reservations_new():
+    units, users = _reservation_form_choices(organization_id=_pms_org_id())
+    form = {
+        "unit_id": "",
+        "guest_id": "",
+        "start_date": "",
+        "end_date": "",
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        form["unit_id"] = (request.form.get("unit_id") or "").strip()
+        form["guest_id"] = (request.form.get("guest_id") or "").strip()
+        form["start_date"] = (request.form.get("start_date") or "").strip()
+        form["end_date"] = (request.form.get("end_date") or "").strip()
+
+        if not form["unit_id"] or not form["guest_id"] or not form["start_date"] or not form["end_date"]:
+            error = "All fields are required."
+        else:
+            try:
+                row = reservation_service.create_reservation(
+                    organization_id=_pms_org_id(),
+                    unit_id=int(form["unit_id"]),
+                    guest_id=int(form["guest_id"]),
+                    start_date_raw=form["start_date"],
+                    end_date_raw=form["end_date"],
+                    actor_user_id=current_user.id,
+                )
+            except (TypeError, ValueError):
+                error = "Unit and guest must be valid numeric IDs."
+            except reservation_service.ReservationServiceError as err:
+                error = err.message
+            else:
+                flash("Reservation created.")
+                return redirect(url_for("admin.reservations_detail", reservation_id=row["id"]))
+
+    return render_template(
+        "admin/reservations/new.html",
+        units=units,
+        users=users,
+        form=form,
+        error=error,
+    )
+
+
+@admin_bp.get("/reservations/<int:reservation_id>")
+@require_admin_pms_access
+def reservations_detail(reservation_id: int):
+    try:
+        row = reservation_service.get_reservation(
+            organization_id=_pms_org_id(),
+            reservation_id=reservation_id,
+        )
+    except reservation_service.ReservationServiceError:
+        abort(404)
+    return render_template("admin/reservations/detail.html", row=row)
+
+
+@admin_bp.post("/reservations/<int:reservation_id>/cancel")
+@require_admin_pms_access
+def reservations_cancel(reservation_id: int):
+    if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
+        flash("Please confirm cancellation.")
+        return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
+
+    try:
+        _ = reservation_service.cancel_reservation(
+            organization_id=_pms_org_id(),
+            reservation_id=reservation_id,
+            actor_user_id=current_user.id,
+        )
+    except reservation_service.ReservationServiceError:
+        abort(404)
+
+    flash("Reservation cancelled.")
+    return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
+
+
+@admin_bp.get("/reports")
+@require_admin_pms_access
+def reports_index():
+    return render_template("admin/reports/index.html")
+
+
+@admin_bp.get("/reports/occupancy")
+@require_admin_pms_access
+def reports_occupancy():
+    data = None
+    error: str | None = None
+    start_date_raw = (request.args.get("start_date") or "").strip()
+    end_date_raw = (request.args.get("end_date") or "").strip()
+
+    if start_date_raw or end_date_raw:
+        if not start_date_raw or not end_date_raw:
+            error = "Both start date and end date are required."
+        else:
+            from datetime import date
+
+            try:
+                start_date = date.fromisoformat(start_date_raw)
+                end_date = date.fromisoformat(end_date_raw)
+            except ValueError:
+                error = "Dates must be valid ISO dates (YYYY-MM-DD)."
+            else:
+                if start_date >= end_date:
+                    error = "Start date must be before end date."
+                else:
+                    data = report_service.occupancy_report(
+                        organization_id=_pms_org_id(),
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+
+    return render_template(
+        "admin/reports/occupancy.html",
+        data=data,
+        error=error,
+        start_date=start_date_raw,
+        end_date=end_date_raw,
+    )
+
+
+@admin_bp.get("/reports/reservations")
+@require_admin_pms_access
+def reports_reservations():
+    data = report_service.reservation_report(organization_id=_pms_org_id())
+    return render_template("admin/reports/reservations.html", data=data)
 
 
 @admin_bp.get("/audit")
