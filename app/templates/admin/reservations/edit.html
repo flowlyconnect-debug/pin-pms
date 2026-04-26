@@ -16,8 +16,16 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="return_to" value="{{ form.return_to }}">
 
-    <label for="guest_name">Guest name (email)</label>
-    <input id="guest_name" name="guest_name" type="email" required autocomplete="off" value="{{ form.guest_name }}">
+    <label for="guest_id">Linked guest</label>
+    <select id="guest_id" name="guest_id">
+      <option value="">No linked guest</option>
+      {% for guest in guests %}
+        <option value="{{ guest.id }}" {% if form.guest_id == guest.id|string %}selected{% endif %}>#{{ guest.id }} - {{ guest.full_name }}{% if guest.email %} ({{ guest.email }}){% endif %}</option>
+      {% endfor %}
+    </select>
+
+    <label for="guest_name">Guest display name</label>
+    <input id="guest_name" name="guest_name" type="text" required autocomplete="off" value="{{ form.guest_name }}">
 
     <label for="property_id">Property</label>
     <select id="property_id" name="property_id" required>

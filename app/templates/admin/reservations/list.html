@@ -24,7 +24,12 @@
         <tr>
           <td>{{ row.id }}</td>
           <td>{{ row.unit_id }}</td>
-          <td>{{ row.guest_id }}</td>
+          <td>
+            {{ row.guest_name }}
+            {% if row.guest_id %}
+              (#{{ row.guest_id }})
+            {% endif %}
+          </td>
           <td>{{ row.start_date }} → {{ row.end_date }}</td>
           <td>{{ row.status }}</td>
           <td>

@@ -5,7 +5,6 @@ from datetime import date, datetime
 import logging
 from typing import Any, Mapping
 
-from sqlalchemy import func as sa_func
 from sqlalchemy.orm import noload
 
 from app.audit import record as audit_record
@@ -13,6 +12,7 @@ from app.audit.models import AuditStatus
 from app.email.models import TemplateKey
 from app.email.services import send_template
 from app.extensions import db
+from app.guests.models import Guest
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
@@ -57,6 +57,7 @@ def _serialize_reservation(row: Reservation) -> dict:
         "id": row.id,
         "unit_id": row.unit_id,
         "guest_id": row.guest_id,
+        "guest_name": row.guest_name,
         "start_date": row.start_date.isoformat(),
         "end_date": row.end_date.isoformat(),
         "status": row.status,
@@ -73,42 +74,111 @@ def _scoped_reservation_query(*, organization_id: int):
     )
 
 
+def _guest_full_name(guest: Guest | None) -> str:
+    if guest is None:
+        return ""
+    return f"{(guest.first_name or '').strip()} {(guest.last_name or '').strip()}".strip()
+
+
+def _display_guest_name(*, guest: Guest | None, guest_name: str) -> str:
+    full_name = _guest_full_name(guest)
+    if full_name:
+        return full_name
+    trimmed = (guest_name or "").strip()
+    return trimmed or "Guest"
+
+
 def get_calendar_events(
     *,
     organization_id: int,
     start_date: date | None = None,
     end_date: date | None = None,
+    property_id: int | None = None,
+    unit_id: int | None = None,
 ) -> list[dict]:
     """Reservations overlapping ``[start_date, end_date)`` for calendar display.
 
     When both bounds are omitted, no date filter is applied (still tenant-scoped).
     ``end`` in each event is the reservation checkout date (exclusive night boundary),
     aligned with :class:`~app.reservations.models.Reservation` semantics.
+
+    Optional ``property_id`` / ``unit_id`` must belong to ``organization_id`` or
+    :class:`ReservationServiceError` is raised (no cross-tenant filter leakage).
     """
 
     query = _scoped_reservation_query(organization_id=organization_id)
+    if property_id is not None:
+        prop = Property.query.filter_by(
+            id=property_id, organization_id=organization_id
+        ).first()
+        if prop is None:
+            raise ReservationServiceError(
+                code="validation_error",
+                message="Invalid property filter.",
+                status=400,
+            )
+        query = query.filter(Property.id == property_id)
+    if unit_id is not None:
+        unit = (
+            Unit.query.join(Property, Unit.property_id == Property.id)
+            .filter(
+                Unit.id == unit_id,
+                Property.organization_id == organization_id,
+            )
+            .first()
+        )
+        if unit is None:
+            raise ReservationServiceError(
+                code="validation_error",
+                message="Invalid unit filter.",
+                status=400,
+            )
+        if property_id is not None and unit.property_id != property_id:
+            raise ReservationServiceError(
+                code="validation_error",
+                message="Unit does not belong to the selected property.",
+                status=400,
+            )
+        query = query.filter(Reservation.unit_id == unit_id)
     if start_date is not None:
         query = query.filter(Reservation.end_date > start_date)
     if end_date is not None:
         query = query.filter(Reservation.start_date < end_date)
     rows = query.order_by(Reservation.start_date.asc(), Reservation.id.asc()).all()
 
+    def _calendar_color(status: str) -> str:
+        if status == "confirmed":
+            return "#10b981"
+        if status == "cancelled":
+            return "#9ca3af"
+        return "#3b82f6"
+
     events: list[dict] = []
     for row in rows:
         guest = row.guest
         unit = row.unit
-        guest_label = guest.email if guest is not None else "Guest"
+        guest_name = _display_guest_name(guest=guest, guest_name=row.guest_name)
         unit_name = unit.name if unit is not None else "Unit"
+        property_name = unit.property.name if unit is not None and unit.property is not None else ""
         property_id = unit.property_id if unit is not None else None
         events.append(
             {
                 "id": row.id,
-                "title": f"{guest_label} / {unit_name}",
+                "title": f"{guest_name} – {unit_name}",
                 "start": row.start_date.isoformat(),
                 "end": row.end_date.isoformat(),
                 "status": row.status,
                 "unit_id": row.unit_id,
                 "property_id": property_id,
+                "color": _calendar_color(row.status),
+                "extendedProps": {
+                    "guest_name": guest_name,
+                    "guest_id": row.guest_id,
+                    "property_name": property_name,
+                    "unit_name": unit_name,
+                    "status": row.status,
+                    "unit_id": row.unit_id,
+                },
                 "url": f"/admin/reservations/{row.id}/edit",
                 "editable": row.status != "cancelled",
             }
@@ -160,7 +230,7 @@ def _reservation_display_dict(*, row: Reservation) -> dict:
         "unit_id": row.unit_id,
         "property_id": unit.property_id if unit is not None else None,
         "guest_id": row.guest_id,
-        "guest_name": guest.email if guest is not None else "",
+        "guest_name": _display_guest_name(guest=guest, guest_name=row.guest_name),
         "start_date": row.start_date.isoformat(),
         "end_date": row.end_date.isoformat(),
         "status": row.status,
@@ -218,24 +288,30 @@ def update_reservation(
             status=404,
         )
 
+    guest_id_raw = data.get("guest_id")
     guest_name_raw = (data.get("guest_name") or "").strip()
-    if not guest_name_raw:
+    guest: Guest | None = None
+    if str(guest_id_raw or "").strip():
+        try:
+            parsed_guest_id = int(guest_id_raw)
+        except (TypeError, ValueError):
+            raise ReservationServiceError(
+                code="validation_error",
+                message="Guest must be a valid ID.",
+                status=400,
+            ) from None
+        guest = Guest.query.filter_by(id=parsed_guest_id, organization_id=organization_id).first()
+        if guest is None:
+            raise ReservationServiceError(
+                code="validation_error",
+                message="Selected guest was not found in your organization.",
+                status=400,
+            )
+    guest_name = guest_name_raw or _display_guest_name(guest=guest, guest_name="")
+    if not guest_name:
         raise ReservationServiceError(
             code="validation_error",
-            message="Guest name (email) is required.",
-            status=400,
-        )
-    guest_email_norm = guest_name_raw.lower()
-    guest = (
-        User.query.filter(
-            User.organization_id == organization_id,
-            sa_func.lower(User.email) == guest_email_norm,
-        ).first()
-    )
-    if guest is None:
-        raise ReservationServiceError(
-            code="validation_error",
-            message="No user in your organization matches that guest email.",
+            message="Guest name is required when no linked guest is selected.",
             status=400,
         )
 
@@ -302,13 +378,15 @@ def update_reservation(
     before = {
         "unit_id": row.unit_id,
         "guest_id": row.guest_id,
+        "guest_name": row.guest_name,
         "start_date": row.start_date.isoformat(),
         "end_date": row.end_date.isoformat(),
         "status": row.status,
     }
 
     row.unit_id = unit.id
-    row.guest_id = guest.id
+    row.guest_id = guest.id if guest is not None else None
+    row.guest_name = guest_name
     row.start_date = start_date
     row.end_date = end_date
     row.status = status
@@ -325,6 +403,7 @@ def update_reservation(
             "after": {
                 "unit_id": row.unit_id,
                 "guest_id": row.guest_id,
+                "guest_name": row.guest_name,
                 "start_date": row.start_date.isoformat(),
                 "end_date": row.end_date.isoformat(),
                 "status": row.status,
@@ -345,7 +424,8 @@ def create_reservation(
     *,
     organization_id: int,
     unit_id: int,
-    guest_id: int,
+    guest_id: int | None,
+    guest_name: str | None,
     start_date_raw: str,
     end_date_raw: str,
     actor_user_id: int | None = None,
@@ -362,12 +442,28 @@ def create_reservation(
             status=404,
         )
 
-    guest = User.query.filter_by(id=guest_id, organization_id=organization_id).first()
-    if guest is None:
+    guest: Guest | None = None
+    resolved_guest_name = (guest_name or "").strip()
+    if guest_id is not None:
+        guest = Guest.query.filter_by(id=guest_id, organization_id=organization_id).first()
+        if guest is None:
+            # Back-compat: existing tests/forms may post a user id in guest_id.
+            legacy_user = User.query.filter_by(id=guest_id, organization_id=organization_id).first()
+            if legacy_user is not None:
+                resolved_guest_name = resolved_guest_name or legacy_user.email
+            else:
+                raise ReservationServiceError(
+                    code="not_found",
+                    message="Guest not found.",
+                    status=404,
+                )
+        else:
+            resolved_guest_name = resolved_guest_name or _display_guest_name(guest=guest, guest_name="")
+    if not resolved_guest_name:
         raise ReservationServiceError(
-            code="not_found",
-            message="Guest not found.",
-            status=404,
+            code="validation_error",
+            message="Guest name is required when no linked guest is selected.",
+            status=400,
         )
 
     start_date = _parse_iso_date(start_date_raw, "start_date")
@@ -397,7 +493,8 @@ def create_reservation(
 
     row = Reservation(
         unit_id=unit.id,
-        guest_id=guest.id,
+        guest_id=guest.id if guest is not None else None,
+        guest_name=resolved_guest_name,
         start_date=start_date,
         end_date=end_date,
         status="confirmed",
@@ -414,18 +511,20 @@ def create_reservation(
         context={
             "unit_id": row.unit_id,
             "guest_id": row.guest_id,
+            "guest_name": row.guest_name,
             "start_date": row.start_date.isoformat(),
             "end_date": row.end_date.isoformat(),
             "user_id": actor_user_id,
         },
         commit=True,
     )
-    _send_reservation_email(
-        template_key=TemplateKey.RESERVATION_CONFIRMATION,
-        to_email=guest.email,
-        reservation=row,
-        guest=guest,
-    )
+    if guest is not None and guest.email:
+        _send_reservation_email(
+            template_key=TemplateKey.RESERVATION_CONFIRMATION,
+            to_email=guest.email,
+            reservation=row,
+            guest_name=_display_guest_name(guest=guest, guest_name=row.guest_name),
+        )
     return _serialize_reservation(row)
 
 
@@ -560,6 +659,112 @@ def move_reservation(
     return _serialize_reservation(row)
 
 
+def resize_reservation(
+    *,
+    reservation_id: int,
+    organization_id: int,
+    payload: Mapping[str, Any],
+    actor_user_id: int | None = None,
+    actor_role: str | None = None,
+) -> dict:
+    """Resize a reservation in-place (admin/superadmin, tenant-scoped, overlap-safe)."""
+
+    if actor_role not in {UserRole.ADMIN.value, UserRole.SUPERADMIN.value}:
+        raise ReservationServiceError(
+            code="forbidden",
+            message="Admin privileges required.",
+            status=403,
+        )
+
+    start_raw = payload.get("start_date")
+    end_raw = payload.get("end_date")
+    start_date = _parse_iso_date(str(start_raw or ""), "start_date")
+    end_date = _parse_iso_date(str(end_raw or ""), "end_date")
+    if start_date >= end_date:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Field 'start_date' must be before 'end_date'.",
+            status=400,
+        )
+
+    # Lock the reservation row without joined eager relationships.
+    row = (
+        Reservation.query.options(noload(Reservation.unit), noload(Reservation.guest))
+        .filter_by(id=reservation_id)
+        .with_for_update()
+        .first()
+    )
+    if row is None:
+        raise ReservationServiceError(
+            code="not_found",
+            message="Reservation not found.",
+            status=404,
+        )
+    in_tenant = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Unit.id == row.unit_id, Property.organization_id == organization_id)
+        .first()
+    )
+    if in_tenant is None:
+        raise ReservationServiceError(
+            code="not_found",
+            message="Reservation not found.",
+            status=404,
+        )
+
+    if row.status == "confirmed":
+        overlapping = (
+            Reservation.query.filter(
+                Reservation.unit_id == row.unit_id,
+                Reservation.id != reservation_id,
+                Reservation.status != "cancelled",
+                Reservation.start_date < end_date,
+                Reservation.end_date > start_date,
+            )
+            .first()
+        )
+        if overlapping is not None:
+            raise ReservationServiceError(
+                code="reservation_overlap",
+                message="Reservation overlaps with another reservation.",
+                status=409,
+            )
+
+    before = {
+        "start_date": row.start_date.isoformat(),
+        "end_date": row.end_date.isoformat(),
+        "status": row.status,
+    }
+
+    row.start_date = start_date
+    row.end_date = end_date
+
+    audit_record(
+        "reservation_resized",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="reservation",
+        target_id=row.id,
+        context={
+            "before": before,
+            "after": {
+                "start_date": row.start_date.isoformat(),
+                "end_date": row.end_date.isoformat(),
+                "status": row.status,
+            },
+            "user_id": actor_user_id,
+        },
+        commit=False,
+    )
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return _serialize_reservation(row)
+
+
 def cancel_reservation(
     *,
     organization_id: int,
@@ -597,12 +802,13 @@ def cancel_reservation(
     except Exception:
         db.session.rollback()
         raise
-    _send_reservation_email(
-        template_key=TemplateKey.RESERVATION_CANCELLED,
-        to_email=row.guest.email,
-        reservation=row,
-        guest=row.guest,
-    )
+    if row.guest is not None and row.guest.email:
+        _send_reservation_email(
+            template_key=TemplateKey.RESERVATION_CANCELLED,
+            to_email=row.guest.email,
+            reservation=row,
+            guest_name=_display_guest_name(guest=row.guest, guest_name=row.guest_name),
+        )
     return _serialize_reservation(row)
 
 
@@ -611,14 +817,15 @@ def _send_reservation_email(
     template_key: str,
     to_email: str,
     reservation: Reservation,
-    guest: User,
+    guest_name: str,
 ) -> None:
     try:
         send_template(
             template_key,
             to=to_email,
             context={
-                "user_email": guest.email,
+                "user_email": to_email,
+                "guest_name": guest_name,
                 "reservation_id": reservation.id,
                 "unit_name": reservation.unit.name,
                 "start_date": reservation.start_date.isoformat(),

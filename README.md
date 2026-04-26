@@ -103,6 +103,12 @@ flask db upgrade
 flask create-superadmin
 ```
 
+Seed demo PMS data:
+
+```bash
+flask seed-demo-data
+```
+
 On first login, superadmin must complete TOTP setup and verification before
 admin actions are allowed.
 

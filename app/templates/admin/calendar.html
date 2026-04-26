@@ -7,20 +7,94 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <style>
     #calendar { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: .5rem; }
-    .fc .fc-event-title { font-size: .78rem; }
+    .fc-event-title {
+      white-space: normal !important;
+      font-size: 12px;
+      line-height: 1.2;
+    }
     .fc-event-cancelled { opacity: .55; }
+    .calendar-filters { margin-bottom: .75rem; display: flex; gap: 1.25rem; align-items: flex-end; flex-wrap: wrap; }
+    .calendar-filters label { font-size: .875rem; color: #374151; }
+    .calendar-filters select { margin-top: .25rem; min-width: 12rem; padding: .35rem .5rem; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; }
   </style>
 {% endblock %}
 
 {% block content %}
   <h1>Reservation calendar</h1>
   <p class="meta">Drag a reservation to change dates (same property rules apply in the backend). Click opens details.</p>
+  <div class="calendar-filters">
+    <label>
+      Property
+      <select id="filter-property" aria-label="Filter by property">
+        <option value="">All properties</option>
+        {% for p in properties %}
+          <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Unit
+      <select id="filter-unit" aria-label="Filter by unit">
+        <option value="">All units</option>
+        {% for u in units %}
+          <option value="{{ u.id }}" data-property-id="{{ u.property_id }}">{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
   <div id="calendar"></div>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       var el = document.getElementById("calendar");
+      var propEl = document.getElementById("filter-property");
+      var unitEl = document.getElementById("filter-unit");
       var csrfMeta = document.querySelector('meta[name="csrf-token"]');
       var csrfToken = csrfMeta ? csrfMeta.getAttribute("content") : "";
+
+      function syncUnitOptionsForProperty() {
+        if (!unitEl || !propEl) {
+          return;
+        }
+        var pid = propEl.value;
+        var current = unitEl.value;
+        for (var i = 0; i < unitEl.options.length; i++) {
+          var opt = unitEl.options[i];
+          if (!opt.value) {
+            opt.hidden = false;
+            continue;
+          }
+          var opid = opt.getAttribute("data-property-id");
+          if (!pid || String(opid) === String(pid)) {
+            opt.hidden = false;
+          } else {
+            opt.hidden = true;
+          }
+        }
+        if (current) {
+          var sel = null;
+          for (var j = 0; j < unitEl.options.length; j++) {
+            if (unitEl.options[j].value === current) {
+              sel = unitEl.options[j];
+              break;
+            }
+          }
+          if (sel && sel.hidden) {
+            unitEl.value = "";
+          }
+        }
+      }
+
+      function calendarFilterParams() {
+        var params = {};
+        if (propEl && propEl.value) {
+          params.property_id = propEl.value;
+        }
+        if (unitEl && unitEl.value) {
+          params.unit_id = unitEl.value;
+        }
+        return params;
+      }
+
       var calendar = new FullCalendar.Calendar(el, {
         initialView: "dayGridMonth",
         headerToolbar: {
@@ -28,22 +102,31 @@
           center: "title",
           right: "dayGridMonth,timeGridWeek,listMonth",
         },
+        dayMaxEvents: true,
         editable: true,
-        eventDurationEditable: false,
+        eventDurationEditable: true,
         eventResizableFromStart: false,
         selectable: false,
         eventSources: [
           {
             url: "{{ url_for('admin.calendar_events') }}",
             method: "GET",
-            extraParams: function () { return {}; },
+            extraParams: calendarFilterParams,
           },
         ],
         eventDidMount: function (info) {
-          var st = info.event.extendedProps && info.event.extendedProps.status;
+          var props = info.event.extendedProps || {};
+          var st = props.status;
           if (st === "cancelled") {
             info.el.classList.add("fc-event-cancelled");
           }
+          info.el.title =
+            "Guest: " + (props.guest_name || "") + "\n" +
+            "Property: " + (props.property_name || "") + "\n" +
+            "Unit: " + (props.unit_name || "") + "\n" +
+            "Status: " + (props.status || "") + "\n" +
+            "Start: " + (info.event.start ? info.event.start.toLocaleDateString() : "") + "\n" +
+            "End: " + (info.event.end ? info.event.end.toLocaleDateString() : "");
         },
         eventClick: function (info) {
           info.jsEvent.preventDefault();
@@ -102,8 +185,59 @@
               alert("Move failed.");
             });
         },
+        eventResize: function (info) {
+          var ev = info.event;
+          var start = ev.startStr ? ev.startStr.slice(0, 10) : null;
+          var end = ev.endStr ? ev.endStr.slice(0, 10) : null;
+          if (!start || !end) {
+            info.revert();
+            return;
+          }
+          var url = "/admin/reservations/" + String(ev.id) + "/resize";
+          fetch(url, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrfToken,
+            },
+            body: JSON.stringify({
+              start_date: start,
+              end_date: end,
+            }),
+          })
+            .then(function (res) {
+              return res.json().then(function (body) {
+                if (!res.ok || !body.success) {
+                  info.revert();
+                  var msg =
+                    body && body.error && body.error.message
+                      ? body.error.message
+                      : "Resize failed.";
+                  alert(msg);
+                  return;
+                }
+                info.view.calendar.refetchEvents();
+              });
+            })
+            .catch(function () {
+              info.revert();
+              alert("Resize failed.");
+            });
+        },
       });
       calendar.render();
+      syncUnitOptionsForProperty();
+      if (propEl) {
+        propEl.addEventListener("change", function () {
+          syncUnitOptionsForProperty();
+          calendar.refetchEvents();
+        });
+      }
+      if (unitEl) {
+        unitEl.addEventListener("change", function () {
+          calendar.refetchEvents();
+        });
+      }
     });
   </script>
 {% endblock %}

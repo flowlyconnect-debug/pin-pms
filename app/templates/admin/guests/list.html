@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Guests · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn" href="{{ url_for('admin.guests_new') }}">New guest</a>
+  </div>
+  <h1>Guests</h1>
+  <form method="get" class="actions">
+    <input type="text" name="search" placeholder="Search name/email/phone" value="{{ search }}">
+    <button type="submit">Search</button>
+  </form>
+  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.full_name }}</td>
+          <td>{{ row.email or "—" }}</td>
+          <td>{{ row.phone or "—" }}</td>
+          <td>
+            <a href="{{ url_for('admin.guests_detail', guest_id=row.id) }}">View</a>
+            · <a href="{{ url_for('admin.guests_edit', guest_id=row.id) }}">Edit</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5"><em>No guests yet.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

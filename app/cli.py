@@ -11,6 +11,10 @@ from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import ensure_seed_templates, send_template
 from app.extensions import db
 from app.organizations.models import Organization
+from app.properties import services as property_service
+from app.properties.models import Property, Unit
+from app.reservations import services as reservation_service
+from app.reservations.models import Reservation
 from app.settings.services import ensure_seed_settings
 from app.users.models import User, UserRole
 
@@ -434,3 +438,130 @@ def register_cli_commands(app: Flask) -> None:
             click.echo(f"Inserted missing settings: {', '.join(added)}")
         else:
             click.echo("All seed settings are already present.")
+
+    @app.cli.command("seed-demo-data")
+    def seed_demo_data() -> None:
+        """Seed tenant-safe demo PMS data (idempotent)."""
+
+        from datetime import date, timedelta
+
+        created_counts = {
+            "organizations": 0,
+            "properties": 0,
+            "units": 0,
+            "reservations": 0,
+        }
+
+        organization = Organization.query.order_by(Organization.id.asc()).first()
+        if organization is None:
+            organization = Organization(name="Demo Organization")
+            db.session.add(organization)
+            db.session.commit()
+            created_counts["organizations"] += 1
+
+        guest = (
+            User.query.filter_by(
+                organization_id=organization.id,
+                email=f"demo.guest+org{organization.id}@pindora.local",
+            )
+            .order_by(User.id.asc())
+            .first()
+        )
+        if guest is None:
+            guest = _create_user(
+                email=f"demo.guest+org{organization.id}@pindora.local",
+                password="DemoPass123!",
+                role=UserRole.USER.value,
+                organization_name=organization.name,
+            )
+
+        property_name = "Demo Property"
+        existing_property = Property.query.filter_by(
+            organization_id=organization.id,
+            name=property_name,
+        ).first()
+        if existing_property is None:
+            property_row = property_service.create_property(
+                organization_id=organization.id,
+                name=property_name,
+                address="Demo Street 1",
+                actor_user_id=guest.id,
+            )
+            property_id = property_row["id"]
+            created_counts["properties"] += 1
+        else:
+            property_id = existing_property.id
+
+        unit_seeds = [
+            ("Demo Unit 101", "single"),
+            ("Demo Unit 102", "double"),
+            ("Demo Unit 201", "suite"),
+        ]
+        unit_ids_by_name: dict[str, int] = {}
+        for unit_name, unit_type in unit_seeds:
+            existing_unit = Unit.query.filter_by(
+                property_id=property_id,
+                name=unit_name,
+            ).first()
+            if existing_unit is None:
+                unit_row = property_service.create_unit(
+                    organization_id=organization.id,
+                    property_id=property_id,
+                    name=unit_name,
+                    unit_type=unit_type,
+                    actor_user_id=guest.id,
+                )
+                unit_ids_by_name[unit_name] = unit_row["id"]
+                created_counts["units"] += 1
+            else:
+                unit_ids_by_name[unit_name] = existing_unit.id
+
+        today = date.today()
+        reservation_seeds = [
+            ("Demo Unit 101", 2, 5),
+            ("Demo Unit 101", 7, 10),
+            ("Demo Unit 102", 4, 8),
+            ("Demo Unit 201", 12, 15),
+        ]
+
+        existing_rows = reservation_service.list_reservations(
+            organization_id=organization.id
+        )
+        existing_keyset = {
+            (
+                row["unit_id"],
+                row["guest_id"],
+                row["start_date"],
+                row["end_date"],
+                row["status"],
+            )
+            for row in existing_rows
+        }
+
+        for unit_name, start_offset, end_offset in reservation_seeds:
+            unit_id = unit_ids_by_name[unit_name]
+            start_date = (today + timedelta(days=start_offset)).isoformat()
+            end_date = (today + timedelta(days=end_offset)).isoformat()
+            seed_key = (unit_id, guest.id, start_date, end_date, "confirmed")
+            if seed_key in existing_keyset:
+                continue
+            _ = reservation_service.create_reservation(
+                organization_id=organization.id,
+                unit_id=unit_id,
+                guest_id=guest.id,
+                start_date_raw=start_date,
+                end_date_raw=end_date,
+                actor_user_id=guest.id,
+            )
+            created_counts["reservations"] += 1
+
+        click.echo("Demo data seed complete.")
+        click.echo(f"  Organization: {organization.name} (id={organization.id})")
+        click.echo(f"  Property id:  {property_id}")
+        click.echo(
+            "  Created: "
+            f"{created_counts['organizations']} org, "
+            f"{created_counts['properties']} property, "
+            f"{created_counts['units']} unit(s), "
+            f"{created_counts['reservations']} reservation(s)"
+        )

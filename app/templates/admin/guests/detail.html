@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Guest #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.guests_list') }}">Back to guests</a>
+    <a class="btn" href="{{ url_for('admin.guests_edit', guest_id=row.id) }}">Edit guest</a>
+  </div>
+  <h1>{{ row.full_name }}</h1>
+  <div class="card">
+    <p><strong>Email:</strong> {{ row.email or "—" }}</p>
+    <p><strong>Phone:</strong> {{ row.phone or "—" }}</p>
+    <p><strong>Notes:</strong> {{ row.notes or "—" }}</p>
+    <p><strong>Preferences:</strong> {{ row.preferences or "—" }}</p>
+  </div>
+  <h2>Reservation history</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Property</th>
+        <th>Unit</th>
+        <th>Dates</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for reservation in reservations %}
+        <tr>
+          <td><a href="{{ url_for('admin.reservations_detail', reservation_id=reservation.id) }}">#{{ reservation.id }}</a></td>
+          <td>{{ reservation.property_name }}</td>
+          <td>{{ reservation.unit_name }}</td>
+          <td>{{ reservation.start_date }} → {{ reservation.end_date }}</td>
+          <td>{{ reservation.status }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5"><em>No reservations linked to this guest.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

@@ -19,13 +19,15 @@
         <option value="{{ unit.id }}" {% if form.unit_id == unit.id|string %}selected{% endif %}>#{{ unit.id }} - {{ unit.property.name }} / {{ unit.name }}</option>
       {% endfor %}
     </select>
-    <label for="guest_id">Guest</label>
-    <select id="guest_id" name="guest_id" required>
-      <option value="">Select user</option>
-      {% for user in users %}
-        <option value="{{ user.id }}" {% if form.guest_id == user.id|string %}selected{% endif %}>#{{ user.id }} - {{ user.email }}</option>
+    <label for="guest_id">Linked guest</label>
+    <select id="guest_id" name="guest_id">
+      <option value="">No linked guest</option>
+      {% for guest in guests %}
+        <option value="{{ guest.id }}" {% if form.guest_id == guest.id|string %}selected{% endif %}>#{{ guest.id }} - {{ guest.full_name }}{% if guest.email %} ({{ guest.email }}){% endif %}</option>
       {% endfor %}
     </select>
+    <label for="guest_name">Guest display name</label>
+    <input id="guest_name" name="guest_name" type="text" value="{{ form.guest_name }}" placeholder="Required if no linked guest">
     <label for="start_date">Start date</label>
     <input id="start_date" name="start_date" type="date" required value="{{ form.start_date }}">
     <label for="end_date">End date</label>

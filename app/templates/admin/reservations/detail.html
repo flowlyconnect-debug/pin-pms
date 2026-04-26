@@ -10,7 +10,12 @@
   </div>
   <h1>Reservation #{{ row.id }}</h1>
   <div class="card">
-    <p><strong>Guest name:</strong> {{ row.guest_name }}</p>
+    <p>
+      <strong>Guest name:</strong> {{ row.guest_name }}
+      {% if row.guest_id %}
+        · <a href="{{ url_for('admin.guests_detail', guest_id=row.guest_id) }}">Open guest profile</a>
+      {% endif %}
+    </p>
     <p><strong>Property:</strong> {{ row.property_name }}</p>
     <p><strong>Unit:</strong> {{ row.unit_name }}</p>
     <p><strong>Start date:</strong> {{ row.start_date }}</p>

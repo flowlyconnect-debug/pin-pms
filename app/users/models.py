@@ -2,6 +2,8 @@ from enum import Enum
 
 from flask_login import UserMixin
 import pyotp
+import sqlalchemy as sa
+from sqlalchemy import event
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
@@ -23,6 +25,7 @@ class Organization(TimestampMixin, db.Model):
 
     users = db.relationship("User", back_populates="organization", lazy="select")
     properties = db.relationship("Property", back_populates="organization", lazy="select")
+    guests = db.relationship("Guest", back_populates="organization", lazy="select")
 
 
 class User(TimestampMixin, UserMixin, db.Model):
@@ -49,7 +52,6 @@ class User(TimestampMixin, UserMixin, db.Model):
     totp_secret = db.Column(db.String(32), nullable=True)
     is_2fa_enabled = db.Column(db.Boolean, nullable=False, default=False)
     organization = db.relationship("Organization", back_populates="users", lazy="joined")
-    reservations = db.relationship("Reservation", back_populates="guest", lazy="select")
 
     def set_password(self, raw_password: str) -> None:
         self.password_hash = generate_password_hash(raw_password)
@@ -71,3 +73,29 @@ class User(TimestampMixin, UserMixin, db.Model):
             return False
         normalized_code = (code or "").strip()
         return pyotp.TOTP(self.totp_secret).verify(normalized_code, valid_window=1)
+
+
+@event.listens_for(User, "after_insert")
+def _ensure_shadow_guest_profile(_mapper, connection, target) -> None:
+    """Backwards-compat: reservations used to reference users as guests."""
+
+    from app.guests.models import Guest
+
+    existing = connection.execute(
+        sa.select(Guest.id).where(Guest.id == target.id)
+    ).scalar_one_or_none()
+    if existing is not None:
+        return
+    local_part = (target.email or "guest").split("@", 1)[0].strip() or "Guest"
+    connection.execute(
+        Guest.__table__.insert().values(
+            id=target.id,
+            organization_id=target.organization_id,
+            first_name=local_part,
+            last_name="",
+            email=target.email,
+            phone=None,
+            notes=None,
+            preferences=None,
+        )
+    )

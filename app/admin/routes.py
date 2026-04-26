@@ -22,6 +22,7 @@ from app.backups.services import BackupError, create_backup, restore_backup
 from app.email.models import EmailTemplate
 from app.email.services import render_strings as render_email_strings
 from app.extensions import db
+from app.guests import services as guest_service
 from app.settings import services as settings_service
 from app.settings.models import Setting, SettingType
 from app.properties import services as property_service
@@ -78,10 +79,25 @@ def admin_home():
     return render_template("admin/dashboard.html", summary=summary)
 
 
+def _parse_optional_calendar_filter_int(name: str) -> int | None:
+    raw = request.args.get(name)
+    if raw is None or not str(raw).strip():
+        return None
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        abort(400)
+
+
 @admin_bp.get("/calendar")
 @require_admin_pms_access
 def calendar_page():
-    return render_template("admin/calendar.html")
+    properties, units = _reservation_edit_form_context(organization_id=_pms_org_id())
+    return render_template(
+        "admin/calendar.html",
+        properties=properties,
+        units=units,
+    )
 
 
 @admin_bp.get("/calendar/events")
@@ -92,27 +108,34 @@ def calendar_events():
         end_d = reservation_service.parse_calendar_iso_bound(request.args.get("end"))
     except ValueError:
         abort(400)
-    events = reservation_service.get_calendar_events(
-        organization_id=_pms_org_id(),
-        start_date=start_d,
-        end_date=end_d,
-    )
+    property_id = _parse_optional_calendar_filter_int("property_id")
+    unit_id = _parse_optional_calendar_filter_int("unit_id")
+    try:
+        events = reservation_service.get_calendar_events(
+            organization_id=_pms_org_id(),
+            start_date=start_d,
+            end_date=end_d,
+            property_id=property_id,
+            unit_id=unit_id,
+        )
+    except reservation_service.ReservationServiceError as exc:
+        return json_error(exc.code, exc.message, status=exc.status)
     return jsonify(events)
 
 
-def _reservation_form_choices(*, organization_id: int) -> tuple[list[Unit], list[User]]:
+def _reservation_form_choices(*, organization_id: int):
     units = (
         Unit.query.join(Property, Unit.property_id == Property.id)
         .filter(Property.organization_id == organization_id)
         .order_by(Property.id.asc(), Unit.id.asc())
         .all()
     )
-    users = (
-        User.query.filter_by(organization_id=organization_id)
-        .order_by(User.id.asc())
-        .all()
+    guest_rows, _ = guest_service.list_guests(
+        organization_id=organization_id,
+        page=1,
+        per_page=500,
     )
-    return units, users
+    return units, guest_rows
 
 
 def _reservation_edit_return_target(raw: str | None) -> str:
@@ -137,6 +160,80 @@ def _reservation_edit_form_context(*, organization_id: int) -> tuple[list[Proper
         .all()
     )
     return properties, units
+
+
+@admin_bp.get("/guests")
+@require_admin_pms_access
+def guests_list():
+    page, per_page = _pms_pagination()
+    search = (request.args.get("search") or "").strip() or None
+    rows, total = guest_service.list_guests(
+        organization_id=_pms_org_id(),
+        search=search,
+        page=page,
+        per_page=per_page,
+    )
+    return render_template("admin/guests/list.html", rows=rows, total=total, page=page, per_page=per_page, search=search or "")
+
+
+@admin_bp.route("/guests/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def guests_new():
+    form = {"first_name": "", "last_name": "", "email": "", "phone": "", "notes": "", "preferences": ""}
+    error: str | None = None
+    if request.method == "POST":
+        for key in form:
+            form[key] = (request.form.get(key) or "").strip()
+        try:
+            row = guest_service.create_guest(_pms_org_id(), form, current_user)
+        except guest_service.GuestServiceError as err:
+            error = err.message
+        else:
+            flash("Guest created.")
+            return redirect(url_for("admin.guests_detail", guest_id=row["id"]))
+    return render_template("admin/guests/new.html", form=form, error=error)
+
+
+@admin_bp.get("/guests/<int:guest_id>")
+@require_admin_pms_access
+def guests_detail(guest_id: int):
+    try:
+        row = guest_service.get_guest(guest_id, _pms_org_id())
+        reservations = guest_service.get_guest_reservations(guest_id, _pms_org_id())
+    except guest_service.GuestServiceError:
+        abort(404)
+    return render_template("admin/guests/detail.html", row=row, reservations=reservations)
+
+
+@admin_bp.route("/guests/<int:guest_id>/edit", methods=["GET", "POST"])
+@require_admin_pms_access
+def guests_edit(guest_id: int):
+    try:
+        row = guest_service.get_guest(guest_id, _pms_org_id())
+    except guest_service.GuestServiceError:
+        abort(404)
+    form = {
+        "first_name": row["first_name"],
+        "last_name": row["last_name"],
+        "email": row["email"] or "",
+        "phone": row["phone"] or "",
+        "notes": row["notes"] or "",
+        "preferences": row["preferences"] or "",
+    }
+    error: str | None = None
+    if request.method == "POST":
+        for key in form:
+            form[key] = (request.form.get(key) or "").strip()
+        try:
+            row = guest_service.update_guest(guest_id, _pms_org_id(), form, current_user)
+        except guest_service.GuestServiceError as err:
+            if err.status == 404:
+                abort(404)
+            error = err.message
+        else:
+            flash("Guest updated.")
+            return redirect(url_for("admin.guests_detail", guest_id=row["id"]))
+    return render_template("admin/guests/edit.html", row=row, form=form, error=error)
 
 
 @admin_bp.get("/properties")
@@ -346,10 +443,11 @@ def reservations_list():
 @admin_bp.route("/reservations/new", methods=["GET", "POST"])
 @require_admin_pms_access
 def reservations_new():
-    units, users = _reservation_form_choices(organization_id=_pms_org_id())
+    units, guests = _reservation_form_choices(organization_id=_pms_org_id())
     form = {
         "unit_id": "",
         "guest_id": "",
+        "guest_name": "",
         "start_date": "",
         "end_date": "",
     }
@@ -358,17 +456,20 @@ def reservations_new():
     if request.method == "POST":
         form["unit_id"] = (request.form.get("unit_id") or "").strip()
         form["guest_id"] = (request.form.get("guest_id") or "").strip()
+        form["guest_name"] = (request.form.get("guest_name") or "").strip()
         form["start_date"] = (request.form.get("start_date") or "").strip()
         form["end_date"] = (request.form.get("end_date") or "").strip()
 
-        if not form["unit_id"] or not form["guest_id"] or not form["start_date"] or not form["end_date"]:
-            error = "All fields are required."
+        if not form["unit_id"] or not form["start_date"] or not form["end_date"]:
+            error = "Unit and dates are required."
         else:
             try:
+                parsed_guest_id = int(form["guest_id"]) if form["guest_id"] else None
                 row = reservation_service.create_reservation(
                     organization_id=_pms_org_id(),
                     unit_id=int(form["unit_id"]),
-                    guest_id=int(form["guest_id"]),
+                    guest_id=parsed_guest_id,
+                    guest_name=form["guest_name"] or None,
                     start_date_raw=form["start_date"],
                     end_date_raw=form["end_date"],
                     actor_user_id=current_user.id,
@@ -384,7 +485,7 @@ def reservations_new():
     return render_template(
         "admin/reservations/new.html",
         units=units,
-        users=users,
+        guests=guests,
         form=form,
         error=error,
     )
@@ -431,6 +532,34 @@ def reservations_move(reservation_id: int):
     )
 
 
+@admin_bp.patch("/reservations/<int:reservation_id>/resize")
+@require_admin_pms_access
+def reservations_resize(reservation_id: int):
+    if not request.is_json:
+        return json_error("invalid_request", "JSON body required.", status=400, data=None)
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return json_error("invalid_request", "Invalid JSON body.", status=400, data=None)
+    try:
+        data = reservation_service.resize_reservation(
+            reservation_id=reservation_id,
+            organization_id=_pms_org_id(),
+            payload=body,
+            actor_user_id=current_user.id,
+            actor_role=current_user.role,
+        )
+    except reservation_service.ReservationServiceError as err:
+        return json_error(err.code, err.message, status=err.status, data=None)
+    return json_ok(
+        {
+            "id": data["id"],
+            "start_date": data["start_date"],
+            "end_date": data["end_date"],
+            "unit_id": data["unit_id"],
+        }
+    )
+
+
 @admin_bp.route("/reservations/<int:reservation_id>/edit", methods=["GET", "POST"])
 @require_admin_pms_access
 def reservations_edit(reservation_id: int):
@@ -451,6 +580,7 @@ def reservations_edit(reservation_id: int):
 
     form = {
         "guest_name": row["guest_name"],
+        "guest_id": str(row["guest_id"] or ""),
         "property_id": str(row["property_id"] or ""),
         "unit_id": str(row["unit_id"]),
         "start_date": row["start_date"],
@@ -462,6 +592,7 @@ def reservations_edit(reservation_id: int):
 
     if request.method == "POST":
         form["guest_name"] = (request.form.get("guest_name") or "").strip()
+        form["guest_id"] = (request.form.get("guest_id") or "").strip()
         form["property_id"] = (request.form.get("property_id") or "").strip()
         form["unit_id"] = (request.form.get("unit_id") or "").strip()
         form["start_date"] = (request.form.get("start_date") or "").strip()
@@ -471,6 +602,7 @@ def reservations_edit(reservation_id: int):
 
         payload = {
             "guest_name": form["guest_name"],
+            "guest_id": form["guest_id"],
             "property_id": form["property_id"],
             "unit_id": form["unit_id"],
             "start_date": form["start_date"],
@@ -500,6 +632,7 @@ def reservations_edit(reservation_id: int):
         "admin/reservations/edit.html",
         row=row,
         form=form,
+        guests=guest_service.list_guests(organization_id=org_id, page=1, per_page=500)[0],
         properties=properties,
         units=units,
         error=error,

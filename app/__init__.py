@@ -86,6 +86,7 @@ def register_models() -> None:
     from app.audit.models import AuditLog
     from app.backups.models import Backup
     from app.email.models import EmailTemplate
+    from app.guests.models import Guest
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
@@ -97,6 +98,7 @@ def register_models() -> None:
         AuditLog,
         Backup,
         EmailTemplate,
+        Guest,
         Organization,
         Property,
         Reservation,
