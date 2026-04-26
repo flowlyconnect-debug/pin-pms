@@ -40,6 +40,12 @@
             info.el.classList.add("fc-event-cancelled");
           }
         },
+        eventClick: function (info) {
+          if (info.event.url) {
+            info.jsEvent.preventDefault();
+            window.location.href = info.event.url;
+          }
+        },
       });
       calendar.render();
     });

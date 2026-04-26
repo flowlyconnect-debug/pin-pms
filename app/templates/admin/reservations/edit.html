@@ -1,0 +1,84 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Edit reservation #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.calendar_page') }}">Calendar</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Reservations</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">View reservation</a>
+  </div>
+  <h1>Edit reservation #{{ row.id }}</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="return_to" value="{{ form.return_to }}">
+
+    <label for="guest_name">Guest name (email)</label>
+    <input id="guest_name" name="guest_name" type="email" required autocomplete="off" value="{{ form.guest_name }}">
+
+    <label for="property_id">Property</label>
+    <select id="property_id" name="property_id" required>
+      <option value="">Select property</option>
+      {% for p in properties %}
+        <option value="{{ p.id }}" {% if form.property_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="unit_id">Unit</label>
+    <select id="unit_id" name="unit_id" required>
+      <option value="">Select unit</option>
+      {% for unit in units %}
+        <option
+          value="{{ unit.id }}"
+          data-property-id="{{ unit.property_id }}"
+          {% if form.unit_id == unit.id|string %}selected{% endif %}
+        >{{ unit.property.name }} — {{ unit.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="start_date">Start date</label>
+    <input id="start_date" name="start_date" type="date" required value="{{ form.start_date }}">
+
+    <label for="end_date">End date</label>
+    <input id="end_date" name="end_date" type="date" required value="{{ form.end_date }}">
+
+    <label for="status">Status</label>
+    <select id="status" name="status" required>
+      <option value="confirmed" {% if form.status == "confirmed" %}selected{% endif %}>confirmed</option>
+      <option value="cancelled" {% if form.status == "cancelled" %}selected{% endif %}>cancelled</option>
+    </select>
+
+    <div class="actions">
+      <button type="submit">Save changes</button>
+    </div>
+  </form>
+  <script>
+    (function () {
+      var prop = document.getElementById("property_id");
+      var unitSel = document.getElementById("unit_id");
+      if (!prop || !unitSel) return;
+
+      function filterUnits() {
+        var pid = prop.value;
+        var opts = unitSel.querySelectorAll("option[value]");
+        var firstVisible = null;
+        opts.forEach(function (o) {
+          var match = !pid || o.getAttribute("data-property-id") === pid;
+          o.hidden = !match;
+          o.disabled = !match;
+          if (match && !firstVisible) firstVisible = o;
+        });
+        var cur = unitSel.selectedOptions[0];
+        if (cur && cur.disabled) {
+          unitSel.value = firstVisible ? firstVisible.value : "";
+        }
+      }
+
+      prop.addEventListener("change", filterUnits);
+      filterUnits();
+    })();
+  </script>
+{% endblock %}

@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 import logging
+from typing import Any, Mapping
+
+from sqlalchemy import func as sa_func
 
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
@@ -14,6 +17,8 @@ from app.reservations.models import Reservation
 from app.users.models import User
 
 logger = logging.getLogger(__name__)
+
+_RESERVATION_EDIT_STATUSES = frozenset({"confirmed", "cancelled"})
 
 
 @dataclass
@@ -103,6 +108,7 @@ def get_calendar_events(
                 "status": row.status,
                 "unit_id": row.unit_id,
                 "property_id": property_id,
+                "url": f"/admin/reservations/{row.id}/edit",
             }
         )
     return events
@@ -140,6 +146,177 @@ def get_reservation(*, organization_id: int, reservation_id: int) -> dict:
             message="Reservation not found.",
             status=404,
         )
+    return _serialize_reservation(row)
+
+
+def get_reservation_for_edit(*, organization_id: int, reservation_id: int) -> dict:
+    """Return reservation fields needed for the admin edit form (tenant-scoped)."""
+
+    row = _scoped_reservation_query(organization_id=organization_id).filter(
+        Reservation.id == reservation_id
+    ).first()
+    if row is None:
+        raise ReservationServiceError(
+            code="not_found",
+            message="Reservation not found.",
+            status=404,
+        )
+    guest = row.guest
+    unit = row.unit
+    prop = unit.property if unit is not None else None
+    return {
+        "id": row.id,
+        "unit_id": row.unit_id,
+        "property_id": unit.property_id if unit is not None else None,
+        "guest_id": row.guest_id,
+        "guest_name": guest.email if guest is not None else "",
+        "start_date": row.start_date.isoformat(),
+        "end_date": row.end_date.isoformat(),
+        "status": row.status,
+        "property_name": prop.name if prop is not None else "",
+        "unit_name": unit.name if unit is not None else "",
+    }
+
+
+def update_reservation(
+    *,
+    reservation_id: int,
+    organization_id: int,
+    data: Mapping[str, Any],
+    actor_user_id: int | None = None,
+) -> dict:
+    """Update a reservation from validated form-like input; tenant- and overlap-safe."""
+
+    row = _scoped_reservation_query(organization_id=organization_id).filter(
+        Reservation.id == reservation_id
+    ).first()
+    if row is None:
+        raise ReservationServiceError(
+            code="not_found",
+            message="Reservation not found.",
+            status=404,
+        )
+
+    guest_name_raw = (data.get("guest_name") or "").strip()
+    if not guest_name_raw:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Guest name (email) is required.",
+            status=400,
+        )
+    guest_email_norm = guest_name_raw.lower()
+    guest = (
+        User.query.filter(
+            User.organization_id == organization_id,
+            sa_func.lower(User.email) == guest_email_norm,
+        ).first()
+    )
+    if guest is None:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="No user in your organization matches that guest email.",
+            status=400,
+        )
+
+    try:
+        property_id = int(data.get("property_id"))
+        unit_id = int(data.get("unit_id"))
+    except (TypeError, ValueError):
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Property and unit must be valid IDs.",
+            status=400,
+        ) from None
+
+    unit = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(
+            Unit.id == unit_id,
+            Property.organization_id == organization_id,
+        )
+        .first()
+    )
+    if unit is None or unit.property_id != property_id:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Selected unit does not belong to the chosen property.",
+            status=400,
+        )
+
+    start_date = _parse_iso_date(str(data.get("start_date") or ""), "start_date")
+    end_date = _parse_iso_date(str(data.get("end_date") or ""), "end_date")
+    if start_date >= end_date:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Field 'start_date' must be before 'end_date'.",
+            status=400,
+        )
+
+    status = (data.get("status") or "").strip().lower()
+    if status not in _RESERVATION_EDIT_STATUSES:
+        raise ReservationServiceError(
+            code="validation_error",
+            message=f"Status must be one of: {', '.join(sorted(_RESERVATION_EDIT_STATUSES))}.",
+            status=400,
+        )
+
+    if status == "confirmed":
+        overlapping = (
+            Reservation.query.filter(
+                Reservation.unit_id == unit.id,
+                Reservation.id != reservation_id,
+                Reservation.status != "cancelled",
+                Reservation.start_date < end_date,
+                Reservation.end_date > start_date,
+            )
+            .first()
+        )
+        if overlapping is not None:
+            raise ReservationServiceError(
+                code="validation_error",
+                message="Unit already has an overlapping reservation for the given dates.",
+                status=400,
+            )
+
+    before = {
+        "unit_id": row.unit_id,
+        "guest_id": row.guest_id,
+        "start_date": row.start_date.isoformat(),
+        "end_date": row.end_date.isoformat(),
+        "status": row.status,
+    }
+
+    row.unit_id = unit.id
+    row.guest_id = guest.id
+    row.start_date = start_date
+    row.end_date = end_date
+    row.status = status
+
+    audit_record(
+        "reservation_updated",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="reservation",
+        target_id=row.id,
+        context={
+            "before": before,
+            "after": {
+                "unit_id": row.unit_id,
+                "guest_id": row.guest_id,
+                "start_date": row.start_date.isoformat(),
+                "end_date": row.end_date.isoformat(),
+                "status": row.status,
+            },
+            "user_id": actor_user_id,
+        },
+        commit=False,
+    )
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
     return _serialize_reservation(row)
 
 

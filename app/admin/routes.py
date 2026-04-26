@@ -114,6 +114,30 @@ def _reservation_form_choices(*, organization_id: int) -> tuple[list[Unit], list
     return units, users
 
 
+def _reservation_edit_return_target(raw: str | None) -> str:
+    """Where to redirect after a successful reservation edit (allowlist)."""
+
+    value = (raw or "").strip().lower()
+    if value in {"calendar", "detail", "list"}:
+        return value
+    return "calendar"
+
+
+def _reservation_edit_form_context(*, organization_id: int) -> tuple[list[Property], list[Unit]]:
+    properties = (
+        Property.query.filter_by(organization_id=organization_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    units = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+        .order_by(Property.name.asc(), Unit.name.asc(), Unit.id.asc())
+        .all()
+    )
+    return properties, units
+
+
 @admin_bp.get("/properties")
 @require_admin_pms_access
 def properties_list():
@@ -376,6 +400,81 @@ def reservations_detail(reservation_id: int):
     except reservation_service.ReservationServiceError:
         abort(404)
     return render_template("admin/reservations/detail.html", row=row)
+
+
+@admin_bp.route("/reservations/<int:reservation_id>/edit", methods=["GET", "POST"])
+@require_admin_pms_access
+def reservations_edit(reservation_id: int):
+    org_id = _pms_org_id()
+    properties, units = _reservation_edit_form_context(organization_id=org_id)
+    return_to = _reservation_edit_return_target(request.args.get("next"))
+
+    if request.method == "POST":
+        return_to = _reservation_edit_return_target(request.form.get("return_to"))
+
+    try:
+        row = reservation_service.get_reservation_for_edit(
+            organization_id=org_id,
+            reservation_id=reservation_id,
+        )
+    except reservation_service.ReservationServiceError:
+        abort(404)
+
+    form = {
+        "guest_name": row["guest_name"],
+        "property_id": str(row["property_id"] or ""),
+        "unit_id": str(row["unit_id"]),
+        "start_date": row["start_date"],
+        "end_date": row["end_date"],
+        "status": row["status"],
+        "return_to": return_to,
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        form["guest_name"] = (request.form.get("guest_name") or "").strip()
+        form["property_id"] = (request.form.get("property_id") or "").strip()
+        form["unit_id"] = (request.form.get("unit_id") or "").strip()
+        form["start_date"] = (request.form.get("start_date") or "").strip()
+        form["end_date"] = (request.form.get("end_date") or "").strip()
+        form["status"] = (request.form.get("status") or "").strip()
+        form["return_to"] = return_to
+
+        payload = {
+            "guest_name": form["guest_name"],
+            "property_id": form["property_id"],
+            "unit_id": form["unit_id"],
+            "start_date": form["start_date"],
+            "end_date": form["end_date"],
+            "status": form["status"],
+        }
+        try:
+            _ = reservation_service.update_reservation(
+                reservation_id=reservation_id,
+                organization_id=org_id,
+                data=payload,
+                actor_user_id=current_user.id,
+            )
+        except reservation_service.ReservationServiceError as err:
+            if err.status == 404:
+                abort(404)
+            error = err.message
+        else:
+            flash("Reservation updated.")
+            if return_to == "calendar":
+                return redirect(url_for("admin.calendar_page"))
+            if return_to == "list":
+                return redirect(url_for("admin.reservations_list"))
+            return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
+
+    return render_template(
+        "admin/reservations/edit.html",
+        row=row,
+        form=form,
+        properties=properties,
+        units=units,
+        error=error,
+    )
 
 
 @admin_bp.post("/reservations/<int:reservation_id>/cancel")

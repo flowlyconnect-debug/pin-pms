@@ -5,6 +5,7 @@
 {% block content %}
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Back to reservations</a>
+    <a class="btn" href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='detail') }}">Edit reservation</a>
   </div>
   <h1>Reservation #{{ row.id }}</h1>
   <div class="card">

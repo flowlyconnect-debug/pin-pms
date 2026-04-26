@@ -950,7 +950,7 @@ def test_calendar_events_json_shape_and_cancelled_status(client, admin_user):
     assert response.status_code == 200
     data = response.get_json()
     assert len(data) == 2
-    required = {"id", "title", "start", "end", "status", "unit_id", "property_id"}
+    required = {"id", "title", "start", "end", "status", "unit_id", "property_id", "url"}
     statuses = []
     starts = set()
     for item in data:
@@ -963,11 +963,350 @@ def test_calendar_events_json_shape_and_cancelled_status(client, admin_user):
     assert "cancelled" in statuses
 
 
+def test_calendar_event_includes_edit_url(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="URL Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="A", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 8, 10),
+        end_date=date(2026, 8, 12),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.get("/admin/calendar/events?start=2026-08-01&end=2026-08-31")
+    assert response.status_code == 200
+    items = response.get_json()
+    match = next(x for x in items if x["id"] == res.id)
+    assert match["url"] == f"/admin/reservations/{res.id}/edit"
+
+
 def test_calendar_events_invalid_start_returns_400(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
     response = client.get("/admin/calendar/events?start=not-a-date")
     assert response.status_code == 400
+
+
+def test_admin_can_open_reservation_edit_page(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Edit Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="E1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 10, 1),
+        end_date=date(2026, 10, 5),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.get(f"/admin/reservations/{res.id}/edit")
+    assert response.status_code == 200
+    assert b"Edit reservation" in response.data
+    assert b"Guest name" in response.data
+
+
+def test_admin_can_update_reservation_via_edit_form(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Edit Hotel 2", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="E2", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 11, 1),
+        end_date=date(2026, 11, 4),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{res.id}/edit",
+        data={
+            "guest_name": admin_user.email,
+            "property_id": str(prop.id),
+            "unit_id": str(unit.id),
+            "start_date": "2026-11-02",
+            "end_date": "2026-11-06",
+            "status": "confirmed",
+            "return_to": "detail",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    refreshed = Reservation.query.get(res.id)
+    assert refreshed is not None
+    assert refreshed.start_date == date(2026, 11, 2)
+    assert refreshed.end_date == date(2026, 11, 6)
+
+
+def test_normal_user_cannot_open_reservation_edit(client, regular_user):
+    _login(client, email=regular_user.email, password=regular_user.password_plain)
+
+    response = client.get("/admin/reservations/1/edit", follow_redirects=False)
+    assert response.status_code == 403
+
+
+def test_admin_cannot_edit_other_organizations_reservation(client, admin_user):
+    from app.extensions import db
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    other_org = Organization(name="Edit Other Org")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="other-edit@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="Foreign", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="X1", unit_type="single")
+    db.session.add(other_unit)
+    db.session.flush()
+    other_res = Reservation(
+        unit_id=other_unit.id,
+        guest_id=other_user.id,
+        start_date=date(2026, 12, 1),
+        end_date=date(2026, 12, 5),
+        status="confirmed",
+    )
+    db.session.add(other_res)
+    db.session.commit()
+
+    get_resp = client.get(f"/admin/reservations/{other_res.id}/edit", follow_redirects=False)
+    assert get_resp.status_code == 404
+
+    post_resp = client.post(
+        f"/admin/reservations/{other_res.id}/edit",
+        data={
+            "guest_name": admin_user.email,
+            "property_id": "1",
+            "unit_id": "1",
+            "start_date": "2026-12-01",
+            "end_date": "2026-12-05",
+            "status": "confirmed",
+            "return_to": "calendar",
+        },
+        follow_redirects=False,
+    )
+    assert post_resp.status_code == 404
+
+
+def test_reservation_edit_rejects_start_not_before_end(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Bad Dates", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="B1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 10, 10),
+        end_date=date(2026, 10, 15),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{res.id}/edit",
+        data={
+            "guest_name": admin_user.email,
+            "property_id": str(prop.id),
+            "unit_id": str(unit.id),
+            "start_date": "2026-10-20",
+            "end_date": "2026-10-18",
+            "status": "confirmed",
+            "return_to": "calendar",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"must be before" in response.data
+
+
+def test_reservation_edit_rejects_overlapping_dates(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Overlap Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="O1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    first = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 9, 1),
+        end_date=date(2026, 9, 5),
+        status="confirmed",
+    )
+    second = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 9, 10),
+        end_date=date(2026, 9, 14),
+        status="confirmed",
+    )
+    db.session.add(first)
+    db.session.add(second)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{second.id}/edit",
+        data={
+            "guest_name": admin_user.email,
+            "property_id": str(prop.id),
+            "unit_id": str(unit.id),
+            "start_date": "2026-09-02",
+            "end_date": "2026-09-12",
+            "status": "confirmed",
+            "return_to": "calendar",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"overlapping reservation" in response.data
+
+
+def test_reservation_edit_same_dates_succeeds_without_self_overlap(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Self Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="S1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 8, 20),
+        end_date=date(2026, 8, 25),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{res.id}/edit",
+        data={
+            "guest_name": admin_user.email,
+            "property_id": str(prop.id),
+            "unit_id": str(unit.id),
+            "start_date": "2026-08-20",
+            "end_date": "2026-08-25",
+            "status": "confirmed",
+            "return_to": "calendar",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+
+def test_reservation_edit_creates_audit_log(client, admin_user):
+    from app.audit.models import AuditLog
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Audit Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="A1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 7, 5),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{res.id}/edit",
+        data={
+            "guest_name": admin_user.email,
+            "property_id": str(prop.id),
+            "unit_id": str(unit.id),
+            "start_date": "2026-07-01",
+            "end_date": "2026-07-06",
+            "status": "confirmed",
+            "return_to": "detail",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    row = AuditLog.query.filter_by(action="reservation_updated", target_id=res.id).first()
+    assert row is not None
+    assert row.target_type == "reservation"
+    assert row.actor_id == admin_user.id
 
 
 def test_calendar_events_start_end_filter_excludes_outside_range(client, admin_user):

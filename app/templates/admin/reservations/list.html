@@ -27,7 +27,10 @@
           <td>{{ row.guest_id }}</td>
           <td>{{ row.start_date }} → {{ row.end_date }}</td>
           <td>{{ row.status }}</td>
-          <td><a href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">View</a></td>
+          <td>
+            <a href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">View</a>
+            · <a href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='list') }}">Edit</a>
+          </td>
         </tr>
       {% else %}
         <tr><td colspan="6"><em>No reservations yet.</em></td></tr>
