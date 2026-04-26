@@ -81,9 +81,13 @@ def _guest_full_name(guest: Guest | None) -> str:
 
 
 def _display_guest_name(*, guest: Guest | None, guest_name: str) -> str:
-    full_name = _guest_full_name(guest)
-    if full_name:
-        return full_name
+    if guest is not None:
+        # Prefer explicit first+last guest profiles; legacy shadow profiles
+        # may only have a local-part first name and should render as email.
+        if (guest.first_name or "").strip() and (guest.last_name or "").strip():
+            return _guest_full_name(guest)
+        if (guest.email or "").strip():
+            return str(guest.email).strip()
     trimmed = (guest_name or "").strip()
     return trimmed or "Guest"
 
@@ -153,18 +157,27 @@ def get_calendar_events(
             return "#9ca3af"
         return "#3b82f6"
 
+    def _calendar_title_guest(label: str) -> str:
+        trimmed = (label or "").strip()
+        if not trimmed:
+            return "Guest"
+        if "@" in trimmed:
+            return trimmed.split("@", 1)[0].strip() or "Guest"
+        return trimmed
+
     events: list[dict] = []
     for row in rows:
         guest = row.guest
         unit = row.unit
         guest_name = _display_guest_name(guest=guest, guest_name=row.guest_name)
+        guest_title = _calendar_title_guest(guest_name)
         unit_name = unit.name if unit is not None else "Unit"
         property_name = unit.property.name if unit is not None and unit.property is not None else ""
         property_id = unit.property_id if unit is not None else None
         events.append(
             {
                 "id": row.id,
-                "title": f"{guest_name} – {unit_name}",
+                "title": f"{guest_title} – {unit_name}",
                 "start": row.start_date.isoformat(),
                 "end": row.end_date.isoformat(),
                 "status": row.status,
@@ -425,7 +438,7 @@ def create_reservation(
     organization_id: int,
     unit_id: int,
     guest_id: int | None,
-    guest_name: str | None,
+    guest_name: str | None = None,
     start_date_raw: str,
     end_date_raw: str,
     actor_user_id: int | None = None,
