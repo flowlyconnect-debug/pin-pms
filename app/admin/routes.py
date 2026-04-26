@@ -13,6 +13,7 @@ from flask_login import current_user, login_required
 
 from app.admin import admin_bp
 from app.admin import services as admin_service
+from app.api.schemas import json_error, json_ok
 from app.audit import record as audit_record
 from app.audit.models import AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
@@ -393,13 +394,41 @@ def reservations_new():
 @require_admin_pms_access
 def reservations_detail(reservation_id: int):
     try:
-        row = reservation_service.get_reservation(
+        row = reservation_service.get_reservation_detail(
             organization_id=_pms_org_id(),
             reservation_id=reservation_id,
         )
     except reservation_service.ReservationServiceError:
         abort(404)
     return render_template("admin/reservations/detail.html", row=row)
+
+
+@admin_bp.patch("/reservations/<int:reservation_id>/move")
+@require_admin_pms_access
+def reservations_move(reservation_id: int):
+    if not request.is_json:
+        return json_error("invalid_request", "JSON body required.", status=400, data=None)
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return json_error("invalid_request", "Invalid JSON body.", status=400, data=None)
+    try:
+        data = reservation_service.move_reservation(
+            reservation_id=reservation_id,
+            organization_id=_pms_org_id(),
+            payload=body,
+            actor_user_id=current_user.id,
+            actor_role=current_user.role,
+        )
+    except reservation_service.ReservationServiceError as err:
+        return json_error(err.code, err.message, status=err.status, data=None)
+    return json_ok(
+        {
+            "id": data["id"],
+            "start_date": data["start_date"],
+            "end_date": data["end_date"],
+            "unit_id": data["unit_id"],
+        }
+    )
 
 
 @admin_bp.route("/reservations/<int:reservation_id>/edit", methods=["GET", "POST"])

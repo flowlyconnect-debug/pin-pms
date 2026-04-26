@@ -386,6 +386,170 @@ def test_admin_can_cancel_reservation_through_ui(client, admin_user):
     assert refreshed.status == "cancelled"
 
 
+def test_admin_can_see_reservation_detail_with_labels(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Detail Prop", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="U9", unit_type="suite")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 5, 10),
+        end_date=date(2026, 5, 14),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    page = client.get(f"/admin/reservations/{res.id}")
+    assert page.status_code == 200
+    assert admin_user.email.encode() in page.data
+    assert b"Detail Prop" in page.data
+    assert b"U9" in page.data
+    assert b"2026-05-10" in page.data
+    assert b"confirmed" in page.data
+    assert b"Edit reservation" in page.data
+
+
+def test_admin_cancel_reservation_creates_audit_log(client, admin_user):
+    from app.audit.models import AuditLog
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Audit Cancel Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="AC1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 5, 20),
+        end_date=date(2026, 5, 22),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{res.id}/cancel",
+        data={"confirm_cancel": "yes"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    log = AuditLog.query.filter_by(action="reservation_cancelled", target_id=res.id).first()
+    assert log is not None
+    assert log.target_type == "reservation"
+    assert log.actor_id == admin_user.id
+
+
+def test_admin_cannot_cancel_other_organization_reservation(client, admin_user):
+    from app.extensions import db
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    other_org = Organization(name="Cancel Foreign Org")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="foreign-cancel@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="Foreign Prop", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="FX", unit_type="single")
+    db.session.add(other_unit)
+    db.session.flush()
+    other_res = Reservation(
+        unit_id=other_unit.id,
+        guest_id=other_user.id,
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 3),
+        status="confirmed",
+    )
+    db.session.add(other_res)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{other_res.id}/cancel",
+        data={"confirm_cancel": "yes"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 404
+
+
+def test_cancel_reservation_idempotent_no_duplicate_audit(app, admin_user):
+    from app.audit.models import AuditLog
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations import services as reservation_services
+    from app.reservations.models import Reservation
+
+    with app.app_context():
+        prop = Property(organization_id=admin_user.organization_id, name="Idem Hotel", address=None)
+        db.session.add(prop)
+        db.session.flush()
+        unit = Unit(property_id=prop.id, name="I1", unit_type="double")
+        db.session.add(unit)
+        db.session.flush()
+        res = Reservation(
+            unit_id=unit.id,
+            guest_id=admin_user.id,
+            start_date=date(2026, 6, 10),
+            end_date=date(2026, 6, 12),
+            status="confirmed",
+        )
+        db.session.add(res)
+        db.session.commit()
+
+        reservation_services.cancel_reservation(
+            organization_id=admin_user.organization_id,
+            reservation_id=res.id,
+            actor_user_id=admin_user.id,
+        )
+        count_after_first = AuditLog.query.filter_by(
+            action="reservation_cancelled",
+            target_id=res.id,
+        ).count()
+        assert count_after_first == 1
+
+        reservation_services.cancel_reservation(
+            organization_id=admin_user.organization_id,
+            reservation_id=res.id,
+            actor_user_id=admin_user.id,
+        )
+        count_after_second = AuditLog.query.filter_by(
+            action="reservation_cancelled",
+            target_id=res.id,
+        ).count()
+        assert count_after_second == 1
+        assert Reservation.query.get(res.id).status == "cancelled"
+
+
 def test_admin_can_create_reservation_through_ui(client, admin_user):
     from app.extensions import db
     from app.properties.models import Property, Unit
@@ -950,11 +1114,12 @@ def test_calendar_events_json_shape_and_cancelled_status(client, admin_user):
     assert response.status_code == 200
     data = response.get_json()
     assert len(data) == 2
-    required = {"id", "title", "start", "end", "status", "unit_id", "property_id", "url"}
+    required = {"id", "title", "start", "end", "status", "unit_id", "property_id", "url", "editable"}
     statuses = []
     starts = set()
     for item in data:
         assert set(item.keys()) == required
+        assert item["editable"] == (item["status"] != "cancelled")
         starts.add(item["start"])
         assert item["property_id"] == prop.id
         statuses.append(item["status"])
@@ -1354,3 +1519,401 @@ def test_calendar_events_start_end_filter_excludes_outside_range(client, admin_u
     assert inside.id in ids
     assert before_window.id not in ids
     assert after_window.id not in ids
+
+
+def _move_patch(client, *, reservation_id: int, payload: dict):
+    return client.patch(
+        f"/admin/reservations/{reservation_id}/move",
+        json=payload,
+        headers={"Content-Type": "application/json"},
+    )
+
+
+def test_admin_can_move_reservation(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Move Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="M1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 8, 1),
+        end_date=date(2026, 8, 5),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = _move_patch(
+        client,
+        reservation_id=res.id,
+        payload={
+            "start_date": "2026-08-03",
+            "end_date": "2026-08-08",
+            "unit_id": unit.id,
+        },
+    )
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"] is True
+    assert body["error"] is None
+    assert body["data"]["id"] == res.id
+    assert body["data"]["start_date"] == "2026-08-03"
+    assert body["data"]["end_date"] == "2026-08-08"
+    assert body["data"]["unit_id"] == unit.id
+
+    refreshed = Reservation.query.get(res.id)
+    assert refreshed.start_date == date(2026, 8, 3)
+    assert refreshed.end_date == date(2026, 8, 8)
+
+
+def test_move_reservation_success_json_shape(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Shape Move", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="S1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 3, 1),
+        end_date=date(2026, 3, 4),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = _move_patch(
+        client,
+        reservation_id=res.id,
+        payload={"start_date": "2026-03-02", "end_date": "2026-03-05", "unit_id": unit.id},
+    )
+    body = response.get_json()
+    assert set(body.keys()) == {"success", "data", "error"}
+    assert body["success"] is True
+    assert body["data"] is not None
+    assert set(body["data"].keys()) == {"id", "start_date", "end_date", "unit_id"}
+
+
+def test_move_reservation_overlap_json_shape(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Overlap Move", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="O1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    first = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 4, 1),
+        end_date=date(2026, 4, 6),
+        status="confirmed",
+    )
+    second = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 4, 10),
+        end_date=date(2026, 4, 14),
+        status="confirmed",
+    )
+    db.session.add(first)
+    db.session.add(second)
+    db.session.commit()
+
+    response = _move_patch(
+        client,
+        reservation_id=second.id,
+        payload={
+            "start_date": "2026-04-02",
+            "end_date": "2026-04-12",
+            "unit_id": unit.id,
+        },
+    )
+    assert response.status_code == 409
+    body = response.get_json()
+    assert body["success"] is False
+    assert body["data"] is None
+    assert body["error"]["code"] == "reservation_overlap"
+    assert "overlap" in body["error"]["message"].lower()
+
+
+def test_regular_user_cannot_move_reservation(client, regular_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=regular_user.email, password=regular_user.password_plain)
+
+    prop = Property(organization_id=regular_user.organization_id, name="User Move", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="U1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=regular_user.id,
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 4),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = _move_patch(
+        client,
+        reservation_id=res.id,
+        payload={"start_date": "2026-05-02", "end_date": "2026-05-05", "unit_id": unit.id},
+    )
+    assert response.status_code == 403
+
+
+def test_cannot_move_other_organization_reservation(client, admin_user):
+    from app.extensions import db
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    own_prop = Property(organization_id=admin_user.organization_id, name="Admin Move Org", address=None)
+    db.session.add(own_prop)
+    db.session.flush()
+    own_unit = Unit(property_id=own_prop.id, name="Admin U", unit_type="double")
+    db.session.add(own_unit)
+
+    other_org = Organization(name="Move Foreign Org")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="move-foreign@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="FProp", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="FU", unit_type="single")
+    db.session.add(other_unit)
+    db.session.flush()
+    other_res = Reservation(
+        unit_id=other_unit.id,
+        guest_id=other_user.id,
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 5),
+        status="confirmed",
+    )
+    db.session.add(other_res)
+    db.session.commit()
+
+    # Valid unit in admin org, but reservation belongs to another tenant → 404.
+    response = _move_patch(
+        client,
+        reservation_id=other_res.id,
+        payload={
+            "start_date": "2026-06-02",
+            "end_date": "2026-06-06",
+            "unit_id": own_unit.id,
+        },
+    )
+    assert response.status_code == 404
+
+
+def test_move_rejects_unit_from_other_organization(client, admin_user):
+    from app.extensions import db
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    own_prop = Property(organization_id=admin_user.organization_id, name="Own Move", address=None)
+    db.session.add(own_prop)
+    db.session.flush()
+    own_unit = Unit(property_id=own_prop.id, name="OU", unit_type="double")
+    db.session.add(own_unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=own_unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 7, 10),
+        end_date=date(2026, 7, 14),
+        status="confirmed",
+    )
+    db.session.add(res)
+
+    other_org = Organization(name="Unit Other Org")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="unit-other@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="OP", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    foreign_unit = Unit(property_id=other_prop.id, name="FX", unit_type="single")
+    db.session.add(foreign_unit)
+    db.session.commit()
+
+    response = _move_patch(
+        client,
+        reservation_id=res.id,
+        payload={
+            "start_date": "2026-07-10",
+            "end_date": "2026-07-14",
+            "unit_id": foreign_unit.id,
+        },
+    )
+    assert response.status_code == 400
+    body = response.get_json()
+    assert body["success"] is False
+    assert body["data"] is None
+    assert body["error"]["code"] == "validation_error"
+
+
+def test_move_rejects_start_not_before_end(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Bad Move", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="B1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 9, 1),
+        end_date=date(2026, 9, 5),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = _move_patch(
+        client,
+        reservation_id=res.id,
+        payload={
+            "start_date": "2026-09-10",
+            "end_date": "2026-09-08",
+            "unit_id": unit.id,
+        },
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"]["code"] == "validation_error"
+
+
+def test_move_same_dates_no_self_overlap(client, admin_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Self Move", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="SM", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 10, 10),
+        end_date=date(2026, 10, 15),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = _move_patch(
+        client,
+        reservation_id=res.id,
+        payload={
+            "start_date": "2026-10-10",
+            "end_date": "2026-10-15",
+            "unit_id": unit.id,
+        },
+    )
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+
+
+def test_move_creates_reservation_moved_audit(client, admin_user):
+    from app.audit.models import AuditLog
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Audit Move", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="AM", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 11, 20),
+        end_date=date(2026, 11, 25),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = _move_patch(
+        client,
+        reservation_id=res.id,
+        payload={
+            "start_date": "2026-11-21",
+            "end_date": "2026-11-26",
+            "unit_id": unit.id,
+        },
+    )
+    assert response.status_code == 200
+
+    log = AuditLog.query.filter_by(action="reservation_moved", target_id=res.id).first()
+    assert log is not None
+    assert log.target_type == "reservation"
+    assert log.actor_id == admin_user.id

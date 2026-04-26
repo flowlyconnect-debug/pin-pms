@@ -291,6 +291,13 @@ def test_cancel_reservation(client):
     assert payload["data"]["id"] == reservation.id
     assert payload["data"]["status"] == "cancelled"
 
+    second = client.patch(
+        f"/api/v1/reservations/{reservation.id}/cancel",
+        headers=_auth_headers(raw),
+    )
+    assert second.status_code == 200
+    assert second.get_json()["data"]["status"] == "cancelled"
+
 
 def test_reservations_list_returns_pagination_meta(client):
     from app.extensions import db

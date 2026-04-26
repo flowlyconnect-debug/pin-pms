@@ -3,6 +3,7 @@
 {% block title %}Reservation calendar · Pindora PMS{% endblock %}
 
 {% block head_extra %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <style>
     #calendar { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: .5rem; }
@@ -13,11 +14,13 @@
 
 {% block content %}
   <h1>Reservation calendar</h1>
-  <p class="meta">Read-only view of reservations by day. Cancelled stays appear faded.</p>
+  <p class="meta">Drag a reservation to change dates (same property rules apply in the backend). Click opens details.</p>
   <div id="calendar"></div>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       var el = document.getElementById("calendar");
+      var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      var csrfToken = csrfMeta ? csrfMeta.getAttribute("content") : "";
       var calendar = new FullCalendar.Calendar(el, {
         initialView: "dayGridMonth",
         headerToolbar: {
@@ -25,7 +28,9 @@
           center: "title",
           right: "dayGridMonth,timeGridWeek,listMonth",
         },
-        editable: false,
+        editable: true,
+        eventDurationEditable: false,
+        eventResizableFromStart: false,
         selectable: false,
         eventSources: [
           {
@@ -41,10 +46,61 @@
           }
         },
         eventClick: function (info) {
-          if (info.event.url) {
-            info.jsEvent.preventDefault();
-            window.location.href = info.event.url;
+          info.jsEvent.preventDefault();
+          var rid = info.event.id;
+          if (rid !== undefined && rid !== null && rid !== "") {
+            window.location.href = "/admin/reservations/" + String(rid);
           }
+        },
+        eventDrop: function (info) {
+          var ev = info.event;
+          var start = ev.startStr ? ev.startStr.slice(0, 10) : null;
+          var end = ev.endStr ? ev.endStr.slice(0, 10) : null;
+          if (!start) {
+            info.revert();
+            return;
+          }
+          if (!end) {
+            end = start;
+          }
+          var props = ev.extendedProps || {};
+          var unitId = props.unit_id;
+          if (unitId === undefined || unitId === null) {
+            info.revert();
+            alert("Missing unit for this reservation.");
+            return;
+          }
+          var url = "/admin/reservations/" + String(ev.id) + "/move";
+          fetch(url, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrfToken,
+            },
+            body: JSON.stringify({
+              start_date: start,
+              end_date: end,
+              unit_id: unitId,
+            }),
+          })
+            .then(function (res) {
+              return res.json().then(function (body) {
+                if (!res.ok || !body.success) {
+                  info.revert();
+                  var msg =
+                    body && body.error && body.error.message
+                      ? body.error.message
+                      : "Move failed.";
+                  alert(msg);
+                  return;
+                }
+                info.view.calendar.refetchEvents();
+              });
+            })
+            .catch(function () {
+              info.revert();
+              alert("Move failed.");
+            });
         },
       });
       calendar.render();
