@@ -20,6 +20,7 @@ from app.audit.models import ActorType, AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
 from app.backups.models import Backup, BackupTrigger
 from app.billing import services as billing_service
+from app.maintenance import services as maintenance_service
 from app.backups.services import BackupError, create_backup, restore_backup
 from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import render_strings as render_email_strings, send_template
@@ -1225,6 +1226,295 @@ def invoices_mark_overdue():
     n = billing_service.mark_overdue_invoices(organization_id=_pms_org_id())
     flash(f"Marked {n} invoice(s) as overdue.")
     return redirect(url_for("admin.invoices_list"))
+
+
+# --- Maintenance requests ---------------------------------------------------
+
+
+def _org_users_for_assign(organization_id: int) -> list[User]:
+    return (
+        User.query.filter_by(organization_id=organization_id, is_active=True)
+        .order_by(User.email.asc())
+        .all()
+    )
+
+
+@admin_bp.get("/maintenance-requests")
+@require_admin_pms_access
+def maintenance_requests_list():
+    page, per_page = _pms_pagination()
+    status = (request.args.get("status") or "").strip() or None
+    priority = (request.args.get("priority") or "").strip() or None
+    try:
+        prop_raw = request.args.get("property_id")
+        unit_raw = request.args.get("unit_id")
+        sel_property_id = int(prop_raw) if prop_raw not in (None, "") else None
+        sel_unit_id = int(unit_raw) if unit_raw not in (None, "") else None
+    except ValueError:
+        abort(400)
+    rows, total = maintenance_service.list_maintenance_requests_paginated(
+        organization_id=_pms_org_id(),
+        page=page,
+        per_page=per_page,
+        status=status,
+        priority=priority,
+        property_id=sel_property_id,
+        unit_id=sel_unit_id,
+    )
+    org_id = _pms_org_id()
+    properties = (
+        Property.query.filter_by(organization_id=org_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    units = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == org_id)
+        .order_by(Property.name.asc(), Unit.name.asc(), Unit.id.asc())
+        .all()
+    )
+    return render_template(
+        "admin/maintenance/list.html",
+        rows=rows,
+        page=page,
+        per_page=per_page,
+        total=total,
+        status_filter=status or "",
+        priority_filter=priority or "",
+        sel_property_id=sel_property_id,
+        sel_unit_id=sel_unit_id,
+        properties=properties,
+        units=units,
+    )
+
+
+@admin_bp.route("/maintenance-requests/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def maintenance_requests_new():
+    org_id = _pms_org_id()
+    properties, units = _reservation_edit_form_context(organization_id=org_id)
+    assignees = _org_users_for_assign(org_id)
+    form = {
+        "property_id": "",
+        "unit_id": "",
+        "guest_id": "",
+        "reservation_id": "",
+        "title": "",
+        "description": "",
+        "priority": "normal",
+        "status": "new",
+        "due_date": "",
+        "assigned_to_id": "",
+    }
+    error: str | None = None
+    if request.method == "POST":
+        for key in form:
+            form[key] = (request.form.get(key) or "").strip()
+        if not form["property_id"] or not form["title"]:
+            error = "Property and title are required."
+        else:
+            try:
+                row = maintenance_service.create_maintenance_request(
+                    organization_id=org_id,
+                    property_id=int(form["property_id"]),
+                    unit_id=int(form["unit_id"]) if form["unit_id"] else None,
+                    guest_id=int(form["guest_id"]) if form["guest_id"] else None,
+                    reservation_id=int(form["reservation_id"]) if form["reservation_id"] else None,
+                    title=form["title"],
+                    description=form["description"] or None,
+                    priority=form["priority"] or "normal",
+                    status=form["status"] or "new",
+                    due_date_raw=form["due_date"] or None,
+                    assigned_to_id=int(form["assigned_to_id"]) if form["assigned_to_id"] else None,
+                    actor_user_id=current_user.id,
+                )
+            except (TypeError, ValueError):
+                error = "IDs must be valid numbers."
+            except maintenance_service.MaintenanceServiceError as err:
+                error = err.message
+            else:
+                flash("Maintenance request created.")
+                return redirect(url_for("admin.maintenance_requests_detail", request_id=row["id"]))
+
+    return render_template(
+        "admin/maintenance/new.html",
+        properties=properties,
+        units=units,
+        assignees=assignees,
+        form=form,
+        error=error,
+    )
+
+
+@admin_bp.get("/maintenance-requests/<int:request_id>")
+@require_admin_pms_access
+def maintenance_requests_detail(request_id: int):
+    org_id = _pms_org_id()
+    try:
+        row = maintenance_service.get_maintenance_request(
+            organization_id=org_id,
+            request_id=request_id,
+        )
+    except maintenance_service.MaintenanceServiceError:
+        abort(404)
+    assignees = _org_users_for_assign(org_id)
+    return render_template(
+        "admin/maintenance/detail.html",
+        row=row,
+        assignees=assignees,
+    )
+
+
+@admin_bp.route("/maintenance-requests/<int:request_id>/edit", methods=["GET", "POST"])
+@require_admin_pms_access
+def maintenance_requests_edit(request_id: int):
+    org_id = _pms_org_id()
+    properties, units = _reservation_edit_form_context(organization_id=org_id)
+    assignees = _org_users_for_assign(org_id)
+    try:
+        row = maintenance_service.get_maintenance_request(organization_id=org_id, request_id=request_id)
+    except maintenance_service.MaintenanceServiceError:
+        abort(404)
+    if row["status"] in {"resolved", "cancelled"}:
+        flash("This request cannot be edited.")
+        return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
+
+    form = {
+        "property_id": str(row["property_id"]),
+        "unit_id": str(row["unit_id"] or ""),
+        "guest_id": str(row["guest_id"] or ""),
+        "reservation_id": str(row["reservation_id"] or ""),
+        "title": row["title"],
+        "description": row["description"] or "",
+        "priority": row["priority"],
+        "due_date": row["due_date"] or "",
+        "assigned_to_id": str(row["assigned_to_id"] or ""),
+    }
+    error: str | None = None
+    if request.method == "POST":
+        for key in form:
+            form[key] = (request.form.get(key) or "").strip()
+        if not form["property_id"] or not form["title"]:
+            error = "Property and title are required."
+        else:
+            payload = {
+                "property_id": int(form["property_id"]),
+                "unit_id": int(form["unit_id"]) if form["unit_id"] else None,
+                "guest_id": int(form["guest_id"]) if form["guest_id"] else None,
+                "reservation_id": int(form["reservation_id"]) if form["reservation_id"] else None,
+                "title": form["title"],
+                "description": form["description"] or None,
+                "priority": form["priority"],
+                "due_date": form["due_date"] or None,
+                "assigned_to_id": int(form["assigned_to_id"]) if form["assigned_to_id"] else None,
+            }
+            try:
+                _ = maintenance_service.update_maintenance_request(
+                    organization_id=org_id,
+                    request_id=request_id,
+                    data=payload,
+                    actor_user_id=current_user.id,
+                )
+            except (TypeError, ValueError):
+                error = "IDs must be valid numbers."
+            except maintenance_service.MaintenanceServiceError as err:
+                if err.status == 404:
+                    abort(404)
+                error = err.message
+            else:
+                flash("Maintenance request updated.")
+                return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
+
+    return render_template(
+        "admin/maintenance/edit.html",
+        row=row,
+        properties=properties,
+        units=units,
+        assignees=assignees,
+        form=form,
+        error=error,
+    )
+
+
+@admin_bp.post("/maintenance-requests/<int:request_id>/status")
+@require_admin_pms_access
+def maintenance_requests_set_status(request_id: int):
+    st = (request.form.get("status") or "").strip().lower()
+    try:
+        _ = maintenance_service.update_maintenance_request(
+            organization_id=_pms_org_id(),
+            request_id=request_id,
+            data={"status": st},
+            actor_user_id=current_user.id,
+        )
+    except maintenance_service.MaintenanceServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+    else:
+        flash("Status updated.")
+    return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
+
+
+@admin_bp.post("/maintenance-requests/<int:request_id>/assign")
+@require_admin_pms_access
+def maintenance_requests_assign(request_id: int):
+    raw = (request.form.get("assigned_to_id") or "").strip()
+    try:
+        _ = maintenance_service.update_maintenance_request(
+            organization_id=_pms_org_id(),
+            request_id=request_id,
+            data={"assigned_to_id": int(raw) if raw else None},
+            actor_user_id=current_user.id,
+        )
+    except (TypeError, ValueError):
+        flash("Invalid assignee.")
+    except maintenance_service.MaintenanceServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+    else:
+        flash("Assignment updated.")
+    return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
+
+
+@admin_bp.post("/maintenance-requests/<int:request_id>/resolve")
+@require_admin_pms_access
+def maintenance_requests_resolve(request_id: int):
+    try:
+        _ = maintenance_service.resolve_maintenance_request(
+            organization_id=_pms_org_id(),
+            request_id=request_id,
+            actor_user_id=current_user.id,
+        )
+    except maintenance_service.MaintenanceServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+    else:
+        flash("Request marked resolved.")
+    return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
+
+
+@admin_bp.post("/maintenance-requests/<int:request_id>/cancel")
+@require_admin_pms_access
+def maintenance_requests_cancel(request_id: int):
+    if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
+        flash("Please confirm cancellation.")
+        return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
+    try:
+        _ = maintenance_service.cancel_maintenance_request(
+            organization_id=_pms_org_id(),
+            request_id=request_id,
+            actor_user_id=current_user.id,
+        )
+    except maintenance_service.MaintenanceServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+    else:
+        flash("Request cancelled.")
+    return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
 
 @admin_bp.get("/audit")

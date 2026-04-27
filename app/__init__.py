@@ -87,6 +87,7 @@ def register_models() -> None:
     from app.auth.models import PasswordResetToken
     from app.backups.models import Backup
     from app.billing.models import Invoice, Lease
+    from app.maintenance.models import MaintenanceRequest
     from app.email.models import EmailTemplate
     from app.guests.models import Guest
     from app.organizations.models import Organization
@@ -102,6 +103,7 @@ def register_models() -> None:
         EmailTemplate,
         Invoice,
         Lease,
+        MaintenanceRequest,
         Guest,
         Organization,
         PasswordResetToken,

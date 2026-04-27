@@ -10,6 +10,7 @@ This project provides the core operational platform for PMS use cases:
 
 - tenant-scoped organizations, users, properties, units, reservations
 - **leases** (draft → active → ended/cancelled) and **invoices** (draft/open → paid/overdue/cancelled) with per-organization invoice numbers
+- **maintenance requests** (work orders): statuses `new` → `in_progress` / `waiting` → `resolved` or `cancelled`, priorities `low` / `normal` / `high` / `urgent`, scoped to property/unit/guest/reservation
 - role-based access control (`superadmin`, `admin`, `user`, `api_client`)
 - mandatory TOTP 2FA for `superadmin` actions
 - server-rendered admin pages and API endpoints under `/api/v1`
@@ -164,6 +165,19 @@ Leases and invoices:
 `POST /api/v1/leases` and `POST/PATCH` lease, and invoice mutations, require an
 API key **linked to a user** (`user_id` on the key) so `created_by_id` /
 audit actors resolve correctly.
+
+Maintenance requests:
+
+- `GET /api/v1/maintenance-requests` — optional query: `status`, `priority`,
+  `property_id`, `unit_id` (with `page` / `per_page`)
+- `POST /api/v1/maintenance-requests`
+- `GET /api/v1/maintenance-requests/<id>`
+- `PATCH /api/v1/maintenance-requests/<id>`
+- `POST /api/v1/maintenance-requests/<id>/resolve`
+- `POST /api/v1/maintenance-requests/<id>/cancel`
+
+`POST`, `PATCH`, resolve, and cancel require an API key **linked to a user**
+(for `created_by_id` and audit context). Admin UI: `/admin/maintenance-requests`.
 
 Notes:
 

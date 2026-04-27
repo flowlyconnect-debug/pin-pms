@@ -1,0 +1,80 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Maintenance · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn" href="{{ url_for('admin.maintenance_requests_new') }}">New request</a>
+  </div>
+  <h1>Maintenance requests</h1>
+  <form method="get" class="card" style="margin-bottom:1rem;">
+    <h2 style="margin-top:0;font-size:1rem;">Filters</h2>
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="" {% if not status_filter %}selected{% endif %}>Any</option>
+      <option value="new" {% if status_filter == "new" %}selected{% endif %}>new</option>
+      <option value="in_progress" {% if status_filter == "in_progress" %}selected{% endif %}>in_progress</option>
+      <option value="waiting" {% if status_filter == "waiting" %}selected{% endif %}>waiting</option>
+      <option value="resolved" {% if status_filter == "resolved" %}selected{% endif %}>resolved</option>
+      <option value="cancelled" {% if status_filter == "cancelled" %}selected{% endif %}>cancelled</option>
+    </select>
+    <label for="priority">Priority</label>
+    <select id="priority" name="priority">
+      <option value="" {% if not priority_filter %}selected{% endif %}>Any</option>
+      <option value="low" {% if priority_filter == "low" %}selected{% endif %}>low</option>
+      <option value="normal" {% if priority_filter == "normal" %}selected{% endif %}>normal</option>
+      <option value="high" {% if priority_filter == "high" %}selected{% endif %}>high</option>
+      <option value="urgent" {% if priority_filter == "urgent" %}selected{% endif %}>urgent</option>
+    </select>
+    <label for="property_id">Property</label>
+    <select id="property_id" name="property_id">
+      <option value="">Any</option>
+      {% for p in properties %}
+        <option value="{{ p.id }}" {% if sel_property_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <label for="unit_id">Unit</label>
+    <select id="unit_id" name="unit_id">
+      <option value="">Any</option>
+      {% for u in units %}
+        <option value="{{ u.id }}" data-property="{{ u.property_id }}" {% if sel_unit_id == u.id %}selected{% endif %}>{{ u.property.name }} / {{ u.name }}</option>
+      {% endfor %}
+    </select>
+    <div class="actions" style="margin-top:.6rem;">
+      <button type="submit" class="btn">Apply filters</button>
+      <a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_list') }}">Clear</a>
+    </div>
+  </form>
+  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Property</th>
+        <th>Priority</th>
+        <th>Status</th>
+        <th>Assigned</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.title }}</td>
+          <td>{{ row.property_name or "—" }}{% if row.unit_name %} / {{ row.unit_name }}{% endif %}</td>
+          <td>{{ row.priority }}</td>
+          <td>{{ row.status }}</td>
+          <td>{{ row.assigned_to_email or "—" }}</td>
+          <td>
+            <a href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">View</a>
+            · <a href="{{ url_for('admin.maintenance_requests_edit', request_id=row.id) }}">Edit</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7"><em>No maintenance requests.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

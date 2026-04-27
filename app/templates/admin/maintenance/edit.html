@@ -1,0 +1,78 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Edit maintenance #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block head_extra %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      var prop = document.getElementById("property_id");
+      var unitSel = document.getElementById("unit_id");
+      if (!prop || !unitSel) return;
+      var all = Array.prototype.slice.call(unitSel.querySelectorAll("option"));
+      function filterUnits() {
+        var pid = String(prop.value || "");
+        all.forEach(function (opt) {
+          if (!opt.value) { opt.hidden = false; return; }
+          var op = opt.getAttribute("data-property");
+          opt.hidden = pid && op !== pid;
+        });
+      }
+      prop.addEventListener("change", filterUnits);
+      filterUnits();
+    });
+  </script>
+{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">Back to request</a>
+  </div>
+  <h1>Edit maintenance #{{ row.id }}</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="property_id">Property</label>
+    <select id="property_id" name="property_id" required>
+      {% for p in properties %}
+        <option value="{{ p.id }}" {% if form.property_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <label for="unit_id">Unit (optional)</label>
+    <select id="unit_id" name="unit_id">
+      <option value="">—</option>
+      {% for u in units %}
+        <option value="{{ u.id }}" data-property="{{ u.property_id }}" {% if form.unit_id == u.id|string %}selected{% endif %}>{{ u.property.name }} / {{ u.name }}</option>
+      {% endfor %}
+    </select>
+    <label for="guest_id">Guest ID (optional)</label>
+    <input id="guest_id" name="guest_id" type="number" min="1" value="{{ form.guest_id }}">
+    <label for="reservation_id">Reservation ID (optional)</label>
+    <input id="reservation_id" name="reservation_id" type="number" min="1" value="{{ form.reservation_id }}">
+    <label for="title">Title</label>
+    <input id="title" name="title" required value="{{ form.title }}">
+    <label for="description">Description</label>
+    <textarea id="description" name="description" rows="4">{{ form.description }}</textarea>
+    <label for="priority">Priority</label>
+    <select id="priority" name="priority">
+      <option value="low" {% if form.priority == "low" %}selected{% endif %}>low</option>
+      <option value="normal" {% if form.priority == "normal" %}selected{% endif %}>normal</option>
+      <option value="high" {% if form.priority == "high" %}selected{% endif %}>high</option>
+      <option value="urgent" {% if form.priority == "urgent" %}selected{% endif %}>urgent</option>
+    </select>
+    <label for="due_date">Due date (optional)</label>
+    <input id="due_date" name="due_date" type="date" value="{{ form.due_date }}">
+    <label for="assigned_to_id">Assign to (optional)</label>
+    <select id="assigned_to_id" name="assigned_to_id">
+      <option value="">—</option>
+      {% for u in assignees %}
+        <option value="{{ u.id }}" {% if form.assigned_to_id == u.id|string %}selected{% endif %}>{{ u.email }}</option>
+      {% endfor %}
+    </select>
+    <p class="meta">Status, resolve, and cancel are managed from the request detail page.</p>
+    <div class="actions">
+      <button type="submit" class="btn">Save changes</button>
+    </div>
+  </form>
+{% endblock %}

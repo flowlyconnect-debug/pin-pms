@@ -13,6 +13,7 @@ from app.api import api_bp
 from app.api.auth import require_api_key
 from app.api.schemas import json_error, json_ok
 from app.billing import services as billing_service
+from app.maintenance import services as maintenance_service
 from app.properties import services as property_service
 from app.reservations import services as reservation_service
 
@@ -467,5 +468,169 @@ def cancel_invoice_api(invoice_id: int):
             actor_user_id=actor,
         )
     except billing_service.InvoiceServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(data)
+
+
+# --- Maintenance requests ---------------------------------------------------
+
+
+@api_bp.get("/maintenance-requests")
+@require_api_key
+def list_maintenance_requests_api():
+    page, per_page = _pagination_params()
+    if page is None or per_page is None:
+        return json_error(
+            "validation_error",
+            "Query params 'page' and 'per_page' must be positive integers.",
+            status=400,
+        )
+    status = (request.args.get("status") or "").strip() or None
+    priority = (request.args.get("priority") or "").strip() or None
+    property_id_raw = request.args.get("property_id")
+    unit_id_raw = request.args.get("unit_id")
+    try:
+        property_id = int(property_id_raw) if property_id_raw not in (None, "") else None
+        unit_id = int(unit_id_raw) if unit_id_raw not in (None, "") else None
+        data, total = maintenance_service.list_maintenance_requests_paginated(
+            organization_id=_org_id(),
+            page=page,
+            per_page=per_page,
+            status=status,
+            priority=priority,
+            property_id=property_id,
+            unit_id=unit_id,
+        )
+    except ValueError:
+        return json_error("validation_error", "property_id and unit_id must be integers.", status=400)
+    return json_ok(data, meta={"page": page, "per_page": per_page, "total": total})
+
+
+@api_bp.post("/maintenance-requests")
+@require_api_key
+def create_maintenance_request_api():
+    actor = _billing_actor_user_id()
+    if actor is None:
+        return json_error(
+            "validation_error",
+            "API key must be linked to a user to create maintenance requests.",
+            status=400,
+        )
+    payload = _payload()
+    try:
+        unit_raw = payload.get("unit_id")
+        guest_raw = payload.get("guest_id")
+        res_raw = payload.get("reservation_id")
+        assign_raw = payload.get("assigned_to_id")
+        data = maintenance_service.create_maintenance_request(
+            organization_id=_org_id(),
+            property_id=int(payload.get("property_id", 0)),
+            unit_id=int(unit_raw) if unit_raw not in (None, "") else None,
+            guest_id=int(guest_raw) if guest_raw not in (None, "") else None,
+            reservation_id=int(res_raw) if res_raw not in (None, "") else None,
+            title=str(payload.get("title", "")),
+            description=str(payload.get("description")) if payload.get("description") is not None else None,
+            priority=str(payload.get("priority", "normal")),
+            status=str(payload.get("status", "new")),
+            due_date_raw=str(payload.get("due_date")) if payload.get("due_date") is not None else None,
+            assigned_to_id=int(assign_raw) if assign_raw not in (None, "") else None,
+            actor_user_id=actor,
+        )
+    except (TypeError, ValueError):
+        return json_error("validation_error", "Invalid numeric id in payload.", status=400)
+    except maintenance_service.MaintenanceServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(data, status=201)
+
+
+@api_bp.get("/maintenance-requests/<int:request_id>")
+@require_api_key
+def get_maintenance_request_api(request_id: int):
+    try:
+        data = maintenance_service.get_maintenance_request(
+            organization_id=_org_id(),
+            request_id=request_id,
+        )
+    except maintenance_service.MaintenanceServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(data)
+
+
+@api_bp.patch("/maintenance-requests/<int:request_id>")
+@require_api_key
+def patch_maintenance_request_api(request_id: int):
+    actor = _billing_actor_user_id()
+    if actor is None:
+        return json_error(
+            "validation_error",
+            "API key must be linked to a user to update maintenance requests.",
+            status=400,
+        )
+    body = _payload()
+    if not body:
+        return json_error("validation_error", "JSON body with at least one field is required.", status=400)
+    allowed = {
+        "title",
+        "description",
+        "priority",
+        "status",
+        "property_id",
+        "unit_id",
+        "guest_id",
+        "reservation_id",
+        "due_date",
+        "assigned_to_id",
+    }
+    data = {k: body[k] for k in body if k in allowed}
+    try:
+        out = maintenance_service.update_maintenance_request(
+            organization_id=_org_id(),
+            request_id=request_id,
+            data=data,
+            actor_user_id=actor,
+        )
+    except maintenance_service.MaintenanceServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(out)
+
+
+@api_bp.post("/maintenance-requests/<int:request_id>/resolve")
+@require_api_key
+def resolve_maintenance_request_api(request_id: int):
+    actor = _billing_actor_user_id()
+    if actor is None:
+        return json_error(
+            "validation_error",
+            "API key must be linked to a user to resolve maintenance requests.",
+            status=400,
+        )
+    try:
+        data = maintenance_service.resolve_maintenance_request(
+            organization_id=_org_id(),
+            request_id=request_id,
+            actor_user_id=actor,
+        )
+    except maintenance_service.MaintenanceServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(data)
+
+
+@api_bp.post("/maintenance-requests/<int:request_id>/cancel")
+@require_api_key
+def cancel_maintenance_request_api(request_id: int):
+    actor = _billing_actor_user_id()
+    if actor is None:
+        return json_error(
+            "validation_error",
+            "API key must be linked to a user to cancel maintenance requests.",
+            status=400,
+        )
+    try:
+        data = maintenance_service.cancel_maintenance_request(
+            organization_id=_org_id(),
+            request_id=request_id,
+            actor_user_id=actor,
+        )
+    except maintenance_service.MaintenanceServiceError as err:
         return json_error(err.code, err.message, status=err.status)
     return json_ok(data)

@@ -1,0 +1,80 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Maintenance #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_list') }}">Back to list</a>
+    <a class="btn" href="{{ url_for('admin.maintenance_requests_edit', request_id=row.id) }}">Edit</a>
+  </div>
+  <h1>Maintenance #{{ row.id }}</h1>
+  <div class="card">
+    <p><strong>Title:</strong> {{ row.title }}</p>
+    <p><strong>Status:</strong> {{ row.status }}</p>
+    <p><strong>Priority:</strong> {{ row.priority }}</p>
+    <p><strong>Property:</strong> {{ row.property_name or "—" }} (id {{ row.property_id }})</p>
+    {% if row.unit_id %}
+      <p><strong>Unit:</strong> {{ row.unit_name or row.unit_id }}</p>
+    {% endif %}
+    {% if row.guest_id %}
+      <p><strong>Guest:</strong> {{ row.guest_name or "—" }} (#{{ row.guest_id }})</p>
+    {% endif %}
+    {% if row.reservation_id %}
+      <p><strong>Reservation:</strong> #{{ row.reservation_id }}</p>
+    {% endif %}
+    <p><strong>Assigned:</strong> {{ row.assigned_to_email or "—" }}</p>
+    <p><strong>Due:</strong> {{ row.due_date or "—" }}</p>
+    <p><strong>Resolved at:</strong> {{ row.resolved_at or "—" }}</p>
+    <p><strong>Created by:</strong> {{ row.created_by_email or row.created_by_id }}</p>
+    {% if row.description %}
+      <p><strong>Description:</strong></p>
+      <p style="white-space:pre-wrap;">{{ row.description }}</p>
+    {% endif %}
+  </div>
+
+  {% if row.status not in ["resolved", "cancelled"] %}
+    <h2>Change status</h2>
+    <form method="post" action="{{ url_for('admin.maintenance_requests_set_status', request_id=row.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <select name="status" required>
+        <option value="new" {% if row.status == "new" %}selected{% endif %}>new</option>
+        <option value="in_progress" {% if row.status == "in_progress" %}selected{% endif %}>in_progress</option>
+        <option value="waiting" {% if row.status == "waiting" %}selected{% endif %}>waiting</option>
+      </select>
+      <div class="actions">
+        <button type="submit" class="btn">Update status</button>
+      </div>
+    </form>
+
+    <h2>Assign</h2>
+    <form method="post" action="{{ url_for('admin.maintenance_requests_assign', request_id=row.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <select name="assigned_to_id">
+        <option value="">— Unassigned —</option>
+        {% for u in assignees %}
+          <option value="{{ u.id }}" {% if row.assigned_to_id == u.id %}selected{% endif %}>{{ u.email }}</option>
+        {% endfor %}
+      </select>
+      <div class="actions">
+        <button type="submit" class="btn btn-secondary">Save assignment</button>
+      </div>
+    </form>
+
+    <h2>Resolve</h2>
+    <form method="post" action="{{ url_for('admin.maintenance_requests_resolve', request_id=row.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="actions">
+        <button type="submit" class="btn">Mark resolved</button>
+      </div>
+    </form>
+
+    <h2>Cancel</h2>
+    <form method="post" action="{{ url_for('admin.maintenance_requests_cancel', request_id=row.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label><input type="checkbox" name="confirm_cancel" value="yes" required> I confirm cancellation</label>
+      <div class="actions">
+        <button type="submit" class="btn-danger">Cancel request</button>
+      </div>
+    </form>
+  {% endif %}
+{% endblock %}
