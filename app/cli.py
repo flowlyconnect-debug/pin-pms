@@ -1,6 +1,5 @@
 import click
 from flask import Flask
-from werkzeug.security import generate_password_hash
 
 from app.api.models import ApiKey
 from app.audit import record as audit_record
@@ -17,75 +16,8 @@ from app.properties.models import Property, Unit
 from app.reservations import services as reservation_service
 from app.reservations.models import Reservation
 from app.settings.services import ensure_seed_settings
+from app.users import services as user_services
 from app.users.models import User, UserRole
-
-
-def _create_user(
-    email: str,
-    password: str,
-    role: str,
-    organization_name: str,
-) -> User:
-    """Shared helper for all CLI commands that provision a user.
-
-    Normalizes inputs, ensures the target organization exists, refuses to
-    overwrite an existing account, and returns the persisted ``User``.
-    """
-
-    normalized_email = email.strip().lower()
-    normalized_org_name = organization_name.strip()
-    normalized_role = role.strip().lower()
-
-    if not normalized_email:
-        raise click.ClickException("Email is required.")
-    if not password:
-        raise click.ClickException("Password is required.")
-    if not normalized_org_name:
-        raise click.ClickException("Organization name is required.")
-
-    valid_roles = {r.value for r in UserRole}
-    if normalized_role not in valid_roles:
-        raise click.ClickException(
-            f"Invalid role '{normalized_role}'. Must be one of: {', '.join(sorted(valid_roles))}."
-        )
-
-    existing_user = User.query.filter_by(email=normalized_email).first()
-    if existing_user:
-        raise click.ClickException(f"User with email '{normalized_email}' already exists.")
-
-    organization = Organization.query.filter_by(name=normalized_org_name).first()
-    if organization is None:
-        organization = Organization(name=normalized_org_name)
-        db.session.add(organization)
-        db.session.flush()
-
-    user = User(
-        email=normalized_email,
-        organization_id=organization.id,
-        role=normalized_role,
-        password_hash=generate_password_hash(password),
-        is_active=True,
-    )
-
-    db.session.add(user)
-    db.session.flush()  # Needs ``user.id`` for the audit row.
-
-    is_superadmin = normalized_role == UserRole.SUPERADMIN.value
-    audit_record(
-        "superadmin.created" if is_superadmin else "user.created",
-        status=AuditStatus.SUCCESS,
-        actor_type=ActorType.SYSTEM,
-        organization_id=organization.id,
-        target_type="user",
-        target_id=user.id,
-        context={
-            "email": user.email,
-            "role": user.role,
-            "organization": organization.name,
-        },
-    )
-    db.session.commit()
-    return user
 
 
 def register_cli_commands(app: Flask) -> None:
@@ -106,12 +38,15 @@ def register_cli_commands(app: Flask) -> None:
     ) -> None:
         """Create a superadmin user. 2FA is enforced on first login."""
 
-        user = _create_user(
-            email=email,
-            password=password,
-            role=UserRole.SUPERADMIN.value,
-            organization_name=organization_name,
-        )
+        try:
+            user = user_services.create_user(
+                email=email,
+                password=password,
+                role=UserRole.SUPERADMIN.value,
+                organization_name=organization_name,
+            )
+        except user_services.UserServiceError as err:
+            raise click.ClickException(str(err)) from err
         click.echo(
             f"Created superadmin '{user.email}' in organization '{user.organization.name}'."
         )
@@ -146,12 +81,15 @@ def register_cli_commands(app: Flask) -> None:
     ) -> None:
         """Create a user with an arbitrary role. Use ``create-superadmin`` for superadmins."""
 
-        user = _create_user(
-            email=email,
-            password=password,
-            role=role,
-            organization_name=organization_name,
-        )
+        try:
+            user = user_services.create_user(
+                email=email,
+                password=password,
+                role=role,
+                organization_name=organization_name,
+            )
+        except user_services.UserServiceError as err:
+            raise click.ClickException(str(err)) from err
         click.echo(
             f"Created user '{user.email}' with role '{user.role}' "
             f"in organization '{user.organization.name}'."
@@ -482,7 +420,7 @@ def register_cli_commands(app: Flask) -> None:
             .first()
         )
         if guest is None:
-            guest = _create_user(
+            guest = user_services.create_user(
                 email=f"demo.guest+org{organization.id}@pindora.local",
                 password="DemoPass123!",
                 role=UserRole.USER.value,

@@ -34,7 +34,6 @@ from app.reports import services as report_service
 from app.reservations import services as reservation_service
 from app.organizations.models import Organization
 from app.users.models import User, UserRole
-from werkzeug.security import generate_password_hash
 
 
 PAGE_SIZE_DEFAULT = 50
@@ -94,6 +93,14 @@ def _parse_optional_calendar_filter_int(name: str) -> int | None:
         abort(400)
 
 
+def _parse_calendar_event_types() -> set[str]:
+    raw = (request.args.get("event_types") or request.args.get("event_type") or "").strip()
+    if not raw:
+        return {"reservations"}
+    values = {part.strip().lower() for part in raw.split(",") if part.strip()}
+    return values or {"reservations"}
+
+
 @admin_bp.get("/calendar")
 @require_admin_pms_access
 def calendar_page():
@@ -115,6 +122,7 @@ def calendar_events():
         abort(400)
     property_id = _parse_optional_calendar_filter_int("property_id")
     unit_id = _parse_optional_calendar_filter_int("unit_id")
+    event_types = _parse_calendar_event_types()
     try:
         events = reservation_service.get_calendar_events(
             organization_id=_pms_org_id(),
@@ -122,6 +130,7 @@ def calendar_events():
             end_date=end_d,
             property_id=property_id,
             unit_id=unit_id,
+            include_event_types=event_types,
         )
     except reservation_service.ReservationServiceError as exc:
         return json_error(exc.code, exc.message, status=exc.status)
@@ -2059,28 +2068,21 @@ def users_new():
         elif User.query.filter_by(email=form["email"]).first() is not None:
             error = f"User '{form['email']}' already exists."
         else:
-            user = User(
-                email=form["email"],
-                role=form["role"],
-                organization_id=int(form["organization_id"]),
-                password_hash=generate_password_hash(form["password"]),
-                is_active=True,
-            )
-            db.session.add(user)
-            db.session.flush()
-            audit_record(
-                "user.created",
-                status=AuditStatus.SUCCESS,
-                actor_type=ActorType.USER,
-                actor_id=current_user.id,
-                actor_email=current_user.email,
-                target_type="user",
-                target_id=user.id,
-                context={"email": user.email, "role": user.role},
-                commit=True,
-            )
-            flash(f"User {user.email} created.")
-            return redirect(url_for("admin.users_list"))
+            try:
+                user = admin_service.create_user(
+                    email=form["email"],
+                    password=form["password"],
+                    role=form["role"],
+                    organization_id=int(form["organization_id"]),
+                    actor_type=ActorType.USER,
+                    actor_id=current_user.id,
+                    actor_email=current_user.email,
+                )
+            except admin_service.UserServiceError as err:
+                error = str(err)
+            else:
+                flash(f"User {user.email} created.")
+                return redirect(url_for("admin.users_list"))
 
     return render_template(
         "admin_user_form.html",
@@ -2123,49 +2125,46 @@ def users_edit(user_id: int):
         else:
             old_role = target_user.role
             old_org_id = target_user.organization_id
-            target_user.role = new_role
-            target_user.organization_id = int(new_org_id)
-            if new_password:
-                target_user.set_password(new_password)
+            try:
+                target_user.organization_id = int(new_org_id)
+                if new_password:
+                    admin_service.change_password(
+                        user_id=target_user.id,
+                        new_password=new_password,
+                        actor_type=ActorType.USER,
+                        actor_id=current_user.id,
+                        actor_email=current_user.email,
+                        commit=False,
+                    )
+                if old_role != new_role:
+                    admin_service.update_user_role(
+                        user_id=target_user.id,
+                        new_role=new_role,
+                        actor_type=ActorType.USER,
+                        actor_id=current_user.id,
+                        actor_email=current_user.email,
+                        commit=False,
+                    )
+            except admin_service.UserServiceError as err:
+                db.session.rollback()
+                error = str(err)
+            else:
                 audit_record(
-                    "auth.password.changed",
+                    "user.updated",
                     status=AuditStatus.SUCCESS,
                     actor_type=ActorType.USER,
                     actor_id=current_user.id,
                     actor_email=current_user.email,
                     target_type="user",
                     target_id=target_user.id,
-                    context={"via": "admin"},
-                    commit=False,
+                    context={
+                        "old_organization_id": old_org_id,
+                        "new_organization_id": target_user.organization_id,
+                    },
+                    commit=True,
                 )
-            if old_role != new_role:
-                audit_record(
-                    "user.role_changed",
-                    status=AuditStatus.SUCCESS,
-                    actor_type=ActorType.USER,
-                    actor_id=current_user.id,
-                    actor_email=current_user.email,
-                    target_type="user",
-                    target_id=target_user.id,
-                    context={"old_role": old_role, "new_role": new_role},
-                    commit=False,
-                )
-            audit_record(
-                "user.updated",
-                status=AuditStatus.SUCCESS,
-                actor_type=ActorType.USER,
-                actor_id=current_user.id,
-                actor_email=current_user.email,
-                target_type="user",
-                target_id=target_user.id,
-                context={
-                    "old_organization_id": old_org_id,
-                    "new_organization_id": target_user.organization_id,
-                },
-                commit=True,
-            )
-            flash("User updated.")
-            return redirect(url_for("admin.users_list"))
+                flash("User updated.")
+                return redirect(url_for("admin.users_list"))
 
     return render_template(
         "admin_user_form.html",
@@ -2182,21 +2181,27 @@ def users_edit(user_id: int):
 @require_superadmin_2fa
 def users_toggle_active(user_id: int):
     target_user = User.query.get_or_404(user_id)
-    if target_user.id == current_user.id:
-        flash("You cannot deactivate yourself.")
+    try:
+        if target_user.is_active:
+            admin_service.deactivate_user(
+                user_id=target_user.id,
+                actor_type=ActorType.USER,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                commit=True,
+            )
+        else:
+            admin_service.reactivate_user(
+                user_id=target_user.id,
+                actor_type=ActorType.USER,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                commit=True,
+            )
+    except admin_service.UserServiceError as err:
+        flash(str(err))
         return redirect(url_for("admin.users_list"))
-    target_user.is_active = not target_user.is_active
-    audit_record(
-        "user.active_toggled",
-        status=AuditStatus.SUCCESS,
-        actor_type=ActorType.USER,
-        actor_id=current_user.id,
-        actor_email=current_user.email,
-        target_type="user",
-        target_id=target_user.id,
-        context={"is_active": target_user.is_active},
-        commit=True,
-    )
+    db.session.refresh(target_user)
     flash(
         f"User {target_user.email} is now "
         f"{'active' if target_user.is_active else 'inactive'}."
