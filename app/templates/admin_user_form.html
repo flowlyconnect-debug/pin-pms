@@ -1,0 +1,41 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if is_new %}New user{% else %}Edit {{ target_user.email }}{% endif %} · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>{% if is_new %}Create user{% else %}Edit <code>{{ target_user.email }}</code>{% endif %}</h1>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if is_new %}
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required value="{{ form.email }}">
+    {% endif %}
+
+    <label for="role">Role</label>
+    <select id="role" name="role" required>
+      {% for r in roles %}
+        <option value="{{ r.value }}" {% if form.role == r.value %}selected{% endif %}>{{ r.value }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="organization_id">Organization</label>
+    <select id="organization_id" name="organization_id" required>
+      <option value="">-- choose --</option>
+      {% for o in organizations %}
+        <option value="{{ o.id }}" {% if form.organization_id|string == o.id|string %}selected{% endif %}>{{ o.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="password">{% if is_new %}Password{% else %}New password (leave blank to keep current){% endif %}</label>
+    <input id="password" name="password" type="password" minlength="12" {% if is_new %}required{% endif %}>
+
+    <div class="actions">
+      <button type="submit">{% if is_new %}Create{% else %}Save changes{% endif %}</button>
+      <a href="{{ url_for('admin.users_list') }}">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

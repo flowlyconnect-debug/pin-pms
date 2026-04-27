@@ -9,6 +9,7 @@ database backups, and automated tests.
 This project provides the core operational platform for PMS use cases:
 
 - tenant-scoped organizations, users, properties, units, reservations
+- **leases** (draft → active → ended/cancelled) and **invoices** (draft/open → paid/overdue/cancelled) with per-organization invoice numbers
 - role-based access control (`superadmin`, `admin`, `user`, `api_client`)
 - mandatory TOTP 2FA for `superadmin` actions
 - server-rendered admin pages and API endpoints under `/api/v1`
@@ -19,11 +20,12 @@ This project provides the core operational platform for PMS use cases:
 ## Tech stack
 
 - Python 3.12+
-- Flask + Flask-Login + Flask-WTF CSRF
+- Flask + Flask-Login + Flask-WTF CSRF + Flask-Cors
 - SQLAlchemy + Flask-Migrate (Alembic)
 - PostgreSQL 16
 - Flask-Limiter
 - APScheduler
+- Gunicorn (production) + Nginx + systemd (see `deploy/`)
 - pytest
 - Docker / Docker Compose
 
@@ -48,14 +50,13 @@ only (no secrets). Key variables:
 - Rate limits: `LOGIN_RATE_LIMIT`, `API_RATE_LIMIT`
 - Mailgun/Email:
   `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM_EMAIL`,
-  `MAILGUN_FROM_NAME`, `MAILGUN_BASE_URL`,
-  `MAIL_FROM`, `MAIL_FROM_NAME`, `MAIL_DEV_LOG_ONLY`
+  `MAILGUN_FROM_NAME`, `MAILGUN_BASE_URL`, `MAIL_DEV_LOG_ONLY`
 - Backups:
-  `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_SCHEDULE_CRON`,
-  `BACKUP_SCHEDULER_ENABLED`, `BACKUP_NOTIFY_EMAIL`
-
-> Note: the app currently reads `MAIL_FROM` / `MAIL_FROM_NAME`; the
-> `MAILGUN_FROM_*` entries are kept in `.env.example` for deployment parity.
+  `BACKUP_DIR`, `UPLOADS_DIR`, `BACKUP_RETENTION_DAYS`,
+  `BACKUP_SCHEDULE_CRON`, `BACKUP_SCHEDULER_ENABLED`, `BACKUP_NOTIFY_EMAIL`
+- Billing scheduler (optional): `INVOICE_OVERDUE_SCHEDULER_ENABLED`,
+  `INVOICE_OVERDUE_SCHEDULE_CRON` (five-field cron, default 06:30 UTC daily)
+- CORS: `CORS_ALLOWED_ORIGINS` (comma-separated, empty = same-origin only)
 
 ## Docker startup
 
@@ -153,11 +154,45 @@ PMS endpoints:
 - `GET /api/v1/reservations/<id>`
 - `PATCH /api/v1/reservations/<id>/cancel`
 
+Leases and invoices:
+
+- `GET /api/v1/leases`, `POST /api/v1/leases`, `GET /api/v1/leases/<id>`,
+  `PATCH /api/v1/leases/<id>`
+- `GET /api/v1/invoices`, `POST /api/v1/invoices`, `GET /api/v1/invoices/<id>`,
+  `POST /api/v1/invoices/<id>/mark-paid`, `POST /api/v1/invoices/<id>/cancel`
+
+`POST /api/v1/leases` and `POST/PATCH` lease, and invoice mutations, require an
+API key **linked to a user** (`user_id` on the key) so `created_by_id` /
+audit actors resolve correctly.
+
 Notes:
 
 - tenant isolation is enforced by `organization_id`
 - list endpoints support `page` and `per_page` and return `meta`
 - reservation validation enforces date ordering and overlap prevention
+- lease and invoice services enforce `organization_id`, unit/guest/reservation
+  ownership, and non-negative amounts; invoice numbers are unique per tenant
+  (`BIL-<org_id>-<invoice_id>`)
+
+## Billing CLI
+
+Mark open invoices overdue (same logic as the optional scheduled job):
+
+```bash
+flask invoices-mark-overdue
+```
+
+Scope to one tenant:
+
+```bash
+flask invoices-mark-overdue --organization-id 1
+```
+
+After pulling new email template keys, run:
+
+```bash
+flask seed-email-templates
+```
 
 ## Backup usage
 
@@ -166,15 +201,25 @@ Create backup:
 - Admin UI: `/admin/backups`
 - CLI: `flask backup-create`
 
-Restore backup:
+Backups capture the full PostgreSQL database (including email templates and
+settings, which are stored as DB tables). When `UPLOADS_DIR` exists and is
+non-empty, a sibling `<stamp>.uploads.tar.gz` is produced alongside the
+SQL dump and tracked in the `backups.uploads_filename` column.
 
-- Admin UI restore flow (password + 2FA confirmation)
+Download / restore:
+
+- Admin UI: `/admin/backups` → "Download" or "Restore…" links
+- Restore flow asks for the operator's password + a fresh TOTP code, takes a
+  pre-restore safe-copy, then loads the dump in a single transaction
 - CLI: `flask backup-restore --filename <backup.sql.gz>`
+- If a paired uploads tarball exists it is extracted automatically into
+  `UPLOADS_DIR`
 
 Retention:
 
-- configure `BACKUP_RETENTION_DAYS` in environment
-- keep `BACKUP_DIR` on durable storage
+- `BACKUP_RETENTION_DAYS` (default 30) controls how long files live
+- pruning runs automatically after every successful backup
+- pre-restore safe-copies are exempt from pruning
 
 ## Mailgun setup
 
@@ -197,16 +242,39 @@ Main admin pages:
 
 - `/admin/properties`
 - `/admin/reservations`
+- `/admin/leases` — list, create, view, edit; activate, end, cancel (with confirmations where needed)
+- `/admin/invoices` — list, create, view; mark paid; cancel; “Mark overdue” for the current organization
+- `/admin/calendar`
+- `/admin/reports`
 - `/admin/audit`
-- `/admin/email-templates`
-- `/admin/backups`
-- `/admin/settings`
+- `/admin/users` (superadmin only)
+- `/admin/organizations` (superadmin only)
+- `/admin/api-keys` (superadmin only)
+- `/admin/email-templates` (superadmin only) — includes test-send button
+- `/admin/backups` (superadmin only) — list / create / download / restore
+- `/admin/settings` (superadmin only)
 
 Access:
 
 - `admin` and `superadmin` can access PMS management UI
-- superadmin must pass 2FA guard
+- superadmin must pass 2FA guard for the management pages
 - tenant scope remains enforced for PMS data
+
+## Auth flows
+
+- `/login` — email + password
+- `/logout`
+- `/forgot-password` — emails a one-time reset link via Mailgun
+- `/reset-password/<token>` — sets a new password (12+ chars)
+- `/2fa/setup` — TOTP enrolment (superadmin)
+- `/2fa/backup-codes` — view / regenerate one-time recovery codes
+- `/2fa/verify` — accepts either a TOTP code or a single-use recovery code
+
+## Production deploy
+
+Reference Nginx + systemd templates live in `deploy/`. Copy them to the
+host, point them at the project's virtualenv, and adjust hostnames /
+TLS paths. See `deploy/README.md` for step-by-step instructions.
 
 ## Deployment checklist
 

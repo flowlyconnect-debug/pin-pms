@@ -1,0 +1,161 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Edit lease #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block head_extra %}
+  <style>
+    .guest-search-wrap { position: relative; }
+    .guest-results {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      z-index: 30;
+      margin-top: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+    }
+    .guest-result {
+      display: block;
+      width: 100%;
+      padding: 8px 10px;
+      text-align: left;
+      background: #fff;
+      color: #111827;
+      border: 0;
+      border-bottom: 1px solid #e5e7eb;
+      cursor: pointer;
+      font: inherit;
+    }
+    .guest-result:hover { background: #f3f4f6; }
+    .guest-result:last-child { border-bottom: 0; }
+    .guest-no-results { padding: 8px 10px; color: #6b7280; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">Back to lease</a>
+  </div>
+  <h1>Edit lease #{{ row.id }}</h1>
+  <p class="meta">Status: <strong>{{ row.status }}</strong></p>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if row.status == "draft" %}
+      <label for="unit_id">Unit</label>
+      <select id="unit_id" name="unit_id" required>
+        <option value="">Select unit</option>
+        {% for unit in units %}
+          <option value="{{ unit.id }}" {% if form.unit_id == unit.id|string %}selected{% endif %}>#{{ unit.id }} - {{ unit.property.name }} / {{ unit.name }}</option>
+        {% endfor %}
+      </select>
+      <div class="guest-search-wrap">
+        <label for="guest_search">Guest</label>
+        <input type="text" id="guest_search" name="guest_search" autocomplete="off" value="{{ form.guest_search }}">
+        <input type="hidden" id="guest_id" name="guest_id" value="{{ form.guest_id }}">
+        <div id="guest_search_results" class="guest-results" aria-live="polite"></div>
+        <button type="button" class="btn btn-secondary" id="guest_search_clear" style="margin-top: 0.35rem;">Clear guest selection</button>
+      </div>
+      <label for="reservation_id">Reservation ID (optional)</label>
+      <input id="reservation_id" name="reservation_id" type="number" min="1" value="{{ form.reservation_id }}">
+      <label for="start_date">Start date</label>
+      <input id="start_date" name="start_date" type="date" required value="{{ form.start_date }}">
+      <label for="billing_cycle">Billing cycle</label>
+      <select id="billing_cycle" name="billing_cycle">
+        <option value="monthly" {% if form.billing_cycle == "monthly" %}selected{% endif %}>Monthly</option>
+        <option value="weekly" {% if form.billing_cycle == "weekly" %}selected{% endif %}>Weekly</option>
+        <option value="one_time" {% if form.billing_cycle == "one_time" %}selected{% endif %}>One time</option>
+      </select>
+    {% endif %}
+
+    {% if row.status in ["draft", "active"] %}
+      <label for="end_date">End date (optional)</label>
+      <input id="end_date" name="end_date" type="date" value="{{ form.end_date }}">
+    {% endif %}
+
+    {% if row.status in ["draft", "active"] %}
+      <label for="rent_amount">Rent amount</label>
+      <input id="rent_amount" name="rent_amount" type="number" min="0" step="0.01" required value="{{ form.rent_amount }}">
+      <label for="deposit_amount">Deposit amount</label>
+      <input id="deposit_amount" name="deposit_amount" type="number" min="0" step="0.01" value="{{ form.deposit_amount }}">
+    {% endif %}
+
+    <label for="notes">Notes</label>
+    <textarea id="notes" name="notes" rows="3">{{ form.notes }}</textarea>
+
+    <div class="actions">
+      <button type="submit" class="btn">Save</button>
+    </div>
+  </form>
+
+  {% if row.status == "draft" %}
+  <script>
+    (function () {
+      var searchEl = document.getElementById("guest_search");
+      var idEl = document.getElementById("guest_id");
+      var resultsEl = document.getElementById("guest_search_results");
+      var clearBtn = document.getElementById("guest_search_clear");
+      var searchUrl = {{ url_for('admin.api_guests_search') | tojson }};
+      if (!searchEl || !idEl || !resultsEl) return;
+      var timer = null;
+      function hideResults() { resultsEl.innerHTML = ""; resultsEl.style.display = "none"; }
+      function labelForGuest(g) {
+        var name = (g.name || g.full_name || "").trim();
+        var email = (g.email || "").trim();
+        if (name && email) return name + " (" + email + ")";
+        return name || email || ("Guest #" + String(g.id));
+      }
+      function showPick(g) { idEl.value = String(g.id); searchEl.value = labelForGuest(g); hideResults(); }
+      function render(list) {
+        if (!list.length) {
+          resultsEl.innerHTML = "<div class=\"guest-no-results\">No guests found</div>";
+          resultsEl.style.display = "block";
+          return;
+        }
+        resultsEl.innerHTML = "";
+        list.forEach(function (g) {
+          var label = labelForGuest(g);
+          if (!label.trim()) return;
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "guest-result";
+          btn.textContent = label;
+          btn.addEventListener("click", function () { showPick(g); });
+          resultsEl.appendChild(btn);
+        });
+        if (!resultsEl.children.length) {
+          resultsEl.innerHTML = "<div class=\"guest-no-results\">No guests found</div>";
+        }
+        resultsEl.style.display = "block";
+      }
+      function fetchGuests(q) {
+        if (!String(q || "").trim()) { hideResults(); return; }
+        fetch(searchUrl + "?q=" + encodeURIComponent(q), { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (data) { render(Array.isArray(data) ? data : []); })
+          .catch(function () { hideResults(); });
+      }
+      searchEl.addEventListener("input", function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { fetchGuests(searchEl.value); }, 200);
+      });
+      if (clearBtn) {
+        clearBtn.addEventListener("click", function () { idEl.value = ""; searchEl.value = ""; hideResults(); });
+      }
+      document.addEventListener("click", function (ev) {
+        var wrap = searchEl.closest(".guest-search-wrap");
+        if (wrap && !wrap.contains(ev.target)) hideResults();
+      });
+    })();
+  </script>
+  {% endif %}
+{% endblock %}

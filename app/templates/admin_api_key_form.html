@@ -1,0 +1,45 @@
+{% extends "admin/base.html" %}
+
+{% block title %}New API key · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Issue new API key</h1>
+  <p class="meta">The plaintext value is shown exactly once after creation.
+  Store it in a secret manager immediately — it cannot be recovered.</p>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" required value="{{ form.name }}" placeholder="e.g. Production integration">
+
+    <label for="organization_id">Organization</label>
+    <select id="organization_id" name="organization_id" required>
+      <option value="">-- choose --</option>
+      {% for o in organizations %}
+        <option value="{{ o.id }}" {% if form.organization_id|string == o.id|string %}selected{% endif %}>{{ o.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="user_id">User (optional)</label>
+    <select id="user_id" name="user_id">
+      <option value="">-- none (org-scoped) --</option>
+      {% for u in users %}
+        <option value="{{ u.id }}" {% if form.user_id|string == u.id|string %}selected{% endif %}>{{ u.email }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="scopes">Scopes (comma-separated, optional)</label>
+    <input id="scopes" name="scopes" type="text" value="{{ form.scopes }}" placeholder="e.g. reservations:read,properties:read">
+
+    <label for="expires_days">Expires after N days (optional)</label>
+    <input id="expires_days" name="expires_days" type="number" min="1" value="{{ form.expires_days }}">
+
+    <div class="actions">
+      <button type="submit">Issue key</button>
+      <a href="{{ url_for('admin.api_keys_list') }}">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

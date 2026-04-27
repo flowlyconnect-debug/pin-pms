@@ -1,0 +1,60 @@
+{% extends "admin/base.html" %}
+
+{% block title %}API keys · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>API keys</h1>
+
+  {% if raw_key %}
+    <div class="card" style="border:2px solid #c00; padding:1rem; margin:1rem 0;">
+      <h2>Save this key now</h2>
+      <p><strong>This is the only time the plaintext value will be shown.</strong>
+      Copy it into your secret store immediately.</p>
+      <pre><code>{{ raw_key }}</code></pre>
+    </div>
+  {% endif %}
+
+  <p><a href="{{ url_for('admin.api_keys_new') }}">+ Issue new key</a></p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Prefix</th>
+        <th>Org</th>
+        <th>User</th>
+        <th>Scopes</th>
+        <th>Active</th>
+        <th>Expires</th>
+        <th>Last used</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for k in rows %}
+        <tr>
+          <td>{{ k.name }}</td>
+          <td><code>{{ k.key_prefix }}</code></td>
+          <td>{{ k.organization.name }}</td>
+          <td>{{ k.user.email if k.user else '—' }}</td>
+          <td>{{ k.scope_list|join(', ') or '—' }}</td>
+          <td>{{ "yes" if k.is_active else "no" }}</td>
+          <td>{{ k.expires_at.strftime('%Y-%m-%d') if k.expires_at else '—' }}</td>
+          <td>{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else '—' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('admin.api_keys_toggle_active', key_id=k.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit">{{ "Disable" if k.is_active else "Enable" }}</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.api_keys_delete', key_id=k.id) }}" style="display:inline" onsubmit="return confirm('Delete API key {{ k.key_prefix }}? This cannot be undone.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9">No API keys.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

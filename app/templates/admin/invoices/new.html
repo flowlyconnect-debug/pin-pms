@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+
+{% block title %}New Invoice · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.invoices_list') }}">Back to invoices</a>
+  </div>
+  <h1>New invoice</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="lease_id">Lease (optional — uses lease rent if amount left empty)</label>
+    <select id="lease_id" name="lease_id">
+      <option value="">— None —</option>
+      {% for l in lease_rows %}
+        <option value="{{ l.id }}" {% if form.lease_id == l.id|string %}selected{% endif %}>
+          #{{ l.id }} · {{ l.unit_name or l.unit_id }} · {{ l.guest_name or l.guest_id }} · {{ l.status }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <p class="meta">If no lease is selected, amount and due date are required. Optional guest and reservation apply to standalone invoices.</p>
+
+    <label for="amount">Amount</label>
+    <input id="amount" name="amount" type="number" min="0" step="0.01" value="{{ form.amount }}">
+
+    <label for="currency">Currency</label>
+    <input id="currency" name="currency" type="text" maxlength="3" value="{{ form.currency or 'EUR' }}">
+
+    <label for="due_date">Due date</label>
+    <input id="due_date" name="due_date" type="date" required value="{{ form.due_date }}">
+
+    <label for="status">Initial status</label>
+    <select id="status" name="status">
+      <option value="draft" {% if form.status == "draft" %}selected{% endif %}>Draft</option>
+      <option value="open" {% if form.status == "open" %}selected{% endif %}>Open</option>
+    </select>
+
+    <label for="guest_id">Guest ID (optional, standalone)</label>
+    <input id="guest_id" name="guest_id" type="number" min="1" value="{{ form.guest_id }}">
+    <label for="reservation_id">Reservation ID (optional, standalone)</label>
+    <input id="reservation_id" name="reservation_id" type="number" min="1" value="{{ form.reservation_id }}">
+
+    <label for="description">Description</label>
+    <textarea id="description" name="description" rows="2">{{ form.description }}</textarea>
+
+    <div class="actions">
+      <button type="submit" class="btn">Create invoice</button>
+    </div>
+  </form>
+{% endblock %}

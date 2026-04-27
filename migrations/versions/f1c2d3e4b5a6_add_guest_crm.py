@@ -35,6 +35,29 @@ def upgrade():
         batch_op.create_index(batch_op.f("ix_guests_organization_id"), ["organization_id"], unique=False)
         batch_op.create_index(batch_op.f("ix_guests_email"), ["email"], unique=False)
 
+    # Backfill legacy reservation guests (previously users.id) so adding the
+    # new reservations.guest_id -> guests.id FK succeeds on existing data.
+    op.execute(
+        sa.text(
+            """
+            INSERT INTO guests (id, organization_id, first_name, last_name, email, phone, notes, preferences)
+            SELECT
+                u.id,
+                u.organization_id,
+                split_part(u.email, '@', 1),
+                '',
+                u.email,
+                NULL,
+                NULL,
+                NULL
+            FROM users u
+            WHERE NOT EXISTS (
+                SELECT 1 FROM guests g WHERE g.id = u.id
+            )
+            """
+        )
+    )
+
     with op.batch_alter_table("reservations", schema=None) as batch_op:
         batch_op.add_column(sa.Column("guest_name", sa.String(length=255), nullable=False, server_default="Guest"))
         batch_op.drop_constraint("reservations_guest_id_fkey", type_="foreignkey")

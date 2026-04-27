@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
+from io import BytesIO
 import logging
 from typing import Any, Mapping
 
+from flask import Response
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 from sqlalchemy.orm import noload
 
 from app.audit import record as audit_record
@@ -20,6 +25,7 @@ from app.users.models import User, UserRole
 logger = logging.getLogger(__name__)
 
 _RESERVATION_EDIT_STATUSES = frozenset({"confirmed", "cancelled"})
+_PAYMENT_STATUSES = frozenset({"pending", "paid", "cancelled"})
 
 
 @dataclass
@@ -61,9 +67,49 @@ def _serialize_reservation(row: Reservation) -> dict:
         "start_date": row.start_date.isoformat(),
         "end_date": row.end_date.isoformat(),
         "status": row.status,
+        "amount": str(row.amount) if row.amount is not None else None,
+        "currency": row.currency,
+        "payment_status": row.payment_status,
+        "invoice_number": row.invoice_number,
+        "invoice_date": row.invoice_date.isoformat() if row.invoice_date else None,
+        "due_date": row.due_date.isoformat() if row.due_date else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+
+
+def _parse_amount(raw: Any) -> Decimal | None:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    try:
+        value = Decimal(text).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Amount must be a valid decimal number.",
+            status=400,
+        ) from None
+    if value < Decimal("0.00"):
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Amount must be zero or greater.",
+            status=400,
+        )
+    return value
+
+
+def _parse_currency(raw: Any) -> str:
+    text = str(raw or "EUR").strip().upper()
+    if len(text) != 3 or not text.isalpha():
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Currency must be a 3-letter ISO code.",
+            status=400,
+        )
+    return text
 
 
 def _scoped_reservation_query(*, organization_id: int):
@@ -247,6 +293,12 @@ def _reservation_display_dict(*, row: Reservation) -> dict:
         "start_date": row.start_date.isoformat(),
         "end_date": row.end_date.isoformat(),
         "status": row.status,
+        "amount": str(row.amount) if row.amount is not None else None,
+        "currency": row.currency,
+        "payment_status": row.payment_status,
+        "invoice_number": row.invoice_number,
+        "invoice_date": row.invoice_date.isoformat() if row.invoice_date else None,
+        "due_date": row.due_date.isoformat() if row.due_date else None,
         "property_name": prop.name if prop is not None else "",
         "unit_name": unit.name if unit is not None else "",
     }
@@ -369,6 +421,8 @@ def update_reservation(
             message=f"Status must be one of: {', '.join(sorted(_RESERVATION_EDIT_STATUSES))}.",
             status=400,
         )
+    amount = _parse_amount(data.get("amount"))
+    currency = _parse_currency(data.get("currency"))
 
     if status == "confirmed":
         overlapping = (
@@ -395,6 +449,9 @@ def update_reservation(
         "start_date": row.start_date.isoformat(),
         "end_date": row.end_date.isoformat(),
         "status": row.status,
+        "amount": str(row.amount) if row.amount is not None else None,
+        "currency": row.currency,
+        "payment_status": row.payment_status,
     }
 
     row.unit_id = unit.id
@@ -403,6 +460,8 @@ def update_reservation(
     row.start_date = start_date
     row.end_date = end_date
     row.status = status
+    row.amount = amount
+    row.currency = currency
 
     audit_record(
         "reservation_updated",
@@ -420,6 +479,9 @@ def update_reservation(
                 "start_date": row.start_date.isoformat(),
                 "end_date": row.end_date.isoformat(),
                 "status": row.status,
+                "amount": str(row.amount) if row.amount is not None else None,
+                "currency": row.currency,
+                "payment_status": row.payment_status,
             },
             "user_id": actor_user_id,
         },
@@ -441,8 +503,12 @@ def create_reservation(
     guest_name: str | None = None,
     start_date_raw: str,
     end_date_raw: str,
+    amount: Any = None,
+    currency: Any = "EUR",
     actor_user_id: int | None = None,
 ) -> dict:
+    amount_value = _parse_amount(amount)
+    currency_value = _parse_currency(currency)
     unit = (
         Unit.query.join(Property, Unit.property_id == Property.id)
         .filter(Unit.id == unit_id, Property.organization_id == organization_id)
@@ -511,6 +577,9 @@ def create_reservation(
         start_date=start_date,
         end_date=end_date,
         status="confirmed",
+        amount=amount_value,
+        currency=currency_value,
+        payment_status="pending",
     )
     db.session.add(row)
     db.session.commit()
@@ -527,6 +596,9 @@ def create_reservation(
             "guest_name": row.guest_name,
             "start_date": row.start_date.isoformat(),
             "end_date": row.end_date.isoformat(),
+            "amount": str(row.amount) if row.amount is not None else None,
+            "currency": row.currency,
+            "payment_status": row.payment_status,
             "user_id": actor_user_id,
         },
         commit=True,
@@ -800,6 +872,8 @@ def cancel_reservation(
         return _serialize_reservation(row)
 
     row.status = "cancelled"
+    if row.payment_status != "paid":
+        row.payment_status = "cancelled"
     audit_record(
         "reservation_cancelled",
         status=AuditStatus.SUCCESS,
@@ -823,6 +897,180 @@ def cancel_reservation(
             guest_name=_display_guest_name(guest=row.guest, guest_name=row.guest_name),
         )
     return _serialize_reservation(row)
+
+
+def mark_reservation_paid(
+    *,
+    reservation_id: int,
+    organization_id: int,
+    actor_user: User,
+) -> dict:
+    """Mark reservation paid (admin/superadmin, tenant-safe)."""
+
+    if actor_user.role not in {UserRole.ADMIN.value, UserRole.SUPERADMIN.value}:
+        raise ReservationServiceError(
+            code="forbidden",
+            message="Admin privileges required.",
+            status=403,
+        )
+
+    row = _scoped_reservation_query(organization_id=organization_id).filter(
+        Reservation.id == reservation_id
+    ).first()
+    if row is None:
+        raise ReservationServiceError(
+            code="not_found",
+            message="Reservation not found.",
+            status=404,
+        )
+    if row.payment_status == "paid":
+        return _serialize_reservation(row)
+    if row.payment_status not in _PAYMENT_STATUSES:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Reservation has an invalid payment status.",
+            status=400,
+        )
+
+    before_status = row.payment_status
+    row.payment_status = "paid"
+    audit_record(
+        "reservation_paid",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user.id,
+        organization_id=organization_id,
+        target_type="reservation",
+        target_id=row.id,
+        context={
+            "before": {"payment_status": before_status},
+            "after": {"payment_status": row.payment_status},
+            "user_id": actor_user.id,
+        },
+        commit=False,
+    )
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return _serialize_reservation(row)
+
+
+def _next_invoice_number(*, organization_id: int, reservation_id: int) -> str:
+    return f"INV-{organization_id}-{reservation_id:06d}"
+
+
+def _build_invoice_pdf_bytes(*, row: Reservation, organization_id: int) -> bytes:
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    page_w, page_h = A4
+    y = page_h - 48
+
+    def write_line(text: str, *, size: int = 11, step: int = 18) -> None:
+        nonlocal y
+        pdf.setFont("Helvetica", size)
+        pdf.drawString(48, y, text)
+        y -= step
+
+    invoice_number = row.invoice_number or _next_invoice_number(
+        organization_id=organization_id,
+        reservation_id=row.id,
+    )
+    invoice_date = row.invoice_date.isoformat() if row.invoice_date else "-"
+    due_date = row.due_date.isoformat() if row.due_date else "-"
+    amount = str(row.amount) if row.amount is not None else "-"
+    guest_email = ""
+    if row.guest is not None and row.guest.email:
+        guest_email = str(row.guest.email)
+
+    pdf.setTitle(f"Invoice {invoice_number}")
+    write_line("Pindora PMS Invoice", size=16, step=26)
+    write_line(f"Invoice number: {invoice_number}")
+    write_line(f"Invoice date: {invoice_date}")
+    write_line(f"Due date: {due_date}")
+    y -= 8
+    write_line(f"Guest name: {row.guest_name}")
+    write_line(f"Guest email: {guest_email or '-'}")
+    write_line(f"Property: {row.unit.property.name}")
+    write_line(f"Unit: {row.unit.name}")
+    write_line(f"Reservation start: {row.start_date.isoformat()}")
+    write_line(f"Reservation end: {row.end_date.isoformat()}")
+    y -= 8
+    write_line(f"Amount: {amount}")
+    write_line(f"Currency: {row.currency}")
+    write_line(f"Payment status: {row.payment_status}")
+
+    pdf.showPage()
+    pdf.save()
+    return buffer.getvalue()
+
+
+def generate_invoice(
+    *,
+    reservation_id: int,
+    organization_id: int,
+    actor_user: User,
+) -> Response:
+    """Generate PDF invoice/receipt for a reservation (tenant-safe, admin-only)."""
+
+    if actor_user.role not in {UserRole.ADMIN.value, UserRole.SUPERADMIN.value}:
+        raise ReservationServiceError(
+            code="forbidden",
+            message="Admin privileges required.",
+            status=403,
+        )
+
+    row = _scoped_reservation_query(organization_id=organization_id).filter(
+        Reservation.id == reservation_id
+    ).first()
+    if row is None:
+        raise ReservationServiceError(
+            code="not_found",
+            message="Reservation not found.",
+            status=404,
+        )
+
+    if not row.invoice_number:
+        row.invoice_number = _next_invoice_number(
+            organization_id=organization_id,
+            reservation_id=row.id,
+        )
+    if row.invoice_date is None:
+        row.invoice_date = date.today()
+    if row.due_date is None:
+        row.due_date = row.invoice_date + timedelta(days=14)
+
+    audit_record(
+        "invoice_generated",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user.id,
+        organization_id=organization_id,
+        target_type="reservation",
+        target_id=row.id,
+        context={
+            "invoice_number": row.invoice_number,
+            "invoice_date": row.invoice_date.isoformat() if row.invoice_date else None,
+            "due_date": row.due_date.isoformat() if row.due_date else None,
+            "payment_status": row.payment_status,
+            "amount": str(row.amount) if row.amount is not None else None,
+            "currency": row.currency,
+            "user_id": actor_user.id,
+        },
+        commit=False,
+    )
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    pdf_bytes = _build_invoice_pdf_bytes(row=row, organization_id=organization_id)
+    filename = f"invoice-{row.invoice_number or row.id}.pdf"
+    response = Response(pdf_bytes, mimetype="application/pdf")
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.headers["Content-Length"] = str(len(pdf_bytes))
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def _send_reservation_email(

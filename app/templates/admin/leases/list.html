@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Leases · Pindora PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn" href="{{ url_for('admin.leases_new') }}">New lease</a>
+  </div>
+  <h1>Leases</h1>
+  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Unit</th>
+        <th>Guest</th>
+        <th>Dates</th>
+        <th>Rent</th>
+        <th>Cycle</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.property_name or "—" }} / {{ row.unit_name or row.unit_id }}</td>
+          <td>{{ row.guest_name or "—" }} (#{{ row.guest_id }})</td>
+          <td>{{ row.start_date }}{% if row.end_date %} → {{ row.end_date }}{% else %} → …{% endif %}</td>
+          <td>{{ row.rent_amount }}</td>
+          <td>{{ row.billing_cycle }}</td>
+          <td>{{ row.status }}</td>
+          <td>
+            <a href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">View</a>
+            · <a href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Edit</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8"><em>No leases yet.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

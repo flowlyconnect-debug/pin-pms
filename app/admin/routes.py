@@ -8,19 +8,21 @@ from __future__ import annotations
 
 from functools import wraps
 
-from flask import abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import abort, flash, jsonify, redirect, render_template, request, send_from_directory, url_for, current_app
 from flask_login import current_user, login_required
 
 from app.admin import admin_bp
 from app.admin import services as admin_service
+from app.api.models import ApiKey
 from app.api.schemas import json_error, json_ok
 from app.audit import record as audit_record
-from app.audit.models import AuditLog, AuditStatus
+from app.audit.models import ActorType, AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
 from app.backups.models import Backup, BackupTrigger
+from app.billing import services as billing_service
 from app.backups.services import BackupError, create_backup, restore_backup
-from app.email.models import EmailTemplate
-from app.email.services import render_strings as render_email_strings
+from app.email.models import EmailTemplate, TemplateKey
+from app.email.services import render_strings as render_email_strings, send_template
 from app.extensions import db
 from app.guests import services as guest_service
 from app.settings import services as settings_service
@@ -29,7 +31,9 @@ from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reports import services as report_service
 from app.reservations import services as reservation_service
+from app.organizations.models import Organization
 from app.users.models import User, UserRole
+from werkzeug.security import generate_password_hash
 
 
 PAGE_SIZE_DEFAULT = 50
@@ -203,6 +207,30 @@ def guests_detail(guest_id: int):
     except guest_service.GuestServiceError:
         abort(404)
     return render_template("admin/guests/detail.html", row=row, reservations=reservations)
+
+
+@admin_bp.get("/api/guests/search")
+@require_admin_pms_access
+def api_guests_search():
+    """JSON guest lookup for reservation forms (tenant-scoped)."""
+
+    q = (request.args.get("q") or "").strip() or None
+    rows, _ = guest_service.list_guests(
+        organization_id=_pms_org_id(),
+        search=q,
+        page=1,
+        per_page=20,
+    )
+    return jsonify(
+        [
+            {
+                "id": r["id"],
+                "full_name": r["full_name"],
+                "email": r["email"] or "",
+            }
+            for r in rows
+        ]
+    )
 
 
 @admin_bp.route("/guests/<int:guest_id>/edit", methods=["GET", "POST"])
@@ -443,22 +471,28 @@ def reservations_list():
 @admin_bp.route("/reservations/new", methods=["GET", "POST"])
 @require_admin_pms_access
 def reservations_new():
-    units, guests = _reservation_form_choices(organization_id=_pms_org_id())
+    units, _ = _reservation_form_choices(organization_id=_pms_org_id())
     form = {
         "unit_id": "",
         "guest_id": "",
+        "guest_search": "",
         "guest_name": "",
         "start_date": "",
         "end_date": "",
+        "amount": "",
+        "currency": "EUR",
     }
     error: str | None = None
 
     if request.method == "POST":
         form["unit_id"] = (request.form.get("unit_id") or "").strip()
         form["guest_id"] = (request.form.get("guest_id") or "").strip()
+        form["guest_search"] = (request.form.get("guest_search") or "").strip()
         form["guest_name"] = (request.form.get("guest_name") or "").strip()
         form["start_date"] = (request.form.get("start_date") or "").strip()
         form["end_date"] = (request.form.get("end_date") or "").strip()
+        form["amount"] = (request.form.get("amount") or "").strip()
+        form["currency"] = (request.form.get("currency") or "").strip().upper() or "EUR"
 
         if not form["unit_id"] or not form["start_date"] or not form["end_date"]:
             error = "Unit and dates are required."
@@ -472,6 +506,8 @@ def reservations_new():
                     guest_name=form["guest_name"] or None,
                     start_date_raw=form["start_date"],
                     end_date_raw=form["end_date"],
+                    amount=form["amount"],
+                    currency=form["currency"],
                     actor_user_id=current_user.id,
                 )
             except (TypeError, ValueError):
@@ -485,7 +521,6 @@ def reservations_new():
     return render_template(
         "admin/reservations/new.html",
         units=units,
-        guests=guests,
         form=form,
         error=error,
     )
@@ -581,23 +616,37 @@ def reservations_edit(reservation_id: int):
     form = {
         "guest_name": row["guest_name"],
         "guest_id": str(row["guest_id"] or ""),
+        "guest_search": "",
         "property_id": str(row["property_id"] or ""),
         "unit_id": str(row["unit_id"]),
         "start_date": row["start_date"],
         "end_date": row["end_date"],
         "status": row["status"],
+        "amount": row["amount"] or "",
+        "currency": row["currency"] or "EUR",
         "return_to": return_to,
     }
+    if form["guest_id"]:
+        try:
+            g = guest_service.get_guest(int(form["guest_id"]), org_id)
+            form["guest_search"] = g["full_name"]
+            if g.get("email"):
+                form["guest_search"] += f" ({g['email']})"
+        except (ValueError, guest_service.GuestServiceError):
+            form["guest_search"] = form["guest_name"] or ""
     error: str | None = None
 
     if request.method == "POST":
         form["guest_name"] = (request.form.get("guest_name") or "").strip()
         form["guest_id"] = (request.form.get("guest_id") or "").strip()
+        form["guest_search"] = (request.form.get("guest_search") or "").strip()
         form["property_id"] = (request.form.get("property_id") or "").strip()
         form["unit_id"] = (request.form.get("unit_id") or "").strip()
         form["start_date"] = (request.form.get("start_date") or "").strip()
         form["end_date"] = (request.form.get("end_date") or "").strip()
         form["status"] = (request.form.get("status") or "").strip()
+        form["amount"] = (request.form.get("amount") or "").strip()
+        form["currency"] = (request.form.get("currency") or "").strip().upper() or "EUR"
         form["return_to"] = return_to
 
         payload = {
@@ -608,6 +657,8 @@ def reservations_edit(reservation_id: int):
             "start_date": form["start_date"],
             "end_date": form["end_date"],
             "status": form["status"],
+            "amount": form["amount"],
+            "currency": form["currency"],
         }
         try:
             _ = reservation_service.update_reservation(
@@ -632,7 +683,6 @@ def reservations_edit(reservation_id: int):
         "admin/reservations/edit.html",
         row=row,
         form=form,
-        guests=guest_service.list_guests(organization_id=org_id, page=1, per_page=500)[0],
         properties=properties,
         units=units,
         error=error,
@@ -657,6 +707,43 @@ def reservations_cancel(reservation_id: int):
 
     flash("Reservation cancelled.")
     return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
+
+
+@admin_bp.post("/reservations/<int:reservation_id>/mark-paid")
+@require_admin_pms_access
+def reservations_mark_paid(reservation_id: int):
+    try:
+        _ = reservation_service.mark_reservation_paid(
+            reservation_id=reservation_id,
+            organization_id=_pms_org_id(),
+            actor_user=current_user,
+        )
+    except reservation_service.ReservationServiceError as err:
+        if err.status == 404:
+            abort(404)
+        if err.status == 403:
+            abort(403)
+        flash(err.message)
+        return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
+    flash("Reservation marked as paid.")
+    return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
+
+
+@admin_bp.get("/reservations/<int:reservation_id>/invoice.pdf")
+@require_admin_pms_access
+def reservations_invoice_pdf(reservation_id: int):
+    try:
+        return reservation_service.generate_invoice(
+            reservation_id=reservation_id,
+            organization_id=_pms_org_id(),
+            actor_user=current_user,
+        )
+    except reservation_service.ReservationServiceError as err:
+        if err.status == 404:
+            abort(404)
+        if err.status == 403:
+            abort(403)
+        abort(400)
 
 
 @admin_bp.get("/reports")
@@ -708,6 +795,436 @@ def reports_occupancy():
 def reports_reservations():
     data = report_service.reservation_report(organization_id=_pms_org_id())
     return render_template("admin/reports/reservations.html", data=data)
+
+
+# --- Leases & invoices (billing) -------------------------------------------
+
+
+@admin_bp.get("/leases")
+@require_admin_pms_access
+def leases_list():
+    page, per_page = _pms_pagination()
+    rows, total = billing_service.list_leases_paginated(
+        organization_id=_pms_org_id(),
+        page=page,
+        per_page=per_page,
+    )
+    return render_template(
+        "admin/leases/list.html",
+        rows=rows,
+        page=page,
+        per_page=per_page,
+        total=total,
+    )
+
+
+@admin_bp.route("/leases/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def leases_new():
+    org_id = _pms_org_id()
+    units, guest_rows = _reservation_form_choices(organization_id=org_id)
+    form = {
+        "unit_id": "",
+        "guest_id": "",
+        "guest_search": "",
+        "reservation_id": "",
+        "start_date": "",
+        "end_date": "",
+        "rent_amount": "",
+        "deposit_amount": "0",
+        "billing_cycle": "monthly",
+        "notes": "",
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        form["unit_id"] = (request.form.get("unit_id") or "").strip()
+        form["guest_id"] = (request.form.get("guest_id") or "").strip()
+        form["guest_search"] = (request.form.get("guest_search") or "").strip()
+        form["reservation_id"] = (request.form.get("reservation_id") or "").strip()
+        form["start_date"] = (request.form.get("start_date") or "").strip()
+        form["end_date"] = (request.form.get("end_date") or "").strip()
+        form["rent_amount"] = (request.form.get("rent_amount") or "").strip()
+        form["deposit_amount"] = (request.form.get("deposit_amount") or "").strip()
+        form["billing_cycle"] = (request.form.get("billing_cycle") or "").strip().lower()
+        form["notes"] = (request.form.get("notes") or "").strip()
+
+        if not form["unit_id"] or not form["guest_id"] or not form["start_date"] or not form["rent_amount"]:
+            error = "Unit, guest, start date, and rent are required."
+        else:
+            try:
+                res_id = int(form["reservation_id"]) if form["reservation_id"] else None
+                row = billing_service.create_lease(
+                    organization_id=org_id,
+                    unit_id=int(form["unit_id"]),
+                    guest_id=int(form["guest_id"]),
+                    reservation_id=res_id,
+                    start_date_raw=form["start_date"],
+                    end_date_raw=form["end_date"] or None,
+                    rent_amount_raw=form["rent_amount"],
+                    deposit_amount_raw=form["deposit_amount"],
+                    billing_cycle=form["billing_cycle"],
+                    notes=form["notes"] or None,
+                    actor_user_id=current_user.id,
+                )
+            except (TypeError, ValueError):
+                error = "Unit, guest, and reservation must be valid numeric IDs."
+            except billing_service.LeaseServiceError as err:
+                error = err.message
+            else:
+                flash("Lease created.")
+                return redirect(url_for("admin.leases_detail", lease_id=row["id"]))
+
+    return render_template(
+        "admin/leases/new.html",
+        units=units,
+        guest_rows=guest_rows,
+        form=form,
+        error=error,
+    )
+
+
+@admin_bp.get("/leases/<int:lease_id>")
+@require_admin_pms_access
+def leases_detail(lease_id: int):
+    try:
+        row = billing_service.get_lease_for_org(
+            organization_id=_pms_org_id(),
+            lease_id=lease_id,
+        )
+    except billing_service.LeaseServiceError:
+        abort(404)
+    return render_template("admin/leases/detail.html", row=row)
+
+
+@admin_bp.route("/leases/<int:lease_id>/edit", methods=["GET", "POST"])
+@require_admin_pms_access
+def leases_edit(lease_id: int):
+    org_id = _pms_org_id()
+    units, guest_rows = _reservation_form_choices(organization_id=org_id)
+    try:
+        row = billing_service.get_lease_for_org(organization_id=org_id, lease_id=lease_id)
+    except billing_service.LeaseServiceError:
+        abort(404)
+
+    form = {
+        "unit_id": str(row["unit_id"]),
+        "guest_id": str(row["guest_id"]),
+        "guest_search": "",
+        "reservation_id": str(row["reservation_id"] or ""),
+        "start_date": row["start_date"],
+        "end_date": row["end_date"] or "",
+        "rent_amount": row["rent_amount"],
+        "deposit_amount": row["deposit_amount"],
+        "billing_cycle": row["billing_cycle"],
+        "notes": row["notes"] or "",
+    }
+    if form["guest_id"]:
+        try:
+            g = guest_service.get_guest(int(form["guest_id"]), org_id)
+            form["guest_search"] = g["full_name"]
+            if g.get("email"):
+                form["guest_search"] += f" ({g['email']})"
+        except (ValueError, guest_service.GuestServiceError):
+            form["guest_search"] = ""
+
+    error: str | None = None
+    if request.method == "POST":
+        form["unit_id"] = (request.form.get("unit_id") or "").strip()
+        form["guest_id"] = (request.form.get("guest_id") or "").strip()
+        form["guest_search"] = (request.form.get("guest_search") or "").strip()
+        form["reservation_id"] = (request.form.get("reservation_id") or "").strip()
+        form["start_date"] = (request.form.get("start_date") or "").strip()
+        form["end_date"] = (request.form.get("end_date") or "").strip()
+        form["rent_amount"] = (request.form.get("rent_amount") or "").strip()
+        form["deposit_amount"] = (request.form.get("deposit_amount") or "").strip()
+        form["billing_cycle"] = (request.form.get("billing_cycle") or "").strip().lower()
+        form["notes"] = (request.form.get("notes") or "").strip()
+
+        try:
+            row_now = billing_service.get_lease_for_org(organization_id=org_id, lease_id=lease_id)
+        except billing_service.LeaseServiceError:
+            abort(404)
+
+        payload: dict = {}
+        st = row_now["status"]
+        if st == "draft":
+            payload = {
+                "unit_id": int(form["unit_id"]) if form["unit_id"] else None,
+                "guest_id": int(form["guest_id"]) if form["guest_id"] else None,
+                "reservation_id": int(form["reservation_id"]) if form["reservation_id"] else None,
+                "start_date": form["start_date"],
+                "end_date": form["end_date"] or None,
+                "rent_amount": form["rent_amount"],
+                "deposit_amount": form["deposit_amount"],
+                "billing_cycle": form["billing_cycle"],
+                "notes": form["notes"] or None,
+            }
+            if payload["unit_id"] is None or payload["guest_id"] is None:
+                raise billing_service.LeaseServiceError(
+                    code="validation_error",
+                    message="Unit and guest are required.",
+                    status=400,
+                )
+        elif st == "active":
+            payload = {
+                "end_date": form["end_date"] or None,
+                "rent_amount": form["rent_amount"],
+                "deposit_amount": form["deposit_amount"],
+                "notes": form["notes"] or None,
+            }
+        else:
+            payload = {"notes": form["notes"] or None}
+
+        try:
+            _ = billing_service.update_lease(
+                organization_id=org_id,
+                lease_id=lease_id,
+                data=payload,
+                actor_user_id=current_user.id,
+            )
+        except (TypeError, ValueError):
+            error = "Unit, guest, and reservation must be valid numeric IDs."
+        except billing_service.LeaseServiceError as err:
+            if err.status == 404:
+                abort(404)
+            error = err.message
+        else:
+            flash("Lease updated.")
+            return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+
+    return render_template(
+        "admin/leases/edit.html",
+        row=row,
+        units=units,
+        guest_rows=guest_rows,
+        form=form,
+        error=error,
+    )
+
+
+@admin_bp.post("/leases/<int:lease_id>/activate")
+@require_admin_pms_access
+def leases_activate(lease_id: int):
+    try:
+        _ = billing_service.activate_lease(
+            organization_id=_pms_org_id(),
+            lease_id=lease_id,
+            actor_user_id=current_user.id,
+        )
+    except billing_service.LeaseServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+        return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+    flash("Lease activated.")
+    return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+
+
+@admin_bp.post("/leases/<int:lease_id>/end")
+@require_admin_pms_access
+def leases_end(lease_id: int):
+    if (request.form.get("confirm_end") or "").strip().lower() != "yes":
+        flash("Please confirm ending the lease.")
+        return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+    end_raw = (request.form.get("end_date") or "").strip() or None
+    try:
+        _ = billing_service.end_lease(
+            organization_id=_pms_org_id(),
+            lease_id=lease_id,
+            end_date_raw=end_raw,
+            actor_user_id=current_user.id,
+        )
+    except billing_service.LeaseServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+        return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+    flash("Lease ended.")
+    return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+
+
+@admin_bp.post("/leases/<int:lease_id>/cancel")
+@require_admin_pms_access
+def leases_cancel(lease_id: int):
+    if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
+        flash("Please confirm cancellation.")
+        return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+    try:
+        _ = billing_service.cancel_lease(
+            organization_id=_pms_org_id(),
+            lease_id=lease_id,
+            actor_user_id=current_user.id,
+        )
+    except billing_service.LeaseServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+        return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+    flash("Lease cancelled.")
+    return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+
+
+@admin_bp.get("/invoices")
+@require_admin_pms_access
+def invoices_list():
+    page, per_page = _pms_pagination()
+    rows, total = billing_service.list_invoices_paginated(
+        organization_id=_pms_org_id(),
+        page=page,
+        per_page=per_page,
+    )
+    return render_template(
+        "admin/invoices/list.html",
+        rows=rows,
+        page=page,
+        per_page=per_page,
+        total=total,
+    )
+
+
+@admin_bp.route("/invoices/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def invoices_new():
+    org_id = _pms_org_id()
+    lease_rows = billing_service.list_leases_for_org(organization_id=org_id)
+    form = {
+        "lease_id": "",
+        "amount": "",
+        "currency": "EUR",
+        "due_date": "",
+        "description": "",
+        "status": "open",
+        "guest_id": "",
+        "reservation_id": "",
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        form["lease_id"] = (request.form.get("lease_id") or "").strip()
+        form["amount"] = (request.form.get("amount") or "").strip()
+        form["currency"] = (request.form.get("currency") or "").strip().upper() or "EUR"
+        form["due_date"] = (request.form.get("due_date") or "").strip()
+        form["description"] = (request.form.get("description") or "").strip()
+        form["status"] = (request.form.get("status") or "").strip().lower() or "open"
+        form["guest_id"] = (request.form.get("guest_id") or "").strip()
+        form["reservation_id"] = (request.form.get("reservation_id") or "").strip()
+
+        if not form["due_date"]:
+            error = "Due date is required."
+        elif form["lease_id"]:
+            try:
+                row = billing_service.create_invoice_for_lease(
+                    organization_id=org_id,
+                    lease_id=int(form["lease_id"]),
+                    amount_raw=form["amount"] or None,
+                    due_date_raw=form["due_date"],
+                    currency=form["currency"],
+                    description=form["description"] or None,
+                    status=form["status"],
+                    actor_user_id=current_user.id,
+                )
+            except (TypeError, ValueError):
+                error = "Lease id must be a valid number."
+            except billing_service.InvoiceServiceError as err:
+                error = err.message
+            else:
+                flash("Invoice created.")
+                return redirect(url_for("admin.invoices_detail", invoice_id=row["id"]))
+        else:
+            if not form["amount"]:
+                error = "Amount is required when no lease is selected."
+            else:
+                try:
+                    res_id = int(form["reservation_id"]) if form["reservation_id"] else None
+                    guest_id = int(form["guest_id"]) if form["guest_id"] else None
+                    row = billing_service.create_invoice(
+                        organization_id=org_id,
+                        amount_raw=form["amount"],
+                        due_date_raw=form["due_date"],
+                        currency=form["currency"],
+                        description=form["description"] or None,
+                        lease_id=None,
+                        reservation_id=res_id,
+                        guest_id=guest_id,
+                        status=form["status"],
+                        metadata_json=None,
+                        actor_user_id=current_user.id,
+                    )
+                except (TypeError, ValueError):
+                    error = "Guest and reservation must be valid numeric IDs when provided."
+                except billing_service.InvoiceServiceError as err:
+                    error = err.message
+                else:
+                    flash("Invoice created.")
+                    return redirect(url_for("admin.invoices_detail", invoice_id=row["id"]))
+
+    return render_template(
+        "admin/invoices/new.html",
+        lease_rows=lease_rows,
+        form=form,
+        error=error,
+    )
+
+
+@admin_bp.get("/invoices/<int:invoice_id>")
+@require_admin_pms_access
+def invoices_detail(invoice_id: int):
+    try:
+        row = billing_service.get_invoice_for_org(
+            organization_id=_pms_org_id(),
+            invoice_id=invoice_id,
+        )
+    except billing_service.InvoiceServiceError:
+        abort(404)
+    return render_template("admin/invoices/detail.html", row=row)
+
+
+@admin_bp.post("/invoices/<int:invoice_id>/mark-paid")
+@require_admin_pms_access
+def invoices_mark_paid(invoice_id: int):
+    try:
+        _ = billing_service.mark_invoice_paid(
+            organization_id=_pms_org_id(),
+            invoice_id=invoice_id,
+            actor_user_id=current_user.id,
+        )
+    except billing_service.InvoiceServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+        return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+    flash("Invoice marked as paid.")
+    return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+
+
+@admin_bp.post("/invoices/<int:invoice_id>/cancel")
+@require_admin_pms_access
+def invoices_cancel(invoice_id: int):
+    if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
+        flash("Please confirm cancellation.")
+        return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+    try:
+        _ = billing_service.cancel_invoice(
+            organization_id=_pms_org_id(),
+            invoice_id=invoice_id,
+            actor_user_id=current_user.id,
+        )
+    except billing_service.InvoiceServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message)
+        return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+    flash("Invoice cancelled.")
+    return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+
+
+@admin_bp.post("/invoices/mark-overdue")
+@require_admin_pms_access
+def invoices_mark_overdue():
+    n = billing_service.mark_overdue_invoices(organization_id=_pms_org_id())
+    flash(f"Marked {n} invoice(s) as overdue.")
+    return redirect(url_for("admin.invoices_list"))
 
 
 @admin_bp.get("/audit")
@@ -780,6 +1297,42 @@ def _load_template_or_404(key: str) -> EmailTemplate:
     if template is None:
         abort(404)
     return template
+
+
+@admin_bp.post("/email-templates/<key>/test-send")
+@require_superadmin_2fa
+def email_template_test_send(key: str):
+    """Send the chosen template to a recipient as a deliverability check.
+
+    Project brief section 7: "testilähetysmahdollisuus superadminille".
+    The recipient is supplied via form ``to``; defaults to the current
+    superadmin. The send goes out synchronously so any Mailgun error
+    surfaces in the flash message rather than disappearing into a
+    background thread.
+    """
+
+    template = _load_template_or_404(key)
+    to = (request.form.get("to") or current_user.email or "").strip()
+    if not to or "@" not in to:
+        flash("Test email needs a valid 'to' address.")
+        return redirect(url_for("admin.email_template_edit", key=key))
+
+    ok = send_template(template.key, to=to, context=_preview_context(), async_=False)
+    audit_record(
+        "email_template.test_sent",
+        status=AuditStatus.SUCCESS if ok else AuditStatus.FAILURE,
+        target_type="email_template",
+        target_id=template.id,
+        context={"key": template.key, "to": to},
+        commit=True,
+    )
+    if ok:
+        flash(f"Test email sent to {to}.")
+    else:
+        flash(
+            "Test email failed — check the application log for the underlying error."
+        )
+    return redirect(url_for("admin.email_template_edit", key=key))
 
 
 @admin_bp.route("/email-templates/<key>", methods=["GET", "POST"])
@@ -921,6 +1474,37 @@ def backups_create():
     return redirect(url_for("admin.backups_list"))
 
 
+@admin_bp.get("/backups/<int:backup_id>/download")
+@require_superadmin_2fa
+def backups_download(backup_id: int):
+    """Stream a backup file to the superadmin's browser.
+
+    Project brief section 8: superadmin must be able to download a backup.
+    The file is served directly from ``BACKUP_DIR`` (validated against the
+    DB row to prevent path traversal). Every download is audited.
+    """
+
+    backup = Backup.query.get(backup_id)
+    if backup is None or backup.status != "success":
+        abort(404)
+
+    backup_dir = current_app.config.get("BACKUP_DIR", "/var/backups/pindora")
+    audit_record(
+        "backup.downloaded",
+        status=AuditStatus.SUCCESS,
+        target_type="backup",
+        target_id=backup.id,
+        context={"filename": backup.filename},
+        commit=True,
+    )
+    return send_from_directory(
+        directory=backup_dir,
+        path=backup.filename,
+        as_attachment=True,
+        download_name=backup.filename,
+    )
+
+
 @admin_bp.route("/backups/<int:backup_id>/restore", methods=["GET", "POST"])
 @require_superadmin_2fa
 def backups_restore(backup_id: int):
@@ -1024,15 +1608,9 @@ def settings_list():
 @admin_bp.route("/settings/new", methods=["GET", "POST"])
 @require_superadmin_2fa
 def settings_new():
-    """Create a new setting row.
-
-    Key is required and must be unique. Type is required and immutable
-    afterwards — changing a setting's type is a separate (manual) operation
-    because it implies a value migration.
-    """
+    """Create a new setting row (key + type are required and immutable later)."""
 
     error: str | None = None
-
     form = {
         "key": "",
         "value": "",
@@ -1081,16 +1659,13 @@ def settings_new():
 @admin_bp.route("/settings/<key>", methods=["GET", "POST"])
 @require_superadmin_2fa
 def settings_edit(key: str):
-    """Edit one setting — value, description, is_secret. Key + type are stable."""
+    """Edit one setting -- value, description, is_secret. Key + type are stable."""
 
     row = settings_service.find(key)
     if row is None:
         abort(404)
 
     error: str | None = None
-    # Pre-fill the value field with the *masked* display when this is a
-    # secret, so the page never sends the live secret back over the wire on
-    # GET. The user must re-enter the secret to update it.
     if row.is_secret:
         form_value = ""
     else:
@@ -1104,11 +1679,6 @@ def settings_edit(key: str):
         form_description = (request.form.get("description") or "").strip()
         form_is_secret = bool(request.form.get("is_secret"))
 
-        # If the row is currently a secret and the user submits an empty
-        # value, treat that as "leave value unchanged" rather than wiping it
-        # — the masked display means the textarea was empty on GET. We re-
-        # read through the public service API instead of touching the row
-        # directly so the rule "always go through the service" holds.
         if row.is_secret and form_value == "":
             new_value = settings_service.get(row.key)
         else:
@@ -1116,7 +1686,7 @@ def settings_edit(key: str):
                 new_value = _coerce_form_value(form_value, row.type)
             except (ValueError, settings_service.SettingValueError) as err:
                 error = f"Invalid value for type {row.type!r}: {err}"
-                new_value = None  # silence type-checker
+                new_value = None
 
         if error is None:
             try:
@@ -1144,20 +1714,422 @@ def settings_edit(key: str):
 
 
 def _coerce_form_value(raw: str, type_: str):
-    """Translate a form string into the native value the service expects."""
-
     if type_ == SettingType.STRING:
         return raw
     if type_ == SettingType.INT:
         if raw.strip() == "":
             return 0
-        return int(raw)  # ValueError surfaces in the caller
+        return int(raw)
     if type_ == SettingType.BOOL:
         return raw.strip().lower() in {"true", "1", "yes", "on"}
     if type_ == SettingType.JSON:
-        # Pass the raw string through; ``set_value`` will round-trip via JSON.
-        # We delegate parsing to the service so error messages stay consistent.
         import json as _json
-
         return _json.loads(raw) if raw.strip() else None
     return raw
+
+
+# ---------------------------------------------------------------------------
+# Users -- superadmin CRUD. Project brief section 3.
+# ---------------------------------------------------------------------------
+
+
+@admin_bp.get("/users")
+@require_superadmin_2fa
+def users_list():
+    rows = User.query.order_by(User.email.asc()).all()
+    return render_template("admin_users.html", rows=rows, roles=list(UserRole))
+
+
+@admin_bp.route("/users/new", methods=["GET", "POST"])
+@require_superadmin_2fa
+def users_new():
+    organizations = Organization.query.order_by(Organization.name.asc()).all()
+    form = {
+        "email": "",
+        "role": UserRole.USER.value,
+        "organization_id": "",
+        "password": "",
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        form["email"] = (request.form.get("email") or "").strip().lower()
+        form["role"] = (request.form.get("role") or UserRole.USER.value).strip()
+        form["organization_id"] = (request.form.get("organization_id") or "").strip()
+        form["password"] = request.form.get("password") or ""
+
+        if not form["email"] or "@" not in form["email"]:
+            error = "Valid email is required."
+        elif form["role"] not in {r.value for r in UserRole}:
+            error = "Role is not valid."
+        elif not form["organization_id"]:
+            error = "Organization is required."
+        elif len(form["password"]) < 12:
+            error = "Password must be at least 12 characters."
+        elif User.query.filter_by(email=form["email"]).first() is not None:
+            error = f"User '{form['email']}' already exists."
+        else:
+            user = User(
+                email=form["email"],
+                role=form["role"],
+                organization_id=int(form["organization_id"]),
+                password_hash=generate_password_hash(form["password"]),
+                is_active=True,
+            )
+            db.session.add(user)
+            db.session.flush()
+            audit_record(
+                "user.created",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.USER,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                target_type="user",
+                target_id=user.id,
+                context={"email": user.email, "role": user.role},
+                commit=True,
+            )
+            flash(f"User {user.email} created.")
+            return redirect(url_for("admin.users_list"))
+
+    return render_template(
+        "admin_user_form.html",
+        form=form,
+        organizations=organizations,
+        roles=list(UserRole),
+        error=error,
+        is_new=True,
+        target_user=None,
+    )
+
+
+@admin_bp.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
+@require_superadmin_2fa
+def users_edit(user_id: int):
+    target_user = User.query.get_or_404(user_id)
+    organizations = Organization.query.order_by(Organization.name.asc()).all()
+    form = {
+        "email": target_user.email,
+        "role": target_user.role,
+        "organization_id": str(target_user.organization_id),
+        "password": "",
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        new_role = (request.form.get("role") or target_user.role).strip()
+        new_org_id = (request.form.get("organization_id") or "").strip()
+        new_password = request.form.get("password") or ""
+
+        form["role"] = new_role
+        form["organization_id"] = new_org_id
+
+        if new_role not in {r.value for r in UserRole}:
+            error = "Role is not valid."
+        elif not new_org_id:
+            error = "Organization is required."
+        elif new_password and len(new_password) < 12:
+            error = "Password (if changed) must be at least 12 characters."
+        else:
+            old_role = target_user.role
+            old_org_id = target_user.organization_id
+            target_user.role = new_role
+            target_user.organization_id = int(new_org_id)
+            if new_password:
+                target_user.set_password(new_password)
+                audit_record(
+                    "auth.password.changed",
+                    status=AuditStatus.SUCCESS,
+                    actor_type=ActorType.USER,
+                    actor_id=current_user.id,
+                    actor_email=current_user.email,
+                    target_type="user",
+                    target_id=target_user.id,
+                    context={"via": "admin"},
+                    commit=False,
+                )
+            if old_role != new_role:
+                audit_record(
+                    "user.role_changed",
+                    status=AuditStatus.SUCCESS,
+                    actor_type=ActorType.USER,
+                    actor_id=current_user.id,
+                    actor_email=current_user.email,
+                    target_type="user",
+                    target_id=target_user.id,
+                    context={"old_role": old_role, "new_role": new_role},
+                    commit=False,
+                )
+            audit_record(
+                "user.updated",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.USER,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                target_type="user",
+                target_id=target_user.id,
+                context={
+                    "old_organization_id": old_org_id,
+                    "new_organization_id": target_user.organization_id,
+                },
+                commit=True,
+            )
+            flash("User updated.")
+            return redirect(url_for("admin.users_list"))
+
+    return render_template(
+        "admin_user_form.html",
+        form=form,
+        organizations=organizations,
+        roles=list(UserRole),
+        error=error,
+        is_new=False,
+        target_user=target_user,
+    )
+
+
+@admin_bp.post("/users/<int:user_id>/toggle-active")
+@require_superadmin_2fa
+def users_toggle_active(user_id: int):
+    target_user = User.query.get_or_404(user_id)
+    if target_user.id == current_user.id:
+        flash("You cannot deactivate yourself.")
+        return redirect(url_for("admin.users_list"))
+    target_user.is_active = not target_user.is_active
+    audit_record(
+        "user.active_toggled",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.USER,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        target_type="user",
+        target_id=target_user.id,
+        context={"is_active": target_user.is_active},
+        commit=True,
+    )
+    flash(
+        f"User {target_user.email} is now "
+        f"{'active' if target_user.is_active else 'inactive'}."
+    )
+    return redirect(url_for("admin.users_list"))
+
+
+# ---------------------------------------------------------------------------
+# Organizations -- superadmin CRUD. Project brief section 3 + 12.
+# ---------------------------------------------------------------------------
+
+
+@admin_bp.get("/organizations")
+@require_superadmin_2fa
+def organizations_list():
+    rows = Organization.query.order_by(Organization.name.asc()).all()
+    return render_template("admin_organizations.html", rows=rows)
+
+
+@admin_bp.route("/organizations/new", methods=["GET", "POST"])
+@require_superadmin_2fa
+def organizations_new():
+    form = {"name": ""}
+    error: str | None = None
+
+    if request.method == "POST":
+        form["name"] = (request.form.get("name") or "").strip()
+        if not form["name"]:
+            error = "Name is required."
+        elif Organization.query.filter_by(name=form["name"]).first() is not None:
+            error = f"Organization '{form['name']}' already exists."
+        else:
+            org = Organization(name=form["name"])
+            db.session.add(org)
+            db.session.flush()
+            audit_record(
+                "organization.created",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.USER,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                target_type="organization",
+                target_id=org.id,
+                context={"name": org.name},
+                commit=True,
+            )
+            flash(f"Organization '{org.name}' created.")
+            return redirect(url_for("admin.organizations_list"))
+
+    return render_template(
+        "admin_organization_form.html",
+        form=form,
+        error=error,
+        is_new=True,
+        target_org=None,
+    )
+
+
+@admin_bp.route("/organizations/<int:org_id>/edit", methods=["GET", "POST"])
+@require_superadmin_2fa
+def organizations_edit(org_id: int):
+    org = Organization.query.get_or_404(org_id)
+    form = {"name": org.name}
+    error: str | None = None
+
+    if request.method == "POST":
+        form["name"] = (request.form.get("name") or "").strip()
+        if not form["name"]:
+            error = "Name is required."
+        else:
+            old_name = org.name
+            org.name = form["name"]
+            audit_record(
+                "organization.updated",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.USER,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                target_type="organization",
+                target_id=org.id,
+                context={"old_name": old_name, "new_name": org.name},
+                commit=True,
+            )
+            flash("Organization updated.")
+            return redirect(url_for("admin.organizations_list"))
+
+    return render_template(
+        "admin_organization_form.html",
+        form=form,
+        error=error,
+        is_new=False,
+        target_org=org,
+    )
+
+
+# ---------------------------------------------------------------------------
+# API keys -- superadmin CRUD. Project brief section 6.
+# ---------------------------------------------------------------------------
+
+
+@admin_bp.get("/api-keys")
+@require_superadmin_2fa
+def api_keys_list():
+    rows = ApiKey.query.order_by(ApiKey.created_at.desc()).all()
+    raw_key = request.args.get("show_raw")
+    return render_template("admin_api_keys.html", rows=rows, raw_key=raw_key)
+
+
+@admin_bp.route("/api-keys/new", methods=["GET", "POST"])
+@require_superadmin_2fa
+def api_keys_new():
+    organizations = Organization.query.order_by(Organization.name.asc()).all()
+    users = User.query.filter_by(is_active=True).order_by(User.email.asc()).all()
+    form = {
+        "name": "",
+        "organization_id": "",
+        "user_id": "",
+        "scopes": "",
+        "expires_days": "",
+    }
+    error: str | None = None
+
+    if request.method == "POST":
+        form["name"] = (request.form.get("name") or "").strip()
+        form["organization_id"] = (request.form.get("organization_id") or "").strip()
+        form["user_id"] = (request.form.get("user_id") or "").strip()
+        form["scopes"] = (request.form.get("scopes") or "").strip()
+        form["expires_days"] = (request.form.get("expires_days") or "").strip()
+
+        expires_at = None
+        if not form["name"]:
+            error = "Name is required."
+        elif not form["organization_id"]:
+            error = "Organization is required."
+        elif form["expires_days"]:
+            try:
+                days = int(form["expires_days"])
+                if days <= 0:
+                    raise ValueError
+            except ValueError:
+                error = "Expires (days) must be a positive integer."
+            else:
+                from datetime import datetime, timedelta, timezone as _tz
+                expires_at = datetime.now(_tz.utc) + timedelta(days=days)
+
+        if error is None:
+            api_key, raw_key = ApiKey.issue(
+                name=form["name"],
+                organization_id=int(form["organization_id"]),
+                user_id=int(form["user_id"]) if form["user_id"] else None,
+                scopes=form["scopes"],
+                expires_at=expires_at,
+            )
+            db.session.add(api_key)
+            db.session.flush()
+            audit_record(
+                "apikey.created",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.USER,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                target_type="api_key",
+                target_id=api_key.id,
+                context={
+                    "name": api_key.name,
+                    "prefix": api_key.key_prefix,
+                    "scopes": api_key.scope_list,
+                },
+                commit=True,
+            )
+            flash(
+                "API key issued. The plaintext is shown once below -- copy it now."
+            )
+            return redirect(url_for("admin.api_keys_list", show_raw=raw_key))
+
+    return render_template(
+        "admin_api_key_form.html",
+        form=form,
+        organizations=organizations,
+        users=users,
+        error=error,
+    )
+
+
+@admin_bp.post("/api-keys/<int:key_id>/toggle-active")
+@require_superadmin_2fa
+def api_keys_toggle_active(key_id: int):
+    api_key = ApiKey.query.get_or_404(key_id)
+    api_key.is_active = not api_key.is_active
+    audit_record(
+        "apikey.active_toggled",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.USER,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        target_type="api_key",
+        target_id=api_key.id,
+        context={"is_active": api_key.is_active, "prefix": api_key.key_prefix},
+        commit=True,
+    )
+    flash(
+        f"API key {api_key.key_prefix} is now "
+        f"{'active' if api_key.is_active else 'inactive'}."
+    )
+    return redirect(url_for("admin.api_keys_list"))
+
+
+@admin_bp.post("/api-keys/<int:key_id>/delete")
+@require_superadmin_2fa
+def api_keys_delete(key_id: int):
+    api_key = ApiKey.query.get_or_404(key_id)
+    prefix = api_key.key_prefix
+    db.session.delete(api_key)
+    audit_record(
+        "apikey.deleted",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.USER,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        target_type="api_key",
+        target_id=key_id,
+        context={"prefix": prefix},
+        commit=True,
+    )
+    flash(f"API key {prefix} deleted.")
+    return redirect(url_for("admin.api_keys_list"))

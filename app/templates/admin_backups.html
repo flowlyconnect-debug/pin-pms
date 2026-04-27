@@ -11,7 +11,7 @@
   </form>
   <table>
     <thead>
-      <tr><th>Created</th><th>Filename</th><th>Size</th><th>Status</th><th>Trigger</th><th>Error</th><th>Actions</th></tr>
+      <tr><th>Created</th><th>Filename</th><th>Size</th><th>Status</th><th>Trigger</th><th>Uploads</th><th>Error</th><th>Actions</th></tr>
     </thead>
     <tbody>
       {% for r in rows %}
@@ -21,11 +21,18 @@
           <td>{{ r.size_human }}</td>
           <td>{{ r.status }}</td>
           <td>{{ r.trigger }}</td>
+          <td>{% if r.uploads_filename %}<code>{{ r.uploads_filename }}</code>{% else %}—{% endif %}</td>
           <td>{% if r.error_message %}<code>{{ r.error_message[:200] }}{% if r.error_message|length > 200 %}…{% endif %}</code>{% else %}—{% endif %}</td>
-          <td>{% if r.status == 'success' %}<a href="{{ url_for('admin.backups_restore', backup_id=r.id) }}">Restore…</a>{% else %}—{% endif %}</td>
+          <td>
+            {% if r.status == 'success' %}
+              <a href="{{ url_for('admin.backups_download', backup_id=r.id) }}">Download</a>
+              ·
+              <a href="{{ url_for('admin.backups_restore', backup_id=r.id) }}">Restore…</a>
+            {% else %}—{% endif %}
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="7">No backups yet.</td></tr>
+        <tr><td colspan="8">No backups yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

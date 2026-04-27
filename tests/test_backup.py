@@ -1,9 +1,16 @@
 """Spec section 16 — varmuuskopion luonti."""
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
+import pytest
 
+
+@pytest.mark.skipif(
+    not shutil.which("pg_dump"),
+    reason="pg_dump must be on PATH (install PostgreSQL client tools, or run tests in Linux/Docker).",
+)
 def test_create_backup_writes_gzipped_file_and_db_row(app, tmp_path, monkeypatch):
     """``create_backup`` produces a non-empty ``.sql.gz`` and a SUCCESS row.
 

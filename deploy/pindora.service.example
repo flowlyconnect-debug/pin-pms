@@ -1,0 +1,53 @@
+# Pindora PMS — systemd unit example.
+#
+# Place this file at /etc/systemd/system/pindora.service, then:
+#
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pindora.service
+#   sudo systemctl status pindora
+#
+# Logs end up in journald — view them with:
+#
+#   journalctl -u pindora -f
+#
+# Adjust the ``User``, ``Group``, ``WorkingDirectory``, and ``EnvironmentFile``
+# values to match how the project was deployed on the host.
+
+[Unit]
+Description=Pindora PMS (Gunicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=pindora
+Group=pindora
+WorkingDirectory=/opt/pindora
+
+# All runtime configuration comes from .env — never bake credentials into
+# this unit. Project brief section 1: "ympäristömuuttujat .env".
+EnvironmentFile=/opt/pindora/.env
+
+# Activate the project virtualenv. Replace the path if you keep the venv
+# somewhere other than /opt/pindora/.venv.
+ExecStart=/opt/pindora/.venv/bin/gunicorn \
+    --bind 127.0.0.1:8000 \
+    --workers 3 \
+    --access-logfile - \
+    --error-logfile - \
+    run:app
+
+Restart=on-failure
+RestartSec=5s
+
+# Hardening — keep the worker processes confined.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+# Allow writing into the backups directory (BACKUP_DIR) and the uploads
+# directory (UPLOADS_DIR). Adjust paths to match your deployment.
+ReadWritePaths=/var/backups/pindora /var/lib/pindora/uploads
+
+[Install]
+WantedBy=multi-user.target

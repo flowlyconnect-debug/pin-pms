@@ -25,6 +25,7 @@ Design choices
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any, Mapping, Optional
 
 import requests
@@ -57,8 +58,17 @@ def _render(template_str: str, context: Mapping[str, Any], *, html: bool) -> str
 
 
 def _build_from_header(app_config: Mapping[str, Any]) -> str:
-    name = app_config.get("MAIL_FROM_NAME") or "Pindora PMS"
-    addr = app_config.get("MAIL_FROM") or "noreply@example.com"
+    # Prefer brief-style names, fall back to legacy MAIL_FROM* aliases.
+    name = (
+        app_config.get("MAILGUN_FROM_NAME")
+        or app_config.get("MAIL_FROM_NAME")
+        or "Pindora PMS"
+    )
+    addr = (
+        app_config.get("MAILGUN_FROM_EMAIL")
+        or app_config.get("MAIL_FROM")
+        or "noreply@example.com"
+    )
     return f"{name} <{addr}>"
 
 
@@ -75,7 +85,13 @@ def render_strings(
     changes without round-tripping through the session.
     """
 
-    merged: dict[str, Any] = {"from_name": current_app.config.get("MAIL_FROM_NAME", "")}
+    merged: dict[str, Any] = {
+        "from_name": (
+            current_app.config.get("MAILGUN_FROM_NAME")
+            or current_app.config.get("MAIL_FROM_NAME")
+            or ""
+        )
+    }
     merged.update(dict(context))
 
     rendered_subject = _render(subject, merged, html=False).strip()
@@ -108,10 +124,46 @@ def send_template(
     *,
     to: str,
     context: Optional[Mapping[str, Any]] = None,
+    async_: bool | None = None,
 ) -> bool:
-    """Render ``key`` and send the result to ``to``. Returns success."""
+    """Render ``key`` and send the result to ``to``. Returns success.
+
+    Parameters
+    ----------
+    async_ :
+        When True, the Mailgun HTTP call runs in a daemon background
+        thread so the request that triggered the email returns
+        immediately. This is the recommended path for user-facing flows
+        (login emails, password resets, notifications) where Mailgun's
+        latency would otherwise block the response. Defaults to True
+        outside of tests; tests force synchronous behaviour so they can
+        assert on the rendered output deterministically.
+
+        Set to False to force synchronous behaviour even in production
+        (e.g. CLI ``send-test-email`` wants to surface failures right
+        away).
+    """
 
     context = dict(context or {})
+
+    cfg = current_app.config
+    if async_ is None:
+        # Default: synchronous in tests / dev-log-only mode (so behaviour is
+        # observable), asynchronous in real deployments.
+        async_ = not cfg.get("TESTING") and not cfg.get("MAIL_DEV_LOG_ONLY")
+
+    if async_:
+        # Capture the application object before launching the thread so the
+        # daemon has a working app context independent of the request.
+        app = current_app._get_current_object()  # type: ignore[attr-defined]
+        thread = threading.Thread(
+            target=_send_template_in_thread,
+            args=(app, key, to, context),
+            daemon=True,
+            name=f"email-{key}",
+        )
+        thread.start()
+        return True
 
     try:
         subject, body_text, body_html = render_template(key, context)
@@ -131,7 +183,11 @@ def send_template(
         return False
 
     cfg = current_app.config
-    log_only = bool(cfg.get("MAIL_DEV_LOG_ONLY")) or not cfg.get("MAILGUN_API_KEY")
+    log_only = (
+        bool(cfg.get("TESTING"))
+        or bool(cfg.get("MAIL_DEV_LOG_ONLY"))
+        or not (cfg.get("MAILGUN_API_KEY") or "").strip()
+    )
 
     if log_only:
         logger.info(
@@ -224,6 +280,20 @@ def send_template(
         commit=True,
     )
     return True
+
+
+def _send_template_in_thread(app, key: str, to: str, context: dict) -> None:
+    """Re-enter the app context inside the worker thread and run the send.
+
+    Errors are logged but never propagated — the calling request thread has
+    already returned to the user.
+    """
+
+    try:
+        with app.app_context():
+            send_template(key, to=to, context=context, async_=False)
+    except Exception:  # noqa: BLE001 — background thread must not crash the worker
+        logger.exception("Background email send failed for template %s", key)
 
 
 def ensure_seed_templates() -> None:

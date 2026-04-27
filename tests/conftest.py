@@ -28,6 +28,7 @@ docker-compose passes through unchanged, so they always parse cleanly.
 """
 from __future__ import annotations
 
+import logging
 import os
 
 import psycopg2
@@ -44,11 +45,22 @@ from werkzeug.security import generate_password_hash
 def _conn_params() -> dict[str, object]:
     """Plain connection parameters as pytest sees them — never URL-encoded."""
 
+    # Default to loopback so ``pytest`` on a developer machine (outside Docker)
+    # does not resolve the compose service name ``db`` (which only exists on the
+    # Docker network). In CI / ``docker compose exec web pytest``, set
+    # POSTGRES_HOST=db (or rely on compose defaults in .env).
+    # Match common local Docker defaults (see .env.example) so ``pytest`` works
+    # out of the box. If ``POSTGRES_PASSWORD`` is unset, default to ``postgres``;
+    # if it is set to an empty string (trust auth), that value is preserved.
     return {
-        "host": os.getenv("POSTGRES_HOST", "db"),
+        "host": os.getenv("POSTGRES_HOST", "127.0.0.1"),
         "port": int(os.getenv("POSTGRES_PORT", "5432")),
-        "user": os.getenv("POSTGRES_USER", "postgres"),
-        "password": os.getenv("POSTGRES_PASSWORD", ""),
+        "user": os.environ["POSTGRES_USER"] if "POSTGRES_USER" in os.environ else "postgres",
+        "password": (
+            os.environ["POSTGRES_PASSWORD"]
+            if "POSTGRES_PASSWORD" in os.environ
+            else "postgres"
+        ),
     }
 
 
@@ -82,6 +94,13 @@ if not os.environ.get("TEST_DATABASE_URL"):
     os.environ["TEST_DATABASE_URL"] = _build_test_database_url()
 
 
+def pytest_configure(config) -> None:
+    """Stabilise logging during teardown (handlers must not write to closed stdio)."""
+
+    _ = config
+    logging.raiseExceptions = False
+
+
 # ---------------------------------------------------------------------------
 # One-time DB bootstrap — creates pindora_test if missing.
 # ---------------------------------------------------------------------------
@@ -93,13 +112,22 @@ def _ensure_test_database() -> None:
     p = _conn_params()
     test_db_name = "pindora_test"
 
-    conn = psycopg2.connect(
-        host=p["host"],
-        port=p["port"],
-        user=p["user"],
-        password=p["password"],
-        dbname="postgres",
-    )
+    try:
+        conn = psycopg2.connect(
+            host=p["host"],
+            port=p["port"],
+            user=p["user"],
+            password=p["password"],
+            dbname="postgres",
+        )
+    except psycopg2.OperationalError as exc:
+        raise RuntimeError(
+            "Could not connect to PostgreSQL for tests. Start Postgres locally, or "
+            "set TEST_DATABASE_URL / POSTGRES_HOST / POSTGRES_USER / POSTGRES_PASSWORD. "
+            "Default host is 127.0.0.1 (for pytest on the host). Inside Docker Compose, "
+            "set POSTGRES_HOST=db (see .env.example).\n"
+            f"Original error: {exc}"
+        ) from exc
     try:
         conn.autocommit = True
         cur = conn.cursor()
@@ -137,6 +165,12 @@ def app():
     ctx = application.app_context()
     ctx.push()
     db.create_all()
+
+    # ``db.create_all()`` does not run Alembic data seeds; several flows (e.g.
+    # password reset) expect default email template rows.
+    from app.email.services import ensure_seed_templates
+
+    ensure_seed_templates()
 
     yield application
 

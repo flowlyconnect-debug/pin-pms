@@ -7,6 +7,7 @@
     <a class="btn btn-secondary" href="{{ url_for('admin.calendar_page') }}">Calendar</a>
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Back to reservations</a>
     <a class="btn" href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='detail') }}">Edit reservation</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_invoice_pdf', reservation_id=row.id) }}">Download invoice PDF</a>
   </div>
   <h1>Reservation #{{ row.id }}</h1>
   <div class="card">
@@ -21,7 +22,22 @@
     <p><strong>Start date:</strong> {{ row.start_date }}</p>
     <p><strong>End date:</strong> {{ row.end_date }}</p>
     <p><strong>Status:</strong> {{ row.status }}</p>
+    <p><strong>Amount:</strong> {{ row.amount or "-" }}</p>
+    <p><strong>Currency:</strong> {{ row.currency }}</p>
+    <p><strong>Payment status:</strong> {{ row.payment_status }}</p>
+    <p><strong>Invoice number:</strong> {{ row.invoice_number or "-" }}</p>
+    <p><strong>Invoice date:</strong> {{ row.invoice_date or "-" }}</p>
+    <p><strong>Due date:</strong> {{ row.due_date or "-" }}</p>
   </div>
+  {% if row.payment_status != "paid" %}
+    <h2>Payment</h2>
+    <form method="post" action="{{ url_for('admin.reservations_mark_paid', reservation_id=row.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="actions">
+        <button type="submit" class="btn">Mark as paid</button>
+      </div>
+    </form>
+  {% endif %}
   {% if row.status != "cancelled" %}
     <h2>Cancel reservation</h2>
     <form method="post" action="{{ url_for('admin.reservations_cancel', reservation_id=row.id) }}">

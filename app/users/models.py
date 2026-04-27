@@ -1,3 +1,5 @@
+import secrets
+from datetime import datetime, timezone
 from enum import Enum
 
 from flask_login import UserMixin
@@ -6,8 +8,13 @@ import sqlalchemy as sa
 from sqlalchemy import event
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from app.core.security import hash_token
 from app.extensions import db
 from app.models import TimestampMixin
+
+
+BACKUP_CODE_COUNT = 10
+BACKUP_CODE_BYTES = 6
 
 
 class UserRole(str, Enum):
@@ -51,34 +58,53 @@ class User(TimestampMixin, UserMixin, db.Model):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     totp_secret = db.Column(db.String(32), nullable=True)
     is_2fa_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    backup_codes = db.Column(db.JSON, nullable=False, default=list)
     organization = db.relationship("Organization", back_populates="users", lazy="joined")
 
-    def set_password(self, raw_password: str) -> None:
+    def set_password(self, raw_password):
         self.password_hash = generate_password_hash(raw_password)
 
-    def check_password(self, raw_password: str) -> bool:
+    def check_password(self, raw_password):
         return check_password_hash(self.password_hash, raw_password)
 
     @property
-    def is_superadmin(self) -> bool:
+    def is_superadmin(self):
         return self.role == UserRole.SUPERADMIN.value
 
-    def ensure_totp_secret(self) -> str:
+    def ensure_totp_secret(self):
         if not self.totp_secret:
             self.totp_secret = pyotp.random_base32()
         return self.totp_secret
 
-    def verify_totp(self, code: str) -> bool:
+    def verify_totp(self, code):
         if not self.totp_secret:
             return False
         normalized_code = (code or "").strip()
         return pyotp.TOTP(self.totp_secret).verify(normalized_code, valid_window=1)
 
+    def generate_backup_codes(self, count=BACKUP_CODE_COUNT):
+        plaintext = [secrets.token_urlsafe(BACKUP_CODE_BYTES) for _ in range(count)]
+        self.backup_codes = [hash_token(code) for code in plaintext]
+        return plaintext
+
+    def consume_backup_code(self, code):
+        if not code or not self.backup_codes:
+            return False
+        candidate = hash_token(code.strip())
+        remaining = list(self.backup_codes)
+        if candidate not in remaining:
+            return False
+        remaining.remove(candidate)
+        self.backup_codes = remaining
+        return True
+
+    @property
+    def backup_codes_remaining(self):
+        return len(self.backup_codes or [])
+
 
 @event.listens_for(User, "after_insert")
-def _ensure_shadow_guest_profile(_mapper, connection, target) -> None:
-    """Backwards-compat: reservations used to reference users as guests."""
-
+def _ensure_shadow_guest_profile(_mapper, connection, target):
     from app.guests.models import Guest
 
     existing = connection.execute(
@@ -87,6 +113,7 @@ def _ensure_shadow_guest_profile(_mapper, connection, target) -> None:
     if existing is not None:
         return
     local_part = (target.email or "guest").split("@", 1)[0].strip() or "Guest"
+    now = datetime.now(timezone.utc)
     connection.execute(
         Guest.__table__.insert().values(
             id=target.id,
@@ -97,5 +124,7 @@ def _ensure_shadow_guest_profile(_mapper, connection, target) -> None:
             phone=None,
             notes=None,
             preferences=None,
+            created_at=now,
+            updated_at=now,
         )
     )

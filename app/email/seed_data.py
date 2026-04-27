@@ -233,4 +233,80 @@ SEED_TEMPLATES: list[TemplateSeed] = [
             "from_name",
         ],
     },
+    {
+        "key": "invoice_created",
+        "subject": "Invoice {{ invoice_number }}",
+        "body_text": (
+            "Hello,\n\n"
+            "Invoice {{ invoice_number }} for {{ amount }} {{ currency }} "
+            "is due on {{ due_date }}.\n"
+            "{{ description }}\n\n"
+            "— {{ from_name }}\n"
+        ),
+        "body_html": (
+            "<p>Hello,</p>"
+            "<p>Invoice <strong>{{ invoice_number }}</strong> for "
+            "<strong>{{ amount }} {{ currency }}</strong> is due on "
+            "<strong>{{ due_date }}</strong>.</p>"
+            "<p>{{ description }}</p>"
+            "<p>— {{ from_name }}</p>"
+        ),
+        "description": "Placeholder for future invoice-created notifications (not sent automatically yet).",
+        "available_variables": [
+            "invoice_number",
+            "amount",
+            "currency",
+            "due_date",
+            "description",
+            "from_name",
+        ],
+    },
+    {
+        "key": "invoice_overdue",
+        "subject": "Overdue: invoice {{ invoice_number }}",
+        "body_text": (
+            "Hello,\n\n"
+            "Invoice {{ invoice_number }} was due on {{ due_date }} and is now overdue.\n"
+            "Amount: {{ amount }} {{ currency }}\n\n"
+            "— {{ from_name }}\n"
+        ),
+        "body_html": (
+            "<p>Hello,</p>"
+            "<p>Invoice <strong>{{ invoice_number }}</strong> was due on "
+            "<strong>{{ due_date }}</strong> and is now overdue.</p>"
+            "<p>Amount: {{ amount }} {{ currency }}</p>"
+            "<p>— {{ from_name }}</p>"
+        ),
+        "description": "Placeholder for future overdue reminders (not sent automatically yet).",
+        "available_variables": [
+            "invoice_number",
+            "amount",
+            "currency",
+            "due_date",
+            "from_name",
+        ],
+    },
+    {
+        "key": "invoice_paid",
+        "subject": "Received: invoice {{ invoice_number }}",
+        "body_text": (
+            "Hello,\n\n"
+            "Thank you. Invoice {{ invoice_number }} is marked paid.\n"
+            "Amount: {{ amount }} {{ currency }}\n\n"
+            "— {{ from_name }}\n"
+        ),
+        "body_html": (
+            "<p>Hello,</p>"
+            "<p>Thank you. Invoice <strong>{{ invoice_number }}</strong> is marked paid.</p>"
+            "<p>Amount: {{ amount }} {{ currency }}</p>"
+            "<p>— {{ from_name }}</p>"
+        ),
+        "description": "Placeholder for future paid confirmations (not sent automatically yet).",
+        "available_variables": [
+            "invoice_number",
+            "amount",
+            "currency",
+            "from_name",
+        ],
+    },
 ]

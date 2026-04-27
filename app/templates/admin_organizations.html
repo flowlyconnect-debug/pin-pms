@@ -1,0 +1,24 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Organizations · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Organizations</h1>
+  <p><a href="{{ url_for('admin.organizations_new') }}">+ New organization</a></p>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Created</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for o in rows %}
+        <tr>
+          <td>{{ o.name }}</td>
+          <td>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '—' }}</td>
+          <td><a href="{{ url_for('admin.organizations_edit', org_id=o.id) }}">Edit</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3">No organizations.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

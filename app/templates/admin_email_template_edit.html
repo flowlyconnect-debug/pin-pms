@@ -28,6 +28,17 @@
       <button type="submit" name="action" value="preview" class="btn-secondary">Preview</button>
     </div>
   </form>
+
+  <h2>Send test email</h2>
+  <form method="post" action="{{ url_for('admin.email_template_test_send', key=template.key) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="test_to">Recipient</label>
+    <input id="test_to" name="to" type="email" placeholder="you@example.com" value="{{ current_user.email }}">
+    <div class="actions">
+      <button type="submit" class="btn-secondary">Send test</button>
+    </div>
+    <p class="meta">Sends a one-off email using the saved template. Useful to verify Mailgun configuration and rendering after changes.</p>
+  </form>
   {% if preview_subject is not none %}
     <h2>Preview</h2>
     <div class="card">

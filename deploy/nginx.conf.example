@@ -1,0 +1,76 @@
+# Pindora PMS — Nginx reverse proxy example.
+#
+# Drop this file into /etc/nginx/sites-available/pindora.conf, replace
+# every "example.com" with your real hostname, point the cert paths at
+# your TLS material, then `ln -s` it into /etc/nginx/sites-enabled/.
+#
+# This config:
+#  - terminates TLS (LetsEncrypt-style cert paths shown)
+#  - upgrades plain HTTP to HTTPS
+#  - proxies everything to the Gunicorn socket exposed by the systemd unit
+#  - sets the security headers Flask alone cannot reach
+#  - serves the static files directly out of the project ``app/static``
+
+upstream pindora_app {
+    # Match the bind address in deploy/pindora.service.example.
+    server 127.0.0.1:8000 fail_timeout=0;
+}
+
+server {
+    listen 80;
+    server_name app.example.com;
+
+    # ACME / certbot challenge directory. Adjust if you use a different
+    # webroot path.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Everything else is forced to HTTPS.
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name app.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/app.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
+
+    # Modern TLS profile — see https://ssl-config.mozilla.org/
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    # Project brief section 10: cookies are already marked Secure +
+    # HttpOnly + SameSite by Flask. These extra headers are belt-and-
+    # braces for the browser-served pages.
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "same-origin" always;
+
+    # Limit request body size so a malicious client cannot exhaust disk
+    # by uploading huge payloads to /admin endpoints.
+    client_max_body_size 25m;
+
+    # Static assets straight from disk — never proxy these through Flask.
+    location /static/ {
+        alias /opt/pindora/app/static/;
+        expires 30d;
+        access_log off;
+    }
+
+    # Everything else hits Gunicorn.
+    location / {
+        proxy_pass         http://pindora_app;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_redirect     off;
+        proxy_read_timeout 60s;
+    }
+}

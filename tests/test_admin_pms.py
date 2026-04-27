@@ -416,6 +416,8 @@ def test_admin_can_see_reservation_detail_with_labels(client, admin_user):
     assert b"U9" in page.data
     assert b"2026-05-10" in page.data
     assert b"confirmed" in page.data
+    assert b"Payment status:" in page.data
+    assert b"pending" in page.data
     assert b"Edit reservation" in page.data
 
 
@@ -454,6 +456,242 @@ def test_admin_cancel_reservation_creates_audit_log(client, admin_user):
     assert log is not None
     assert log.target_type == "reservation"
     assert log.actor_id == admin_user.id
+
+
+def test_admin_can_mark_reservation_paid(client, admin_user):
+    from app.audit.models import AuditLog
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Paid Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="P1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 5, 20),
+        end_date=date(2026, 5, 22),
+        status="confirmed",
+        amount=120,
+        currency="EUR",
+        payment_status="pending",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{res.id}/mark-paid",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    refreshed = Reservation.query.get(res.id)
+    assert refreshed is not None
+    assert refreshed.payment_status == "paid"
+
+    log = AuditLog.query.filter_by(action="reservation_paid", target_id=res.id).first()
+    assert log is not None
+    assert log.target_type == "reservation"
+    assert log.actor_id == admin_user.id
+
+
+def test_regular_user_cannot_mark_reservation_paid(client, regular_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=regular_user.email, password=regular_user.password_plain)
+
+    prop = Property(organization_id=regular_user.organization_id, name="User Paid", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="UP1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=regular_user.id,
+        start_date=date(2026, 5, 20),
+        end_date=date(2026, 5, 22),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.post(f"/admin/reservations/{res.id}/mark-paid", follow_redirects=False)
+    assert response.status_code == 403
+
+
+def test_mark_paid_tenant_isolation(client, admin_user):
+    from app.extensions import db
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    other_org = Organization(name="Paid Other Org")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="other-paid@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="Other Paid Prop", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="OP1", unit_type="single")
+    db.session.add(other_unit)
+    db.session.flush()
+    other_res = Reservation(
+        unit_id=other_unit.id,
+        guest_id=other_user.id,
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 3),
+        status="confirmed",
+        payment_status="pending",
+    )
+    db.session.add(other_res)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/reservations/{other_res.id}/mark-paid",
+        follow_redirects=False,
+    )
+    assert response.status_code == 404
+
+
+def test_admin_can_download_invoice_pdf(client, admin_user):
+    from app.audit.models import AuditLog
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Invoice Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="INV1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 7, 3),
+        status="confirmed",
+        amount=220,
+        currency="EUR",
+        payment_status="pending",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.get(f"/admin/reservations/{res.id}/invoice.pdf")
+    assert response.status_code == 200
+    assert response.content_type == "application/pdf"
+    assert response.headers["Content-Disposition"].startswith("attachment;")
+    assert response.data.startswith(b"%PDF")
+
+    refreshed = Reservation.query.get(res.id)
+    assert refreshed is not None
+    assert refreshed.invoice_number is not None
+    assert refreshed.invoice_number.startswith(f"INV-{admin_user.organization_id}-")
+    assert refreshed.invoice_date is not None
+    assert refreshed.due_date is not None
+
+    log = AuditLog.query.filter_by(action="invoice_generated", target_id=res.id).first()
+    assert log is not None
+    assert log.target_type == "reservation"
+    assert log.actor_id == admin_user.id
+
+
+def test_regular_user_cannot_download_invoice_pdf(client, regular_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=regular_user.email, password=regular_user.password_plain)
+
+    prop = Property(organization_id=regular_user.organization_id, name="Invoice User", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="INVU", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=regular_user.id,
+        start_date=date(2026, 7, 10),
+        end_date=date(2026, 7, 12),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.commit()
+
+    response = client.get(f"/admin/reservations/{res.id}/invoice.pdf", follow_redirects=False)
+    assert response.status_code == 403
+
+
+def test_invoice_pdf_tenant_isolation(client, admin_user):
+    from app.extensions import db
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    other_org = Organization(name="Invoice Other Org")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="other-invoice@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="Other Invoice Property", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="OINV", unit_type="single")
+    db.session.add(other_unit)
+    db.session.flush()
+    other_res = Reservation(
+        unit_id=other_unit.id,
+        guest_id=other_user.id,
+        start_date=date(2026, 8, 1),
+        end_date=date(2026, 8, 3),
+        status="confirmed",
+        amount=100,
+        currency="EUR",
+    )
+    db.session.add(other_res)
+    db.session.commit()
+
+    response = client.get(
+        f"/admin/reservations/{other_res.id}/invoice.pdf",
+        follow_redirects=False,
+    )
+    assert response.status_code == 404
 
 
 def test_admin_cannot_cancel_other_organization_reservation(client, admin_user):
@@ -571,6 +809,8 @@ def test_admin_can_create_reservation_through_ui(client, admin_user):
             "guest_id": str(admin_user.id),
             "start_date": "2026-07-01",
             "end_date": "2026-07-03",
+            "amount": "99.90",
+            "currency": "EUR",
         },
         follow_redirects=True,
     )
@@ -579,6 +819,9 @@ def test_admin_can_create_reservation_through_ui(client, admin_user):
     row = Reservation.query.filter_by(unit_id=unit.id, guest_id=admin_user.id).first()
     assert row is not None
     assert row.status == "confirmed"
+    assert str(row.amount) == "99.90"
+    assert row.currency == "EUR"
+    assert row.payment_status == "pending"
 
 
 def test_reservation_creation_through_ui_creates_audit_log(client, admin_user):
@@ -1461,6 +1704,8 @@ def test_admin_can_update_reservation_via_edit_form(client, admin_user):
             "start_date": "2026-11-02",
             "end_date": "2026-11-06",
             "status": "confirmed",
+            "amount": "149.50",
+            "currency": "USD",
             "return_to": "detail",
         },
         follow_redirects=False,
@@ -1471,6 +1716,8 @@ def test_admin_can_update_reservation_via_edit_form(client, admin_user):
     assert refreshed is not None
     assert refreshed.start_date == date(2026, 11, 2)
     assert refreshed.end_date == date(2026, 11, 6)
+    assert str(refreshed.amount) == "149.50"
+    assert refreshed.currency == "USD"
 
 
 def test_normal_user_cannot_open_reservation_edit(client, regular_user):

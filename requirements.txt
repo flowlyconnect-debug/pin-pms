@@ -4,6 +4,7 @@ flask-migrate
 flask-login
 Flask-WTF
 Flask-Limiter
+Flask-Cors
 Werkzeug
 psycopg2-binary
 python-dotenv
@@ -13,3 +14,4 @@ pyotp
 qrcode
 requests
 APScheduler
+reportlab

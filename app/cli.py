@@ -6,6 +6,7 @@ from app.api.models import ApiKey
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
 from app.backups.models import BackupTrigger
+from app.billing import services as billing_service
 from app.backups.services import BackupError, create_backup, restore_backup
 from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import ensure_seed_templates, send_template
@@ -407,6 +408,19 @@ def register_cli_commands(app: Flask) -> None:
             f"Restore complete. Pre-restore safe-copy saved as {safe_copy.filename} "
             f"({safe_copy.size_human})."
         )
+
+    @app.cli.command("invoices-mark-overdue")
+    @click.option(
+        "--organization-id",
+        type=int,
+        default=None,
+        help="Limit to one organization id (default: all organizations).",
+    )
+    def invoices_mark_overdue(organization_id: int | None) -> None:
+        """Mark open invoices overdue when due_date is before today (UTC date)."""
+
+        n = billing_service.mark_overdue_invoices(organization_id=organization_id)
+        click.echo(f"Marked {n} invoice(s) as overdue.")
 
     @app.cli.command("seed-email-templates")
     def seed_email_templates() -> None:

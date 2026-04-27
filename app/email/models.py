@@ -67,6 +67,9 @@ class TemplateKey:
     ADMIN_NOTIFICATION = "admin_notification"
     RESERVATION_CONFIRMATION = "reservation_confirmation"
     RESERVATION_CANCELLED = "reservation_cancelled"
+    INVOICE_CREATED = "invoice_created"
+    INVOICE_OVERDUE = "invoice_overdue"
+    INVOICE_PAID = "invoice_paid"
 
     ALL = (
         WELCOME_EMAIL,
@@ -77,4 +80,7 @@ class TemplateKey:
         ADMIN_NOTIFICATION,
         RESERVATION_CONFIRMATION,
         RESERVATION_CANCELLED,
+        INVOICE_CREATED,
+        INVOICE_OVERDUE,
+        INVOICE_PAID,
     )

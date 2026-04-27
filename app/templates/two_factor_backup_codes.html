@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>2FA Recovery Codes</title>
+  </head>
+  <body>
+    <h1>Two-factor recovery codes</h1>
+
+    {% if plaintext_codes %}
+      <p><strong>Save these one-time recovery codes now.</strong>
+      They will only be shown once. Use one in place of a 6-digit code if you
+      lose access to your authenticator app.</p>
+      <ul>
+        {% for code in plaintext_codes %}
+          <li><code>{{ code }}</code></li>
+        {% endfor %}
+      </ul>
+      <p>Store them in a secure place (password manager, sealed envelope).
+      Each code works exactly once.</p>
+    {% else %}
+      <p>You currently have <strong>{{ codes_remaining }}</strong> recovery
+      code(s) left.</p>
+      <p>If you have lost track of them, generate a new set below. The
+      previous codes will stop working as soon as the new set is issued.</p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('auth.two_factor_backup_codes') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">Regenerate recovery codes</button>
+    </form>
+
+    <p><a href="{{ url_for('auth.two_factor_verify') }}">Continue to verification →</a></p>
+  </body>
+</html>
