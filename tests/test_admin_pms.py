@@ -1129,8 +1129,8 @@ def test_dashboard_revenue_trend_pct_uses_previous_month_baseline(client, admin_
                 invoice_number="BIL-PREV-100",
                 amount=100,
                 currency="EUR",
-                due_date=date(2026, 3, 20),
-                paid_at=datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc),
+                due_date=date(2026, 4, 14),
+                paid_at=datetime(2026, 4, 14, 12, 0, tzinfo=timezone.utc),
                 status="paid",
                 description=None,
                 metadata_json=None,
@@ -1147,8 +1147,8 @@ def test_dashboard_revenue_trend_pct_uses_previous_month_baseline(client, admin_
                 invoice_number="BIL-MTD-150",
                 amount=150,
                 currency="EUR",
-                due_date=date(2026, 4, 10),
-                paid_at=datetime(2026, 4, 10, 10, 0, tzinfo=timezone.utc),
+                due_date=date(2026, 4, 15),
+                paid_at=datetime(2026, 4, 15, 10, 0, tzinfo=timezone.utc),
                 status="paid",
                 description=None,
                 metadata_json=None,
@@ -1157,26 +1157,30 @@ def test_dashboard_revenue_trend_pct_uses_previous_month_baseline(client, admin_
             )
         )
         db.session.commit()
-        stats = admin_services.get_dashboard_stats(organization_id=admin_user.organization_id)
+        stats = admin_services.get_dashboard_stats(
+            organization_id=admin_user.organization_id,
+            range_key="today",
+        )
 
     assert stats["revenue"]["trend_pct"] == 50.0
 
 
 def test_dashboard_email_health_24h_window_boundary(client, superadmin):
     from datetime import datetime, timedelta, timezone
+    from unittest.mock import patch
 
     from app.admin import services as admin_services
     from app.email.models import OutgoingEmail, OutgoingEmailStatus
     from app.extensions import db
 
-    fixed_now = datetime.now(timezone.utc)
+    fixed_now = datetime(2026, 4, 29, 12, 0, tzinfo=timezone.utc)
     db.session.add(
         OutgoingEmail(
             to="sent@example.com",
             template_key="invoice_created",
             context_json={},
             status=OutgoingEmailStatus.SENT,
-            created_at=fixed_now - timedelta(hours=23, minutes=59),
+            created_at=fixed_now - timedelta(hours=1),
         )
     )
     db.session.add(
@@ -1185,7 +1189,7 @@ def test_dashboard_email_health_24h_window_boundary(client, superadmin):
             template_key="backup_failed",
             context_json={},
             status=OutgoingEmailStatus.FAILED,
-            created_at=fixed_now - timedelta(hours=23, minutes=59),
+            created_at=fixed_now - timedelta(hours=2),
         )
     )
     db.session.add(
@@ -1199,13 +1203,185 @@ def test_dashboard_email_health_24h_window_boundary(client, superadmin):
     )
     db.session.commit()
 
-    stats = admin_services.get_dashboard_stats(
-        organization_id=superadmin.organization_id,
-        viewer_is_superadmin=True,
-    )
+    with patch("app.admin.services.date") as mock_date:
+        mock_date.today.return_value = fixed_now.date()
+        stats = admin_services.get_dashboard_stats(
+            organization_id=superadmin.organization_id,
+            viewer_is_superadmin=True,
+        )
 
     assert stats["email_health"]["sent_count"] == 1
     assert stats["email_health"]["failed_count"] == 1
+
+
+def test_dashboard_range_invalid_value_defaults_to_today(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    response = client.get("/admin/dashboard?range=virheellinen-arvo")
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    assert "Tänään saapuu" in html
+
+
+def test_get_week_overview_returns_exactly_seven_days(app, admin_user):
+    from app.admin import services as admin_services
+
+    with app.app_context():
+        rows = admin_services.get_week_overview(
+            organization_id=admin_user.organization_id,
+            start_date=date(2026, 4, 27),
+        )
+    assert len(rows) == 7
+    assert rows[0]["date"] == "2026-04-27"
+    assert rows[-1]["date"] == "2026-05-03"
+
+
+def test_get_week_overview_respects_tenant_isolation(app, admin_user):
+    from app.admin import services as admin_services
+    from app.extensions import db
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    with app.app_context():
+        own_prop = Property(organization_id=admin_user.organization_id, name="Viikko OMA", address=None)
+        db.session.add(own_prop)
+        db.session.flush()
+        own_unit = Unit(property_id=own_prop.id, name="W1", unit_type="double")
+        db.session.add(own_unit)
+        db.session.flush()
+        db.session.add(
+            Reservation(
+                unit_id=own_unit.id,
+                guest_id=admin_user.id,
+                start_date=date(2026, 4, 28),
+                end_date=date(2026, 4, 30),
+                status="confirmed",
+            )
+        )
+
+        other_org = Organization(name="Viikko MUU")
+        db.session.add(other_org)
+        db.session.flush()
+        other_user = User(
+            email="viikko-muu@test.local",
+            password_hash=generate_password_hash("UserPass123!"),
+            organization_id=other_org.id,
+            role=UserRole.ADMIN.value,
+            is_active=True,
+        )
+        db.session.add(other_user)
+        db.session.flush()
+        other_prop = Property(organization_id=other_org.id, name="Viikko Muu H", address=None)
+        db.session.add(other_prop)
+        db.session.flush()
+        other_unit = Unit(property_id=other_prop.id, name="W2", unit_type="single")
+        db.session.add(other_unit)
+        db.session.flush()
+        db.session.add(
+            Reservation(
+                unit_id=other_unit.id,
+                guest_id=other_user.id,
+                start_date=date(2026, 4, 28),
+                end_date=date(2026, 4, 30),
+                status="confirmed",
+            )
+        )
+        db.session.commit()
+
+        rows = admin_services.get_week_overview(
+            organization_id=admin_user.organization_id,
+            start_date=date(2026, 4, 27),
+        )
+    peak_day = next(row for row in rows if row["date"] == "2026-04-28")
+    assert peak_day["reservation_count"] == 1
+
+
+def test_dashboard_performance_under_200ms_for_large_org(app, admin_user):
+    from datetime import datetime, timezone
+    from time import perf_counter
+    from unittest.mock import patch
+
+    from app.admin import services as admin_services
+    from app.billing.models import Invoice
+    from app.extensions import db
+    from app.maintenance.models import MaintenanceRequest
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    with app.app_context():
+        prop = Property(organization_id=admin_user.organization_id, name="Perf Hotel", address=None)
+        db.session.add(prop)
+        db.session.flush()
+        units: list[Unit] = []
+        for idx in range(20):
+            unit = Unit(property_id=prop.id, name=f"P{idx}", unit_type="double")
+            units.append(unit)
+            db.session.add(unit)
+        db.session.flush()
+
+        for idx in range(1000):
+            unit = units[idx % len(units)]
+            start_d = date(2026, 4, 1) + timedelta(days=idx % 30)
+            end_d = start_d + timedelta(days=2)
+            db.session.add(
+                Reservation(
+                    unit_id=unit.id,
+                    guest_id=admin_user.id,
+                    start_date=start_d,
+                    end_date=end_d,
+                    status="confirmed",
+                )
+            )
+        for idx in range(500):
+            db.session.add(
+                Invoice(
+                    organization_id=admin_user.organization_id,
+                    lease_id=None,
+                    reservation_id=None,
+                    guest_id=None,
+                    invoice_number=f"PERF-{idx}",
+                    amount=100,
+                    currency="EUR",
+                    due_date=date(2026, 4, 1) + timedelta(days=idx % 30),
+                    paid_at=datetime(2026, 4, 2, 10, 0, tzinfo=timezone.utc) if idx % 2 == 0 else None,
+                    status="paid" if idx % 2 == 0 else "open",
+                    description=None,
+                    metadata_json=None,
+                    created_by_id=admin_user.id,
+                    updated_by_id=None,
+                )
+            )
+        for idx in range(200):
+            db.session.add(
+                MaintenanceRequest(
+                    organization_id=admin_user.organization_id,
+                    property_id=prop.id,
+                    unit_id=units[idx % len(units)].id,
+                    guest_id=None,
+                    reservation_id=None,
+                    title=f"Perf huolto {idx}",
+                    description=None,
+                    status="new",
+                    priority="normal",
+                    assigned_to_id=None,
+                    due_date=date(2026, 4, 1) + timedelta(days=idx % 30),
+                    resolved_at=None,
+                    created_by_id=admin_user.id,
+                )
+            )
+        db.session.commit()
+
+        with patch("app.admin.services.report_service.occupancy_report") as mock_occ:
+            mock_occ.return_value = {"occupancy_percentage": 50.0}
+            started = perf_counter()
+            _ = admin_services.get_dashboard_stats(
+                organization_id=admin_user.organization_id,
+                range_key="30d",
+            )
+            elapsed_ms = (perf_counter() - started) * 1000
+        assert elapsed_ms < 200
 
 
 def test_admin_can_access_reports_index(client, admin_user):
