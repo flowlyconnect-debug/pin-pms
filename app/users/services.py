@@ -4,10 +4,9 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from werkzeug.security import generate_password_hash
-
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
+from app.core.security import validate_password_strength
 from app.email.models import TemplateKey
 from app.email.services import send_template
 from app.extensions import db
@@ -42,7 +41,6 @@ def _send_welcome_email(user: User, organization: Organization) -> None:
                 "organization_name": organization.name,
                 "login_url": _login_url_for_welcome(),
             },
-            async_=False,
         )
     except Exception as err:  # noqa: BLE001 — user creation must not fail on email
         logger.warning(
@@ -79,6 +77,9 @@ def create_user(
         raise UserServiceError("Email is required.")
     if not password:
         raise UserServiceError("Password is required.")
+    password_errors = validate_password_strength(password)
+    if password_errors:
+        raise UserServiceError(password_errors[0])
 
     if (organization_name is None) == (organization_id is None):
         raise UserServiceError(
@@ -113,9 +114,10 @@ def create_user(
         email=normalized_email,
         organization_id=organization.id,
         role=normalized_role,
-        password_hash=generate_password_hash(password),
+        password_hash="",
         is_active=True,
     )
+    user.set_password(password)
     db.session.add(user)
     db.session.flush()
 
@@ -203,7 +205,7 @@ def deactivate_user(
 
     user.is_active = False
     audit_record(
-        "user.deactivated",
+        "user.deleted",
         status=AuditStatus.SUCCESS,
         actor_type=actor_type or ActorType.SYSTEM,
         actor_id=actor_id,
@@ -253,16 +255,20 @@ def change_password(
     *,
     user_id: int,
     new_password: str,
-    min_length: int = 12,
+    min_length: int | None = None,
     actor_type: Optional[str] = None,
     actor_id: Optional[int] = None,
     actor_email: Optional[str] = None,
     commit: bool = False,
 ) -> User:
-    if len(new_password) < min_length:
-        raise UserServiceError(
-            f"Password must be at least {min_length} characters."
+    policy_errors = validate_password_strength(new_password)
+    if min_length is not None and len(new_password) < min_length:
+        policy_errors.insert(
+            0,
+            f"Password must be at least {min_length} characters.",
         )
+    if policy_errors:
+        raise UserServiceError(policy_errors[0])
 
     user = User.query.get(user_id)
     if user is None:

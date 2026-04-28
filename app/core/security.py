@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -50,3 +51,33 @@ def constant_time_equals(a: str, b: str) -> bool:
     """Wrapper around ``hmac.compare_digest`` with friendly inputs."""
 
     return hmac.compare_digest((a or "").encode("utf-8"), (b or "").encode("utf-8"))
+
+
+def _password_min_length() -> int:
+    raw = (os.getenv("PASSWORD_MIN_LENGTH") or "12").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 12
+    return value if value > 0 else 12
+
+
+def validate_password_strength(password: str) -> list[str]:
+    """Return policy violations for ``password``.
+
+    Rules:
+    - minimum length from ``PASSWORD_MIN_LENGTH`` (default 12)
+    - at least one letter
+    - at least one number
+    """
+
+    candidate = password or ""
+    errors: list[str] = []
+    min_length = _password_min_length()
+    if len(candidate) < min_length:
+        errors.append(f"Password must be at least {min_length} characters long.")
+    if not any(char.isalpha() for char in candidate):
+        errors.append("Password must include at least one letter.")
+    if not any(char.isdigit() for char in candidate):
+        errors.append("Password must include at least one number.")
+    return errors

@@ -135,7 +135,7 @@ def test_deactivate_user_writes_audit(app, organization):
         db.session.refresh(user)
         assert user.is_active is False
         row = AuditLog.query.filter_by(
-            action="user.deactivated",
+            action="user.deleted",
             target_id=user.id,
         ).first()
         assert row is not None

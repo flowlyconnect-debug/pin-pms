@@ -16,11 +16,20 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required, login_user, logout_user
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
-from app.auth.models import PASSWORD_RESET_TTL, PasswordResetToken
-from app.auth.services import authenticate_user
+from app.auth.forms import ResetPasswordForm
+from app.auth.models import PASSWORD_RESET_TTL, PasswordResetToken, TwoFactorEmailCode
+from app.auth.services import (
+    audit_login_failed,
+    audit_login_success,
+    audit_logout,
+    authenticate_user,
+    enable_2fa,
+    send_email_2fa_code,
+)
 from app.email.models import TemplateKey
 from app.email.services import EmailTemplateNotFound, send_template
 from app.extensions import db, limiter
@@ -48,6 +57,22 @@ def _default_post_login_url_for(role):
     if role in {UserRole.ADMIN.value, UserRole.SUPERADMIN.value}:
         return url_for("admin.admin_home")
     return url_for("core.index")
+
+
+def _login_error_response(error_text):
+    """Render the login page with an error, trying both template paths."""
+    try:
+        return render_template(
+            "auth/login.html",
+            error=error_text,
+            is_authenticated=current_user.is_authenticated,
+        )
+    except Exception:
+        return render_template(
+            "login.html",
+            error=error_text,
+            is_authenticated=current_user.is_authenticated,
+        )
 
 
 def require_superadmin_2fa(view_func):
@@ -79,20 +104,28 @@ def login():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        user = authenticate_user(email, password)
+        try:
+            user = authenticate_user(email, password)
+        except SQLAlchemyError as exc:
+            current_app.logger.exception("Database error during /login authentication.")
+            # Surface the underlying cause in DEBUG so operators can diagnose
+            # schema or migration mismatches without grepping logs.
+            if current_app.debug:
+                detail = f"DB error: {type(exc).__name__}: {str(exc)[:300]}"
+            else:
+                detail = "Login service is temporarily unavailable. Please try again."
+            return _login_error_response(detail)
+        except Exception as exc:  # noqa: BLE001
+            current_app.logger.exception("Unexpected error during /login authentication.")
+            if current_app.debug:
+                detail = f"Unexpected error: {type(exc).__name__}: {str(exc)[:300]}"
+            else:
+                detail = "Login service is temporarily unavailable. Please try again."
+            return _login_error_response(detail)
+
         if user:
             login_user(user)
-            audit_record(
-                "auth.login.success",
-                status=AuditStatus.SUCCESS,
-                actor_type=ActorType.USER,
-                actor_id=user.id,
-                actor_email=user.email,
-                organization_id=user.organization_id,
-                target_type="user",
-                target_id=user.id,
-                commit=True,
-            )
+            audit_login_success(user)
             if user.is_superadmin:
                 session["2fa_verified"] = False
                 session["post_login_next"] = _safe_next_url(request.args.get("next"))
@@ -102,20 +135,10 @@ def login():
             next_url = _safe_next_url(request.args.get("next"))
             return redirect(next_url or _default_post_login_url_for(user.role))
 
-        audit_record(
-            "auth.login.failure",
-            status=AuditStatus.FAILURE,
-            actor_type=ActorType.ANONYMOUS,
-            actor_email=email or None,
-            commit=True,
-        )
+        audit_login_failed(email)
         error = "Invalid email or password."
 
-    return render_template(
-        "login.html",
-        error=error,
-        is_authenticated=current_user.is_authenticated,
-    )
+    return _login_error_response(error)
 
 
 @auth_bp.route("/2fa/setup", methods=["GET", "POST"])
@@ -139,13 +162,7 @@ def two_factor_setup():
             user.is_2fa_enabled = True
             plaintext_codes = user.generate_backup_codes()
             session["2fa_backup_codes_once"] = plaintext_codes
-            audit_record(
-                "auth.2fa.enabled",
-                status=AuditStatus.SUCCESS,
-                target_type="user",
-                target_id=user.id,
-                context={"backup_codes_issued": len(plaintext_codes)},
-            )
+            enable_2fa(user, backup_codes_issued=len(plaintext_codes))
             db.session.commit()
             session["2fa_verified"] = False
             return redirect(url_for("auth.two_factor_backup_codes"))
@@ -245,6 +262,19 @@ def two_factor_verify():
             next_url = _safe_next_url(session.pop("post_login_next", None))
             return redirect(next_url or _default_post_login_url_for(user.role))
 
+        if TwoFactorEmailCode.consume_active_code(user_id=user.id, raw_code=code):
+            session["2fa_verified"] = True
+            audit_record(
+                "2fa.email_code_used",
+                status=AuditStatus.SUCCESS,
+                organization_id=user.organization_id,
+                target_type="user",
+                target_id=user.id,
+            )
+            db.session.commit()
+            next_url = _safe_next_url(session.pop("post_login_next", None))
+            return redirect(next_url or _default_post_login_url_for(user.role))
+
         audit_record(
             "auth.2fa.failed",
             status=AuditStatus.FAILURE,
@@ -255,6 +285,26 @@ def two_factor_verify():
         flash("Invalid verification code")
 
     return render_template("two_factor_verify.html")
+
+
+@auth_bp.route("/2fa/email-code", methods=["GET", "POST"])
+@login_required
+def two_factor_email_code():
+    user = current_user
+
+    if not user.is_superadmin:
+        abort(403)
+    if not user.is_2fa_enabled:
+        return redirect(url_for("auth.two_factor_setup"))
+
+    if request.method == "POST":
+        sent = send_email_2fa_code(user)
+        if sent:
+            flash("A 2FA email code has been sent.")
+            return redirect(url_for("auth.two_factor_verify"))
+        flash("Could not send email code right now. Try again.")
+
+    return render_template("two_factor_email_code.html")
 
 
 @auth_bp.route("/superadmin/test")
@@ -297,28 +347,17 @@ def forgot_password():
                         },
                     )
                 except EmailTemplateNotFound:
-                    current_app.logger.error(
-                        "Password reset email skipped: template %r is not in the database "
-                        "(user_id=%s). Token was still created.",
-                        TemplateKey.PASSWORD_RESET,
-                        user.id,
-                    )
-                except Exception:  # noqa: BLE001 — never leak 500 on forgot-password
-                    current_app.logger.exception(
-                        "Password reset email failed (user_id=%s). Token was still created.",
-                        user.id,
-                    )
-                else:
-                    audit_record(
-                        "auth.password.reset_requested",
-                        status=AuditStatus.SUCCESS,
-                        actor_type=ActorType.USER,
-                        actor_id=user.id,
-                        actor_email=user.email,
-                        target_type="user",
-                        target_id=user.id,
-                        commit=True,
-                    )
+                    current_app.logger.warning("password_reset template not seeded")
+                audit_record(
+                    "auth.password.reset_requested",
+                    status=AuditStatus.SUCCESS,
+                    actor_type=ActorType.USER,
+                    actor_id=user.id,
+                    actor_email=user.email,
+                    target_type="user",
+                    target_id=user.id,
+                    commit=True,
+                )
             else:
                 audit_record(
                     "auth.password.reset_requested",
@@ -328,9 +367,7 @@ def forgot_password():
                     commit=True,
                 )
 
-        flash(
-            "If an account exists for that address, a reset link has been sent."
-        )
+        flash("If an account exists for that address, a reset link has been sent.")
         return redirect(url_for("auth.login"))
 
     return render_template("forgot_password.html")
@@ -345,16 +382,11 @@ def reset_password(token):
     error = None
 
     if request.method == "POST":
-        new_password = request.form.get("password") or ""
-        confirm = request.form.get("confirm") or ""
-
-        if len(new_password) < 12:
-            error = "Password must be at least 12 characters long."
-        elif new_password != confirm:
-            error = "Passwords do not match."
-        else:
+        form = ResetPasswordForm.from_request(request)
+        ok, error = form.validate()
+        if ok:
             user = row.user
-            user.set_password(new_password)
+            user.set_password(form.password)
             row.mark_used()
             audit_record(
                 "auth.password.changed",
@@ -377,11 +409,7 @@ def reset_password(token):
 @auth_bp.route("/logout")
 @login_required
 def logout():
-    audit_record(
-        "auth.logout",
-        status=AuditStatus.SUCCESS,
-        commit=True,
-    )
+    audit_logout(current_user)
     session.pop("2fa_verified", None)
     logout_user()
     return redirect(url_for("auth.login"))
