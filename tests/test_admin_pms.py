@@ -1078,6 +1078,136 @@ def test_dashboard_respects_tenant_isolation(client, admin_user):
     assert b"Other Hotel" not in response.data
 
 
+def test_dashboard_hides_backup_status_from_admin(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    response = client.get("/admin/dashboard")
+    assert response.status_code == 200
+    assert b"Backup" not in response.data
+
+
+def test_dashboard_shows_backup_status_for_superadmin(client, superadmin):
+    import pyotp
+
+    from app.backups.models import Backup, BackupStatus, BackupTrigger
+    from app.extensions import db
+
+    _login(client, email=superadmin.email, password=superadmin.password_plain)
+    code = pyotp.TOTP(superadmin.totp_secret).now()
+    client.post("/2fa/verify", data={"code": code}, follow_redirects=True)
+
+    db.session.add(
+        Backup(
+            filename="test-superadmin-backup.sql.gz",
+            location="/tmp/test-superadmin-backup.sql.gz",
+            status=BackupStatus.SUCCESS,
+            trigger=BackupTrigger.MANUAL,
+        )
+    )
+    db.session.commit()
+
+    response = client.get("/admin/dashboard")
+    assert response.status_code == 200
+    assert b"Backup" in response.data
+
+
+def test_dashboard_revenue_trend_pct_uses_previous_month_baseline(client, admin_user):
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    from app.admin import services as admin_services
+    from app.billing.models import Invoice
+    from app.extensions import db
+
+    with patch("app.admin.services.date") as mock_date:
+        mock_date.today.return_value = date(2026, 4, 15)
+        db.session.add(
+            Invoice(
+                organization_id=admin_user.organization_id,
+                lease_id=None,
+                reservation_id=None,
+                guest_id=None,
+                invoice_number="BIL-PREV-100",
+                amount=100,
+                currency="EUR",
+                due_date=date(2026, 3, 20),
+                paid_at=datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc),
+                status="paid",
+                description=None,
+                metadata_json=None,
+                created_by_id=admin_user.id,
+                updated_by_id=None,
+            )
+        )
+        db.session.add(
+            Invoice(
+                organization_id=admin_user.organization_id,
+                lease_id=None,
+                reservation_id=None,
+                guest_id=None,
+                invoice_number="BIL-MTD-150",
+                amount=150,
+                currency="EUR",
+                due_date=date(2026, 4, 10),
+                paid_at=datetime(2026, 4, 10, 10, 0, tzinfo=timezone.utc),
+                status="paid",
+                description=None,
+                metadata_json=None,
+                created_by_id=admin_user.id,
+                updated_by_id=None,
+            )
+        )
+        db.session.commit()
+        stats = admin_services.get_dashboard_stats(organization_id=admin_user.organization_id)
+
+    assert stats["revenue"]["trend_pct"] == 50.0
+
+
+def test_dashboard_email_health_24h_window_boundary(client, superadmin):
+    from datetime import datetime, timedelta, timezone
+
+    from app.admin import services as admin_services
+    from app.email.models import OutgoingEmail, OutgoingEmailStatus
+    from app.extensions import db
+
+    fixed_now = datetime.now(timezone.utc)
+    db.session.add(
+        OutgoingEmail(
+            to="sent@example.com",
+            template_key="invoice_created",
+            context_json={},
+            status=OutgoingEmailStatus.SENT,
+            created_at=fixed_now - timedelta(hours=23, minutes=59),
+        )
+    )
+    db.session.add(
+        OutgoingEmail(
+            to="failed-in-window@example.com",
+            template_key="backup_failed",
+            context_json={},
+            status=OutgoingEmailStatus.FAILED,
+            created_at=fixed_now - timedelta(hours=23, minutes=59),
+        )
+    )
+    db.session.add(
+        OutgoingEmail(
+            to="failed-outside-window@example.com",
+            template_key="backup_failed",
+            context_json={},
+            status=OutgoingEmailStatus.FAILED,
+            created_at=fixed_now - timedelta(hours=24, seconds=1),
+        )
+    )
+    db.session.commit()
+
+    stats = admin_services.get_dashboard_stats(
+        organization_id=superadmin.organization_id,
+        viewer_is_superadmin=True,
+    )
+
+    assert stats["email_health"]["sent_count"] == 1
+    assert stats["email_health"]["failed_count"] == 1
+
+
 def test_admin_can_access_reports_index(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
