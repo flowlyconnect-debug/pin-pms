@@ -28,7 +28,14 @@
 
   <div class="dashboard-header">
     <h1>Hallintapaneeli</h1>
-    <p class="meta">{{ summary.today_iso }}</p>
+    <div class="dashboard-header-meta">
+      <p class="meta">{{ summary.today_iso }}</p>
+      <div class="dashboard-range-filter" role="tablist" aria-label="Aikajakso">
+        <a class="dashboard-range-option {{ 'is-active' if summary.range_key == 'today' else '' }}" href="{{ url_for('admin.admin_home', range='today') }}">Tänään</a>
+        <a class="dashboard-range-option {{ 'is-active' if summary.range_key == '7d' else '' }}" href="{{ url_for('admin.admin_home', range='7d') }}">7 vrk</a>
+        <a class="dashboard-range-option {{ 'is-active' if summary.range_key == '30d' else '' }}" href="{{ url_for('admin.admin_home', range='30d') }}">30 vrk</a>
+      </div>
+    </div>
   </div>
 
   <div class="dashboard-quick-actions">
@@ -79,7 +86,7 @@
       {% if email_health %}
         {% set email_bad = email_health.get("failed_count", 0) > 0 %}
         <a class="dashboard-status-item {{ 'is-bad' if email_bad else 'is-warn' }}" href="{{ url_for('admin.email_templates_list') }}">
-          <strong>Sähköpostit 24 h</strong>
+          <strong>Sähköpostit {{ email_health.get("window_label", "24 h") }}</strong>
           {{ email_health.get("sent_count", 0) }} lähetetty / {{ email_health.get("failed_count", 0) }} epäonnistunut
         </a>
       {% endif %}
@@ -141,11 +148,11 @@
   <section class="card dashboard-revenue">
     <h2>Liikevaihto</h2>
     <p class="dashboard-revenue-line">
-      Tämä kk:
-      <strong>{{ revenue.get("month_to_date", 0) }} €</strong>
+      {{ summary.range_label }}:
+      <strong>{{ revenue.get("range_total", 0) }} €</strong>
       {% if trend is not none %}
         <span class="dashboard-trend {{ 'up' if trend_up else 'down' if trend_down else 'flat' }}">
-          {{ "▲" if trend_up else "▼" if trend_down else "■" }} {{ "%.0f"|format(trend|abs) }} % ed. kk
+          {{ "▲" if trend_up else "▼" if trend_down else "■" }} {{ "%.0f"|format(trend|abs) }} % edelliseen jaksoon
         </span>
       {% else %}
         <span class="dashboard-trend flat">■ ei vertailua</span>
@@ -158,9 +165,26 @@
     </p>
   </section>
 
+  <section class="card dashboard-week-overview">
+    <h2>Mini-viikkokalenteri</h2>
+    <div class="dashboard-week-grid">
+      {% for day in summary.week_overview %}
+        <a class="dashboard-week-day" href="{{ day.calendar_link }}">
+          <strong>{{ day.date }}</strong>
+          <span>{{ day.reservation_count }} varausta</span>
+          <span class="dashboard-week-occupancy">
+            <span class="dashboard-week-occupancy-bar" style="--occupancy: {{ day.occupancy_percent }}%;"></span>
+            {{ day.occupancy_percent }} %
+          </span>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
   <div class="dashboard-mini-summary card">
     Tänään yöpyy <strong>{{ summary.current_guests }}</strong> ·
-    Tällä viikolla saapuu <strong>{{ summary.arrivals_this_week }}</strong> ·
+    {{ summary.range_label }} saapuu <strong>{{ summary.arrivals_in_range }}</strong> ·
+    {{ summary.range_label }} lähtee <strong>{{ summary.departures_in_range }}</strong> ·
     Käyttöaste <strong>{{ summary.occupancy_percent }} %</strong>
   </div>
 

@@ -711,6 +711,33 @@ body.admin-sidebar-open {
   gap: 1rem;
 }
 
+.dashboard-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dashboard-range-filter {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.dashboard-range-option {
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  padding: 0.24rem 0.65rem;
+  font-size: 0.8rem;
+  text-decoration: none;
+  color: var(--admin-text);
+  background: #fff;
+}
+
+.dashboard-range-option.is-active {
+  border-color: var(--admin-accent);
+  color: #fff;
+  background: var(--admin-accent);
+}
+
 .dashboard-quick-actions {
   display: flex;
   flex-wrap: wrap;
@@ -832,6 +859,56 @@ body.admin-sidebar-open {
 
 .dashboard-trend.flat {
   color: #6b7280;
+}
+
+.dashboard-week-overview {
+  margin-top: 1rem;
+}
+
+.dashboard-week-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.dashboard-week-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  text-decoration: none;
+  color: var(--admin-text);
+  background: #fff;
+}
+
+.dashboard-week-day strong {
+  font-size: 0.8rem;
+}
+
+.dashboard-week-day span {
+  font-size: 0.8rem;
+}
+
+.dashboard-week-occupancy {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dashboard-week-occupancy-bar {
+  width: 44px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    #b7c8f8 0%,
+    #4f46e5 var(--occupancy),
+    #e5e7eb var(--occupancy),
+    #e5e7eb 100%
+  );
 }
 
 @media (max-width: 900px) {
