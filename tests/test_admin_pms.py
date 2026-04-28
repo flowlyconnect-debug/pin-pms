@@ -22,11 +22,11 @@ def test_admin_can_access_dashboard(client, admin_user):
 
     response = client.get("/admin")
     assert response.status_code == 200
-    assert b"Admin dashboard" in response.data
+    assert b"Hallintapaneeli" in response.data
 
     dash = client.get("/admin/dashboard")
     assert dash.status_code == 200
-    assert b"Admin dashboard" in dash.data
+    assert b"Hallintapaneeli" in dash.data
 
 
 def test_admin_can_open_reservation_creation_form(client, admin_user):
@@ -939,12 +939,11 @@ def test_dashboard_shows_correct_counts_for_admin_organization(client, admin_use
 
     response = client.get("/admin")
     assert response.status_code == 200
-    assert b"Total properties" in response.data
-    assert b">1<" in response.data
-    assert b"Total units" in response.data
-    assert b">2<" in response.data
-    assert b"Active reservations" in response.data
-    assert b"Cancelled reservations" in response.data
+    assert b"Kohteita yhteens\xc3\xa4" not in response.data
+    assert b"Yksik\xc3\xb6it\xc3\xa4 yhteens\xc3\xa4" not in response.data
+    assert b"Aktiiviset varaukset" in response.data
+    assert b"K\xc3\xa4ytt\xc3\xb6aste t\xc3\xa4n\xc3\xa4\xc3\xa4n" in response.data
+    assert b"Perutut varaukset" not in response.data
 
 
 def test_dashboard_occupancy_percent_matches_nightly_logic(client, admin_user):
@@ -995,24 +994,27 @@ def test_dashboard_occupancy_percent_matches_nightly_logic(client, admin_user):
     assert b"50.0" in page.data
 
 
-def test_dashboard_latest_audit_events_appear(client, admin_user):
+def test_audit_page_shows_latest_audit_events(client, superadmin):
+    import pyotp
+
     from app.audit import record as audit_record
     from app.audit.models import AuditStatus
 
-    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    _login(client, email=superadmin.email, password=superadmin.password_plain)
+    code = pyotp.TOTP(superadmin.totp_secret).now()
+    client.post("/2fa/verify", data={"code": code}, follow_redirects=True)
 
     audit_record(
         "dashboard.test.event",
         status=AuditStatus.SUCCESS,
-        organization_id=admin_user.organization_id,
+        organization_id=superadmin.organization_id,
         target_type="test",
         target_id=1,
         commit=True,
     )
 
-    response = client.get("/admin")
+    response = client.get("/admin/audit")
     assert response.status_code == 200
-    assert b"Latest audit events" in response.data
     assert b"dashboard.test.event" in response.data
 
 
@@ -2832,6 +2834,11 @@ def test_dashboard_includes_lease_invoice_maintenance_stats(client, admin_user):
     assert stats["leases_ending_next_7_days"] == 1
     assert len(stats["top_overdue_invoices"]) == 1
     assert len(stats["top_open_maintenance_requests"]) == 1
+
+    dashboard = client.get("/admin/dashboard")
+    assert dashboard.status_code == 200
+    assert b"Kiireelliset huollot" in dashboard.data
+    assert b">1<" in dashboard.data
 
 
 def test_dashboard_new_stats_respect_tenant_isolation(client, admin_user):
