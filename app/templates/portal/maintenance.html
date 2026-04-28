@@ -1,0 +1,64 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Huollot · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Omat huollot</h1>
+
+  <div class="card" style="margin-bottom:1rem;">
+    <h2 style="margin-top:0;">Luo pyyntö</h2>
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="reservation_id">Liittyvä varaus</label>
+      <select id="reservation_id" name="reservation_id" required>
+        <option value="">Valitse varaus</option>
+        {% for opt in options %}
+          <option value="{{ opt.reservation_id }}">
+            #{{ opt.reservation_id }} - {{ opt.property_name }} / {{ opt.unit_name }}
+          </option>
+        {% endfor %}
+      </select>
+      <label for="title">Otsikko</label>
+      <input id="title" name="title" required>
+      <label for="description">Kuvaus</label>
+      <textarea id="description" name="description" rows="4"></textarea>
+      <label for="priority">Prioriteetti</label>
+      <select id="priority" name="priority">
+        <option value="Matala">Matala</option>
+        <option value="Normaali" selected>Normaali</option>
+        <option value="Korkea">Korkea</option>
+        <option value="Kiireellinen">Kiireellinen</option>
+      </select>
+      <label for="due_date">Eräpäivä (valinnainen)</label>
+      <input id="due_date" name="due_date" type="date">
+      <div style="margin-top:.8rem;">
+        <button type="submit">Luo pyyntö</button>
+      </div>
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Otsikko</th><th>Kohde</th><th>Prioriteetti</th><th>Tila</th><th>Erä</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.title }}</td>
+          <td>{{ row.property_name }}{% if row.unit_name %} / {{ row.unit_name }}{% endif %}</td>
+          <td>{{ row.priority }}</td>
+          <td>{{ row.status }}</td>
+          <td>{{ row.due_date or "—" }}</td>
+          <td><a href="{{ url_for('portal.maintenance_detail', request_id=row.id) }}">Näytä</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7"><em>Ei huoltoja.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
+

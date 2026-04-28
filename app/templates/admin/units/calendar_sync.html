@@ -1,0 +1,52 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Calendar sync · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Calendar sync for {{ row.name }}</h1>
+  <p class="meta">Käytä tätä iCal-osoitetta Airbnbn/Booking.comin tuonti-vientiasetuksissa tälle huoneelle.</p>
+
+  <section class="card">
+    <h2>Vientiosoite</h2>
+    <p><code>{{ ics_url }}</code></p>
+  </section>
+
+  <section class="card" style="margin-top: 1rem;">
+    <h2>Lisää tuontilähde</h2>
+    {% if error %}<div class="flash">{{ error }}</div>{% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Nimi (valinnainen)<br><input type="text" name="name" placeholder="Booking.com Huone 12"></label><br><br>
+      <label>iCal URL<br><input type="url" name="source_url" required style="min-width: 32rem;"></label><br><br>
+      <button type="submit">Tallenna lähde</button>
+    </form>
+  </section>
+
+  <section class="card" style="margin-top: 1rem;">
+    <h2>Tuontisyötteet</h2>
+    {% if feeds %}
+      <table>
+        <thead><tr><th>Nimi</th><th>URL</th><th>Viime synk</th><th>Tila</th><th></th></tr></thead>
+        <tbody>
+          {% for feed in feeds %}
+            <tr>
+              <td>{{ feed.name or "-" }}</td>
+              <td><code>{{ feed.source_url }}</code></td>
+              <td>{{ feed.last_synced_at.isoformat() if feed.last_synced_at else "-" }}</td>
+              <td>{{ feed.last_error or "ok" }}</td>
+              <td>
+                <form method="post" action="{{ url_for('admin.calendar_sync_feed_now', feed_id=feed.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit">Synkronoi nyt</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="meta">Ei tuontisyötteitä vielä.</p>
+    {% endif %}
+  </section>
+{% endblock %}
+

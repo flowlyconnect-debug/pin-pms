@@ -1,25 +1,25 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Guests · Pindora PMS{% endblock %}
+{% block title %}Asiakkaat · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn" href="{{ url_for('admin.guests_new') }}">New guest</a>
+    <a class="btn" href="{{ url_for('admin.guests_new') }}">Uusi asiakas</a>
   </div>
-  <h1>Guests</h1>
+  <h1>Asiakkaat</h1>
   <form method="get" class="actions">
-    <input type="text" name="search" placeholder="Search name/email/phone" value="{{ search }}">
-    <button type="submit">Search</button>
+    <input type="text" name="search" placeholder="Hae nimi/sähköposti/puhelin" value="{{ search }}">
+    <button type="submit">Hae</button>
   </form>
-  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
   <table>
     <thead>
       <tr>
         <th>ID</th>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Phone</th>
-        <th>Actions</th>
+        <th>Nimi</th>
+        <th>Sähköposti</th>
+        <th>Puhelin</th>
+        <th>Toiminnot</th>
       </tr>
     </thead>
     <tbody>
@@ -30,12 +30,12 @@
           <td>{{ row.email or "—" }}</td>
           <td>{{ row.phone or "—" }}</td>
           <td>
-            <a href="{{ url_for('admin.guests_detail', guest_id=row.id) }}">View</a>
-            · <a href="{{ url_for('admin.guests_edit', guest_id=row.id) }}">Edit</a>
+            <a href="{{ url_for('admin.guests_detail', guest_id=row.id) }}">Näytä</a>
+            · <a href="{{ url_for('admin.guests_edit', guest_id=row.id) }}">Muokkaa</a>
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="5"><em>No guests yet.</em></td></tr>
+        <tr><td colspan="5"><em>Ei guests yet.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>

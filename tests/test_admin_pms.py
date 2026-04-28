@@ -2735,3 +2735,517 @@ def test_resize_creates_reservation_resized_audit(client, admin_user):
     assert log is not None
     assert log.target_type == "reservation"
     assert log.actor_id == admin_user.id
+
+
+def test_dashboard_includes_lease_invoice_maintenance_stats(client, admin_user):
+    from datetime import date as dt_date
+    from unittest.mock import patch
+
+    from app.billing.models import Invoice, Lease
+    from app.extensions import db
+    from app.guests.models import Guest
+    from app.maintenance.models import MaintenanceRequest
+    from app.properties.models import Property, Unit
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Ops Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="O1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    guest = Guest(
+        organization_id=admin_user.organization_id,
+        first_name="Ada",
+        last_name="Guest",
+        email="ada@example.com",
+    )
+    db.session.add(guest)
+    db.session.flush()
+
+    db.session.add(
+        Lease(
+            organization_id=admin_user.organization_id,
+            unit_id=unit.id,
+            guest_id=guest.id,
+            reservation_id=None,
+            start_date=dt_date(2026, 4, 20),
+            end_date=dt_date(2026, 5, 3),
+            rent_amount=1000,
+            deposit_amount=0,
+            billing_cycle="monthly",
+            status="active",
+            notes=None,
+            created_by_id=admin_user.id,
+            updated_by_id=None,
+        )
+    )
+    db.session.add(
+        Invoice(
+            organization_id=admin_user.organization_id,
+            lease_id=None,
+            reservation_id=None,
+            guest_id=guest.id,
+            invoice_number="BIL-TEST-1",
+            amount=500,
+            currency="EUR",
+            due_date=dt_date(2026, 4, 25),
+            paid_at=None,
+            status="overdue",
+            description="Late invoice",
+            metadata_json=None,
+            created_by_id=admin_user.id,
+            updated_by_id=None,
+        )
+    )
+    db.session.add(
+        MaintenanceRequest(
+            organization_id=admin_user.organization_id,
+            property_id=prop.id,
+            unit_id=unit.id,
+            guest_id=guest.id,
+            reservation_id=None,
+            title="Water leak",
+            description="Bathroom pipe",
+            status="new",
+            priority="urgent",
+            assigned_to_id=None,
+            due_date=dt_date(2026, 4, 28),
+            resolved_at=None,
+            created_by_id=admin_user.id,
+        )
+    )
+    db.session.commit()
+
+    from app.admin import services as admin_services
+
+    with patch("app.admin.services.date") as mock_date:
+        mock_date.today.return_value = dt_date(2026, 4, 27)
+        stats = admin_services.get_dashboard_stats(organization_id=admin_user.organization_id)
+
+    assert stats["active_leases"] == 1
+    assert stats["open_invoices"] == 1
+    assert stats["overdue_invoices"] == 1
+    assert stats["open_maintenance_requests"] == 1
+    assert stats["urgent_maintenance_requests"] == 1
+    assert stats["leases_ending_next_7_days"] == 1
+    assert len(stats["top_overdue_invoices"]) == 1
+    assert len(stats["top_open_maintenance_requests"]) == 1
+
+
+def test_dashboard_new_stats_respect_tenant_isolation(client, admin_user):
+    from datetime import date as dt_date
+    from unittest.mock import patch
+
+    from app.admin import services as admin_services
+    from app.billing.models import Invoice, Lease
+    from app.extensions import db
+    from app.guests.models import Guest
+    from app.maintenance.models import MaintenanceRequest
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    own_prop = Property(organization_id=admin_user.organization_id, name="Own Dash", address=None)
+    db.session.add(own_prop)
+    db.session.flush()
+    own_unit = Unit(property_id=own_prop.id, name="D1", unit_type="double")
+    db.session.add(own_unit)
+    db.session.flush()
+    own_guest = Guest(
+        organization_id=admin_user.organization_id,
+        first_name="Own",
+        last_name="Dash",
+        email="own-dash@example.com",
+    )
+    db.session.add(own_guest)
+    db.session.flush()
+    db.session.add(
+        Lease(
+            organization_id=admin_user.organization_id,
+            unit_id=own_unit.id,
+            guest_id=own_guest.id,
+            reservation_id=None,
+            start_date=dt_date(2026, 4, 20),
+            end_date=dt_date(2026, 4, 29),
+            rent_amount=1000,
+            deposit_amount=0,
+            billing_cycle="monthly",
+            status="active",
+            notes=None,
+            created_by_id=admin_user.id,
+            updated_by_id=None,
+        )
+    )
+
+    other_org = Organization(name="Dashboard Other Tenant")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="other-dashboard-tenant@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="Other Dash", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="OD1", unit_type="single")
+    db.session.add(other_unit)
+    db.session.flush()
+    other_guest = Guest(
+        organization_id=other_org.id,
+        first_name="Other",
+        last_name="Dash",
+        email="other-dash@example.com",
+    )
+    db.session.add(other_guest)
+    db.session.flush()
+    other_lease = Lease(
+        organization_id=other_org.id,
+        unit_id=other_unit.id,
+        guest_id=other_guest.id,
+        reservation_id=None,
+        start_date=dt_date(2026, 4, 20),
+        end_date=dt_date(2026, 4, 29),
+        rent_amount=900,
+        deposit_amount=0,
+        billing_cycle="monthly",
+        status="active",
+        notes=None,
+        created_by_id=other_user.id,
+        updated_by_id=None,
+    )
+    db.session.add(other_lease)
+    db.session.flush()
+    db.session.add(
+        Invoice(
+            organization_id=other_org.id,
+            lease_id=other_lease.id,
+            reservation_id=None,
+            guest_id=other_guest.id,
+            invoice_number="BIL-OTHER-DASH",
+            amount=900,
+            currency="EUR",
+            due_date=dt_date(2026, 4, 22),
+            paid_at=None,
+            status="overdue",
+            description=None,
+            metadata_json=None,
+            created_by_id=other_user.id,
+            updated_by_id=None,
+        )
+    )
+    db.session.add(
+        MaintenanceRequest(
+            organization_id=other_org.id,
+            property_id=other_prop.id,
+            unit_id=other_unit.id,
+            guest_id=other_guest.id,
+            reservation_id=None,
+            title="Other tenant request",
+            description=None,
+            status="new",
+            priority="urgent",
+            assigned_to_id=None,
+            due_date=dt_date(2026, 4, 25),
+            resolved_at=None,
+            created_by_id=other_user.id,
+        )
+    )
+    db.session.commit()
+
+    with patch("app.admin.services.date") as mock_date:
+        mock_date.today.return_value = dt_date(2026, 4, 27)
+        stats = admin_services.get_dashboard_stats(organization_id=admin_user.organization_id)
+
+    assert stats["active_leases"] == 1
+    assert stats["overdue_invoices"] == 0
+    assert stats["open_maintenance_requests"] == 0
+
+
+def test_calendar_events_can_include_non_reservation_modules(client, admin_user):
+    from app.billing.models import Invoice, Lease
+    from app.extensions import db
+    from app.guests.models import Guest
+    from app.maintenance.models import MaintenanceRequest
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Calendar Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="C1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    guest = Guest(
+        organization_id=admin_user.organization_id,
+        first_name="Cal",
+        last_name="Guest",
+        email="cal@example.com",
+    )
+    db.session.add(guest)
+    db.session.flush()
+
+    res = Reservation(
+        unit_id=unit.id,
+        guest_id=guest.id,
+        start_date=date(2026, 5, 5),
+        end_date=date(2026, 5, 7),
+        status="confirmed",
+    )
+    db.session.add(res)
+    db.session.flush()
+    lease = Lease(
+        organization_id=admin_user.organization_id,
+        unit_id=unit.id,
+        guest_id=guest.id,
+        reservation_id=res.id,
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 31),
+        rent_amount=1200,
+        deposit_amount=0,
+        billing_cycle="monthly",
+        status="active",
+        notes=None,
+        created_by_id=admin_user.id,
+        updated_by_id=None,
+    )
+    db.session.add(lease)
+    db.session.flush()
+    invoice = Invoice(
+        organization_id=admin_user.organization_id,
+        lease_id=lease.id,
+        reservation_id=res.id,
+        guest_id=guest.id,
+        invoice_number="BIL-CAL-1",
+        amount=1200,
+        currency="EUR",
+        due_date=date(2026, 5, 10),
+        paid_at=None,
+        status="open",
+        description=None,
+        metadata_json=None,
+        created_by_id=admin_user.id,
+        updated_by_id=None,
+    )
+    db.session.add(invoice)
+    db.session.add(
+        MaintenanceRequest(
+            organization_id=admin_user.organization_id,
+            property_id=prop.id,
+            unit_id=unit.id,
+            guest_id=guest.id,
+            reservation_id=res.id,
+            title="Fix AC",
+            description=None,
+            status="in_progress",
+            priority="urgent",
+            assigned_to_id=None,
+            due_date=date(2026, 5, 12),
+            resolved_at=None,
+            created_by_id=admin_user.id,
+        )
+    )
+    db.session.commit()
+
+    response = client.get(
+        "/admin/calendar/events?start=2026-05-01&end=2026-05-31"
+        "&event_types=reservations,leases,invoices,maintenance"
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    ids = {str(item["id"]) for item in data}
+    assert str(res.id) in ids
+    assert f"lease-start-{lease.id}" in ids
+    assert f"lease-end-{lease.id}" in ids
+    assert f"invoice-due-{invoice.id}" in ids
+    maintenance_items = [item for item in data if str(item["id"]).startswith("maintenance-due-")]
+    assert len(maintenance_items) == 1
+    non_res = [item for item in data if not str(item["id"]).isdigit()]
+    assert all(item["editable"] is False for item in non_res)
+    assert all(
+        item["title"].startswith(
+            ("Lease starts:", "Lease ends:", "Invoice due:", "Maintenance:")
+        )
+        for item in non_res
+    )
+
+
+def test_calendar_non_reservation_events_respect_tenant_isolation(client, admin_user):
+    from app.billing.models import Invoice, Lease
+    from app.extensions import db
+    from app.guests.models import Guest
+    from app.maintenance.models import MaintenanceRequest
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    own_prop = Property(organization_id=admin_user.organization_id, name="Own Cal Org", address=None)
+    db.session.add(own_prop)
+    db.session.flush()
+    own_unit = Unit(property_id=own_prop.id, name="OWN", unit_type="double")
+    db.session.add(own_unit)
+    db.session.flush()
+    own_guest = Guest(
+        organization_id=admin_user.organization_id,
+        first_name="Own",
+        last_name="Guest",
+        email="own-cal@example.com",
+    )
+    db.session.add(own_guest)
+    db.session.flush()
+    own_lease = Lease(
+        organization_id=admin_user.organization_id,
+        unit_id=own_unit.id,
+        guest_id=own_guest.id,
+        reservation_id=None,
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 30),
+        rent_amount=900,
+        deposit_amount=0,
+        billing_cycle="monthly",
+        status="active",
+        notes=None,
+        created_by_id=admin_user.id,
+        updated_by_id=None,
+    )
+    db.session.add(own_lease)
+    db.session.flush()
+    own_invoice = Invoice(
+        organization_id=admin_user.organization_id,
+        lease_id=own_lease.id,
+        reservation_id=None,
+        guest_id=own_guest.id,
+        invoice_number="BIL-OWN-CAL",
+        amount=900,
+        currency="EUR",
+        due_date=date(2026, 6, 10),
+        paid_at=None,
+        status="open",
+        description=None,
+        metadata_json=None,
+        created_by_id=admin_user.id,
+        updated_by_id=None,
+    )
+    db.session.add(own_invoice)
+    db.session.add(
+        MaintenanceRequest(
+            organization_id=admin_user.organization_id,
+            property_id=own_prop.id,
+            unit_id=own_unit.id,
+            guest_id=own_guest.id,
+            reservation_id=None,
+            title="Own request",
+            description=None,
+            status="new",
+            priority="urgent",
+            assigned_to_id=None,
+            due_date=date(2026, 6, 12),
+            resolved_at=None,
+            created_by_id=admin_user.id,
+        )
+    )
+
+    other_org = Organization(name="Other Calendar Tenant")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="other-calendar-tenant@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="Other Cal Org", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="OT", unit_type="single")
+    db.session.add(other_unit)
+    db.session.flush()
+    other_guest = Guest(
+        organization_id=other_org.id,
+        first_name="Other",
+        last_name="Guest",
+        email="other-cal@example.com",
+    )
+    db.session.add(other_guest)
+    db.session.flush()
+    other_lease = Lease(
+        organization_id=other_org.id,
+        unit_id=other_unit.id,
+        guest_id=other_guest.id,
+        reservation_id=None,
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 30),
+        rent_amount=800,
+        deposit_amount=0,
+        billing_cycle="monthly",
+        status="active",
+        notes=None,
+        created_by_id=other_user.id,
+        updated_by_id=None,
+    )
+    db.session.add(other_lease)
+    db.session.flush()
+    db.session.add(
+        Invoice(
+            organization_id=other_org.id,
+            lease_id=other_lease.id,
+            reservation_id=None,
+            guest_id=other_guest.id,
+            invoice_number="BIL-OTHER-CAL",
+            amount=800,
+            currency="EUR",
+            due_date=date(2026, 6, 10),
+            paid_at=None,
+            status="open",
+            description=None,
+            metadata_json=None,
+            created_by_id=other_user.id,
+            updated_by_id=None,
+        )
+    )
+    db.session.add(
+        MaintenanceRequest(
+            organization_id=other_org.id,
+            property_id=other_prop.id,
+            unit_id=other_unit.id,
+            guest_id=other_guest.id,
+            reservation_id=None,
+            title="Other request",
+            description=None,
+            status="new",
+            priority="urgent",
+            assigned_to_id=None,
+            due_date=date(2026, 6, 12),
+            resolved_at=None,
+            created_by_id=other_user.id,
+        )
+    )
+    db.session.commit()
+
+    response = client.get(
+        "/admin/calendar/events?start=2026-06-01&end=2026-06-30"
+        "&event_types=leases,invoices,maintenance"
+    )
+    assert response.status_code == 200
+    ids = {str(item["id"]) for item in response.get_json()}
+    assert f"lease-start-{own_lease.id}" in ids
+    assert f"invoice-due-{own_invoice.id}" in ids
+    assert "lease-start-" + str(other_lease.id) not in ids
+    assert all("BIL-OTHER-CAL" not in str(item.get("title", "")) for item in response.get_json())

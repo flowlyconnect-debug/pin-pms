@@ -173,3 +173,39 @@ def send_email_2fa_code(user: User) -> bool:
     )
     db.session.commit()
     return True
+
+
+def cleanup_expired_tokens(*, now: datetime | None = None) -> dict[str, int]:
+    """Delete expired token rows used by auth and portal flows."""
+    from app.auth.models import PasswordResetToken
+
+    current = now or datetime.now(timezone.utc)
+    deleted_password_reset = (
+        PasswordResetToken.query.filter(PasswordResetToken.expires_at < current).delete(
+            synchronize_session=False
+        )
+    )
+    deleted_email_2fa = (
+        TwoFactorEmailCode.query.filter(TwoFactorEmailCode.expires_at < current).delete(
+            synchronize_session=False
+        )
+    )
+
+    deleted_portal_magic = 0
+    try:
+        from app.portal.models import PortalMagicLinkToken
+
+        deleted_portal_magic = (
+            PortalMagicLinkToken.query.filter(
+                PortalMagicLinkToken.expires_at < current
+            ).delete(synchronize_session=False)
+        )
+    except Exception:
+        deleted_portal_magic = 0
+
+    db.session.commit()
+    return {
+        "password_reset_tokens": int(deleted_password_reset or 0),
+        "two_factor_email_codes": int(deleted_email_2fa or 0),
+        "portal_magic_link_tokens": int(deleted_portal_magic or 0),
+    }

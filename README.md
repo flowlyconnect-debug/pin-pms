@@ -46,25 +46,46 @@ Set strong values in `.env` before production use (`SECRET_KEY`,
 `.env.example` includes all required runtime variables and safe placeholders
 only (no secrets). Key variables:
 
-- Flask/runtime: `FLASK_ENV`, `FLASK_DEBUG`, `FLASK_APP`, `SECRET_KEY`
-- Database: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`
-- Rate limits: `LOGIN_RATE_LIMIT`, `API_RATE_LIMIT`
+- Flask/runtime: `FLASK_ENV`, `FLASK_DEBUG`, `FLASK_APP`, `SECRET_KEY`,
+  `SESSION_LIFETIME_MINUTES`
+- Database: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
+  `POSTGRES_HOST`, `POSTGRES_PORT`, `DATABASE_URL`
+- Auth/security: `LOGIN_RATE_LIMIT`, `MAX_LOGIN_ATTEMPTS`, `API_RATE_LIMIT`,
+  `PASSWORD_MIN_LENGTH`
 - Mailgun/Email:
   `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM_EMAIL`,
-  `MAILGUN_FROM_NAME`, `MAILGUN_BASE_URL`, `MAIL_DEV_LOG_ONLY`
+  `MAILGUN_FROM_NAME`, `MAILGUN_BASE_URL`, `MAIL_DEV_LOG_ONLY`,
+  `EMAIL_SCHEDULER_ENABLED`
 - Backups:
   `BACKUP_DIR`, `UPLOADS_DIR`, `BACKUP_RETENTION_DAYS`,
   `BACKUP_SCHEDULE_CRON`, `BACKUP_SCHEDULER_ENABLED`, `BACKUP_NOTIFY_EMAIL`
+- Off-site backups (optional, S3-compatible):
+  `BACKUP_S3_ENABLED`, `BACKUP_S3_ENDPOINT_URL`, `BACKUP_S3_BUCKET`,
+  `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`, `BACKUP_S3_PREFIX`
 - Billing scheduler (optional): `INVOICE_OVERDUE_SCHEDULER_ENABLED`,
   `INVOICE_OVERDUE_SCHEDULE_CRON` (five-field cron, default 06:30 UTC daily)
+- API usage retention: `API_USAGE_RETENTION_DAYS` (default 90)
 - CORS: `CORS_ALLOWED_ORIGINS` (comma-separated, empty = same-origin only)
+- Pindora lock integration: `PINDORA_LOCK_BASE_URL`,
+  `PINDORA_LOCK_API_KEY`, `PINDORA_LOCK_WEBHOOK_SECRET`,
+  `PINDORA_LOCK_TIMEOUT_SECONDS`
+- Check-in document encryption (optional): `CHECKIN_FERNET_KEY`
+- iCal calendar sync: `ICAL_FEED_SECRET`, `ICAL_HTTP_TIMEOUT_SECONDS`,
+  `ICAL_SYNC_ENABLED`, `ICAL_SYNC_INTERVAL_MINUTES`
 
 ## Docker startup
+
+First-time bring-up (run all four lines in order):
 
 ```bash
 docker compose up --build -d
 docker compose exec web flask db upgrade
+docker compose exec web flask create-superadmin
+docker compose exec web flask seed-email-templates
 ```
+
+Subsequent restarts only need `docker compose up -d` — migrations and seeds
+are idempotent but optional once the database is in shape.
 
 App health:
 
@@ -300,6 +321,13 @@ TLS paths. See `deploy/README.md` for step-by-step instructions.
 - [x] `flask backup-restore` works from CLI (including Postgres 16 compatibility)
 - [x] Full test suite passes (`python -m pytest -q`)
 - [x] README explains deployment
+- [x] Baseline security headers (CSP, HSTS, X-Frame-Options) on every response
+- [x] CORS denied by default (`CORS_ALLOWED_ORIGINS` empty → no ACL header)
+- [x] Pre-restore safe-copy + audit row covered by automated tests
+- [x] Cross-tenant API isolation covered for properties, units, reservations,
+      invoices and maintenance requests
+- [x] `setting.updated` audit context records old → new for non-secret rows,
+      `value_changed` only for secret rows
 
 ## License
 

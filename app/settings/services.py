@@ -50,7 +50,7 @@ from app.settings.models import Setting, SettingType
 logger = logging.getLogger(__name__)
 
 _CACHE_KEY = "_settings_cache"
-_MASK = "••••••••"
+_MASK = "••••••"
 
 
 class SettingValueError(ValueError):
@@ -226,7 +226,7 @@ def set_value(
       their existing values.
     * If ``key`` does not exist, a new row is created — ``type_`` must be
       supplied in that case.
-    * The encoded value is written to ``value``, ``updated_by_id`` is set to
+    * The encoded value is written to ``value``, ``updated_by`` is set to
       ``actor_user_id``, and ``updated_at`` is auto-touched by the model.
     * An ``audit.setting.updated`` row is committed with context
       ``{"key", "type", "is_secret"}`` — **never** the raw value.
@@ -236,6 +236,20 @@ def set_value(
     """
 
     row = Setting.query.filter_by(key=key).first()
+
+    # Snapshot the *previous* state before mutating so the audit row carries
+    # before/after context. For ``is_secret`` rows the actual values are
+    # masked out — only the fact that "value changed" is preserved.
+    if row is None:
+        is_create = True
+        previous_value: Any = None
+        previous_type = None
+        previous_is_secret = False
+    else:
+        is_create = False
+        previous_value = row.value
+        previous_type = row.type
+        previous_is_secret = bool(row.is_secret)
 
     if row is None:
         if type_ is None:
@@ -262,11 +276,45 @@ def set_value(
         if is_secret is not None:
             row.is_secret = bool(is_secret)
 
-    row.value = _encode(value, row.type)
-    row.updated_by_id = actor_user_id
+    new_encoded = _encode(value, row.type)
+    row.value = new_encoded
+    row.updated_by = actor_user_id
 
     db.session.commit()
     _cache_invalidate(key)
+
+    audit_context: dict[str, Any] = {
+        "key": row.key,
+        "type": row.type,
+        "is_secret": row.is_secret,
+        "action": "create" if is_create else "update",
+    }
+
+    # Brief section 11: audit must reflect *what* changed. For non-secret
+    # rows we attach decoded before/after values; for secret rows we keep
+    # only an opaque "value changed" signal so secrets never reach the log.
+    if row.is_secret or previous_is_secret:
+        if not is_create and previous_value != new_encoded:
+            audit_context["value_changed"] = True
+    else:
+        try:
+            decoded_old = (
+                _decode(previous_value, previous_type or row.type)
+                if not is_create
+                else None
+            )
+        except SettingValueError:
+            decoded_old = previous_value
+        try:
+            decoded_new = _decode(new_encoded, row.type)
+        except SettingValueError:
+            decoded_new = new_encoded
+
+        if is_create:
+            audit_context["new_value"] = decoded_new
+        elif decoded_old != decoded_new:
+            audit_context["old_value"] = decoded_old
+            audit_context["new_value"] = decoded_new
 
     audit_record(
         "setting.updated",
@@ -274,13 +322,7 @@ def set_value(
         actor_id=actor_user_id,
         target_type="setting",
         target_id=row.id,
-        # Deliberately omit the raw value — secrets must never appear in audit
-        # context. The key + type + is_secret flag are enough to investigate.
-        context={
-            "key": row.key,
-            "type": row.type,
-            "is_secret": row.is_secret,
-        },
+        context=audit_context,
         commit=True,
     )
     return row

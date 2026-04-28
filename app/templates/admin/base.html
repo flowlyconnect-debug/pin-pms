@@ -3,72 +3,112 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Admin · Pindora PMS{% endblock %}</title>
-    <style>
-      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; color: #1a1a1a; background: #fafafa; }
-      header { background: #111827; color: #fff; padding: .85rem 1rem; }
-      header strong { margin-right: 1rem; font-size: 1rem; }
-      header nav { display: inline; }
-      header nav a { color: #e5e7eb; text-decoration: none; margin-right: .8rem; font-size: .92rem; }
-      header nav a:hover { text-decoration: underline; color: #fff; }
-      main { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem 2rem 1rem; }
-      h1 { margin: 0 0 .9rem 0; font-size: 1.45rem; }
-      h2 { margin: 1.2rem 0 .6rem 0; font-size: 1.05rem; }
-      p { margin: .4rem 0 .8rem 0; }
-      table { border-collapse: collapse; width: 100%; background: #fff; }
-      th, td { text-align: left; border-bottom: 1px solid #e5e7eb; padding: .55rem .7rem; vertical-align: top; }
-      th { background: #f3f4f6; font-size: .83rem; text-transform: uppercase; letter-spacing: .02em; }
-      a { color: #1d4ed8; text-decoration: none; }
-      a:hover { text-decoration: underline; }
-      input, select, textarea { border: 1px solid #d1d5db; border-radius: 4px; padding: .45rem; font: inherit; width: 100%; box-sizing: border-box; background: #fff; }
-      textarea { resize: vertical; }
-      label { font-weight: 600; font-size: .9rem; display: block; margin: .8rem 0 .25rem 0; }
-      .actions { margin-top: 1rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-      .btn, button { border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; border-radius: 4px; padding: .45rem .85rem; font-size: .9rem; text-decoration: none; cursor: pointer; display: inline-block; }
-      .btn-secondary { border-color: #9ca3af; background: #fff; color: #374151; }
-      .btn-danger { border-color: #b91c1c; background: #b91c1c; color: #fff; }
-      .meta { color: #6b7280; font-size: .88rem; }
-      .flash-wrap { margin-bottom: .8rem; }
-      .flash { padding: .55rem .7rem; border-radius: 4px; border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; margin-bottom: .45rem; }
-      .error { padding: .55rem .7rem; border-radius: 4px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; margin-bottom: .6rem; }
-      .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: .9rem; }
-    </style>
+    <title>{% block title %}Ylläpito · Pindora PMS{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
     {% block head_extra %}{% endblock %}
   </head>
-  <body>
-    <header>
-      <strong>Pindora Admin</strong>
-      <nav>
-        <a href="{{ url_for('admin.admin_home') }}">Dashboard</a>
-        <a href="{{ url_for('admin.properties_list') }}">Properties</a>
-        <a href="{{ url_for('admin.guests_list') }}">Guests</a>
-        <a href="{{ url_for('admin.reservations_list') }}">Reservations</a>
-        <a href="{{ url_for('admin.leases_list') }}">Leases</a>
-        <a href="{{ url_for('admin.invoices_list') }}">Invoices</a>
-        <a href="{{ url_for('admin.maintenance_requests_list') }}">Maintenance</a>
-        <a href="{{ url_for('admin.calendar_page') }}">Calendar</a>
-        <a href="{{ url_for('admin.reports_index') }}">Reports</a>
-        <a href="{{ url_for('admin.audit') }}">Audit log</a>
-        <a href="{{ url_for('admin.users_list') }}">Users</a>
-        <a href="{{ url_for('admin.organizations_list') }}">Organizations</a>
-        <a href="{{ url_for('admin.api_keys_list') }}">API keys</a>
-        <a href="{{ url_for('admin.email_templates_list') }}">Email templates</a>
-        <a href="{{ url_for('admin.backups_list') }}">Backups</a>
-        <a href="{{ url_for('admin.settings_list') }}">Settings</a>
-        <a href="{{ url_for('auth.logout') }}">Logout</a>
-      </nav>
-    </header>
-    <main>
-      {% with messages = get_flashed_messages() %}
-        {% if messages %}
-          <div class="flash-wrap">
-            {% for message in messages %}
-              <div class="flash">{{ message }}</div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-      {% block content %}{% endblock %}
-    </main>
+  {% set ep = request.endpoint or '' %}
+  <body class="admin">
+    <div class="admin-sidebar-backdrop" aria-hidden="true"></div>
+    <div class="admin-shell">
+      <aside id="admin-sidebar" class="admin-sidebar" aria-label="Ylläpidon valikko">
+        <div class="admin-sidebar-head">
+          <a class="admin-brand" href="{{ url_for('admin.admin_home') }}">
+            <span class="admin-brand-mark" aria-hidden="true"></span>
+            <span>Pin PMS</span>
+          </a>
+        </div>
+        <nav class="admin-sidebar-nav">
+          <a href="{{ url_for('admin.admin_home') }}" class="admin-nav-link{% if ep == 'admin.admin_home' %} is-active{% endif %}"{% if ep == 'admin.admin_home' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">📊</span><span class="admin-nav-text">Etusivu</span></a>
+          <a href="{{ url_for('admin.properties_list') }}" class="admin-nav-link{% if ep.startswith('admin.properties_') or ep.startswith('admin.units_') %} is-active{% endif %}"{% if ep.startswith('admin.properties_') or ep.startswith('admin.units_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🏢</span><span class="admin-nav-text">Kohteet</span></a>
+          <a href="{{ url_for('admin.guests_list') }}" class="admin-nav-link{% if ep.startswith('admin.guests_') or ep == 'admin.api_guests_search' %} is-active{% endif %}"{% if ep.startswith('admin.guests_') or ep == 'admin.api_guests_search' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">👤</span><span class="admin-nav-text">Asiakkaat</span></a>
+          <a href="{{ url_for('admin.reservations_list') }}" class="admin-nav-link{% if ep.startswith('admin.reservations_') %} is-active{% endif %}"{% if ep.startswith('admin.reservations_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🛏</span><span class="admin-nav-text">Varaukset</span></a>
+          <a href="{{ url_for('admin.leases_list') }}" class="admin-nav-link{% if ep.startswith('admin.leases_') %} is-active{% endif %}"{% if ep.startswith('admin.leases_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">📜</span><span class="admin-nav-text">Vuokrasopimukset</span></a>
+          <a href="{{ url_for('admin.invoices_list') }}" class="admin-nav-link{% if ep.startswith('admin.invoices_') %} is-active{% endif %}"{% if ep.startswith('admin.invoices_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🧾</span><span class="admin-nav-text">Laskut</span></a>
+          <a href="{{ url_for('admin.maintenance_requests_list') }}" class="admin-nav-link{% if ep.startswith('admin.maintenance_requests_') %} is-active{% endif %}"{% if ep.startswith('admin.maintenance_requests_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🛠</span><span class="admin-nav-text">Huolto</span></a>
+          <a href="{{ url_for('admin.calendar_page') }}" class="admin-nav-link{% if ep in ['admin.calendar_page', 'admin.calendar_events'] %} is-active{% endif %}"{% if ep in ['admin.calendar_page', 'admin.calendar_events'] %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">📅</span><span class="admin-nav-text">Kalenteri</span></a>
+          <a href="{{ url_for('admin.calendar_sync_conflicts') }}" class="admin-nav-link{% if ep == 'admin.calendar_sync_conflicts' %} is-active{% endif %}"{% if ep == 'admin.calendar_sync_conflicts' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">⚠️</span><span class="admin-nav-text">Kalenteriristiriidat</span></a>
+          <a href="{{ url_for('admin.reports_index') }}" class="admin-nav-link{% if ep.startswith('admin.reports_') %} is-active{% endif %}"{% if ep.startswith('admin.reports_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">📈</span><span class="admin-nav-text">Raportit</span></a>
+          <a href="{{ url_for('admin.audit') }}" class="admin-nav-link{% if ep == 'admin.audit' %} is-active{% endif %}"{% if ep == 'admin.audit' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">📋</span><span class="admin-nav-text">Audit-loki</span></a>
+          <a href="{{ url_for('admin.users_list') }}" class="admin-nav-link{% if ep.startswith('admin.users_') %} is-active{% endif %}"{% if ep.startswith('admin.users_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">👥</span><span class="admin-nav-text">Käyttäjät</span></a>
+          <a href="{{ url_for('admin.organizations_list') }}" class="admin-nav-link{% if ep.startswith('admin.organizations_') %} is-active{% endif %}"{% if ep.startswith('admin.organizations_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🏛</span><span class="admin-nav-text">Organisaatiot</span></a>
+          <a href="{{ url_for('admin.api_keys_list') }}" class="admin-nav-link{% if ep.startswith('admin.api_keys_') %} is-active{% endif %}"{% if ep.startswith('admin.api_keys_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🔑</span><span class="admin-nav-text">API-avaimet</span></a>
+          <a href="{{ url_for('admin.email_templates_list') }}" class="admin-nav-link{% if ep.startswith('admin.email_template') %} is-active{% endif %}"{% if ep.startswith('admin.email_template') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">✉️</span><span class="admin-nav-text">Sähköpostipohjat</span></a>
+          <a href="{{ url_for('backups_admin.backups_list') }}" class="admin-nav-link{% if ep.startswith('backups_admin.backups_') %} is-active{% endif %}"{% if ep.startswith('backups_admin.backups_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">💾</span><span class="admin-nav-text">Varmuuskopiot</span></a>
+          <a href="{{ url_for('admin.settings_list') }}" class="admin-nav-link{% if ep.startswith('admin.settings_') %} is-active{% endif %}"{% if ep.startswith('admin.settings_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">⚙️</span><span class="admin-nav-text">Asetukset</span></a>
+        </nav>
+        <div class="admin-sidebar-foot">
+          <a class="admin-logout" href="{{ url_for('auth.logout') }}"><span class="admin-nav-ico" aria-hidden="true">🚪</span><span class="admin-nav-text">Kirjaudu ulos</span></a>
+        </div>
+      </aside>
+      <div class="admin-main-wrap">
+        <header class="admin-topbar">
+          <button type="button" class="admin-menu-toggle" aria-controls="admin-sidebar" aria-expanded="false" aria-label="Avaa valikko">
+            <span class="admin-menu-bars" aria-hidden="true"></span>
+          </button>
+          <span class="admin-topbar-title">Pin PMS</span>
+        </header>
+        <main class="admin-main">
+          {% with messages = get_flashed_messages() %}
+            {% if messages %}
+              <div class="flash-wrap">
+                {% for message in messages %}
+                  <div class="flash">{{ message }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endwith %}
+          {% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var toggle = document.querySelector(".admin-menu-toggle");
+        var backdrop = document.querySelector(".admin-sidebar-backdrop");
+        function setSidebarAvaa(open) {
+          document.body.classList.toggle("admin-sidebar-open", open);
+          if (toggle) {
+            toggle.setAttribute("aria-expanded", open ? "true" : "false");
+            toggle.setAttribute("aria-label", open ? "Sulje valikko" : "Avaa valikko");
+          }
+        }
+        if (toggle) {
+          toggle.addEventListener("click", function () {
+            setSidebarAvaa(!document.body.classList.contains("admin-sidebar-open"));
+          });
+        }
+        if (backdrop) {
+          backdrop.addEventListener("click", function () {
+            setSidebarAvaa(false);
+          });
+        }
+        document.addEventListener("keydown", function (ev) {
+          if (ev.key === "Escape") {
+            setSidebarAvaa(false);
+          }
+        });
+        window.addEventListener("resize", function () {
+          if (window.matchMedia("(min-width: 901px)").matches) {
+            setSidebarAvaa(false);
+          }
+        });
+        document.querySelectorAll(".admin-sidebar a").forEach(function (link) {
+          link.addEventListener("click", function () {
+            if (window.matchMedia("(max-width: 900px)").matches) {
+              setSidebarAvaa(false);
+            }
+          });
+        });
+        document.querySelectorAll("tr.table-row-link[data-href]").forEach(function (row) {
+          row.addEventListener("click", function (ev) {
+            if (ev.target.closest("a,button,input,select,textarea,label,form")) {
+              return;
+            }
+            window.location.href = row.getAttribute("data-href");
+          });
+        });
+      });
+    </script>
   </body>
 </html>

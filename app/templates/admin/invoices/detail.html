@@ -1,21 +1,21 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Invoice {{ row.invoice_number or "#" ~ (row.id|string) }} · Pindora PMS{% endblock %}
+{% block title %}Lasku {{ row.invoice_number or "#" ~ (row.id|string) }} · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.invoices_list') }}">Back to invoices</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.invoices_list') }}">Takaisin laskuihin</a>
   </div>
-  <h1>Invoice {{ row.invoice_number or "#" ~ (row.id|string) }}</h1>
+  <h1>Lasku {{ row.invoice_number or "#" ~ (row.id|string) }}</h1>
   <div class="card">
-    <p><strong>Status:</strong> {{ row.status }}</p>
-    <p><strong>Amount:</strong> {{ row.amount }} {{ row.currency }}</p>
-    <p><strong>Due date:</strong> {{ row.due_date }}</p>
+    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Summa:</strong> {{ row.amount }} {{ row.currency }}</p>
+    <p><strong>Eräpäivä:</strong> {{ row.due_date }}</p>
     {% if row.paid_at %}<p><strong>Paid at:</strong> {{ row.paid_at }}</p>{% endif %}
     {% if row.lease_id %}<p><strong>Lease:</strong> <a href="{{ url_for('admin.leases_detail', lease_id=row.lease_id) }}">#{{ row.lease_id }}</a></p>{% endif %}
-    {% if row.reservation_id %}<p><strong>Reservation:</strong> #{{ row.reservation_id }}</p>{% endif %}
-    {% if row.guest_id %}<p><strong>Guest:</strong> #{{ row.guest_id }}</p>{% endif %}
-    {% if row.description %}<p><strong>Description:</strong> {{ row.description }}</p>{% endif %}
+    {% if row.reservation_id %}<p><strong>Varaus:</strong> #{{ row.reservation_id }}</p>{% endif %}
+    {% if row.guest_id %}<p><strong>Asiakas:</strong> #{{ row.guest_id }}</p>{% endif %}
+    {% if row.description %}<p><strong>Kuvaus:</strong> {{ row.description }}</p>{% endif %}
   </div>
 
   {% if row.status in ["open", "overdue"] %}
@@ -23,18 +23,18 @@
     <form method="post" action="{{ url_for('admin.invoices_mark_paid', invoice_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="actions">
-        <button type="submit" class="btn">Mark as paid</button>
+        <button type="submit" class="btn">Merkitse maksetuksi</button>
       </div>
     </form>
   {% endif %}
 
-  {% if row.status not in ["paid", "cancelled"] %}
-    <h2>Cancel invoice</h2>
+  {% if row.status not in ["paid", "peruttu"] %}
+    <h2>Peruuta lasku</h2>
     <form method="post" action="{{ url_for('admin.invoices_cancel', invoice_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label><input type="checkbox" name="confirm_cancel" value="yes" required> I confirm cancellation</label>
+      <label><input type="checkbox" name="confirm_cancel" value="yes" required> Vahvistan peruutuksen</label>
       <div class="actions">
-        <button type="submit" class="btn-danger">Cancel invoice</button>
+        <button type="submit" class="btn-danger">Peruuta lasku</button>
       </div>
     </form>
   {% endif %}

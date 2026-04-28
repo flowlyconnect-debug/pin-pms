@@ -125,3 +125,27 @@ class ApiKey(db.Model):
     @property
     def scope_list(self) -> list[str]:
         return [s.strip() for s in (self.scopes or "").split(",") if s.strip()]
+
+
+class ApiKeyUsage(db.Model):
+    __tablename__ = "api_key_usage"
+
+    id = db.Column(db.Integer, primary_key=True)
+    api_key_id = db.Column(
+        db.Integer,
+        db.ForeignKey("api_keys.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    endpoint = db.Column(db.String(255), nullable=False)
+    status_code = db.Column(db.Integer, nullable=False)
+    ip = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.String(512), nullable=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    api_key = db.relationship("ApiKey", backref=db.backref("usage_rows", lazy="dynamic"))

@@ -1,27 +1,27 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Reservations · Pindora PMS{% endblock %}
+{% block title %}Varaukset · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn" href="{{ url_for('admin.reservations_new') }}">Create reservation</a>
+    <a class="btn" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a>
   </div>
-  <h1>Reservations</h1>
-  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <h1>Varaukset</h1>
+  <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
   <table>
     <thead>
       <tr>
         <th>ID</th>
-        <th>Unit</th>
-        <th>Guest</th>
-        <th>Dates</th>
-        <th>Status</th>
-        <th>Actions</th>
+        <th>Huone</th>
+        <th>Asiakas</th>
+        <th>Päivät</th>
+        <th>Tila</th>
+        <th>Toiminnot</th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
-        <tr>
+        <tr class="table-row-link" data-href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">
           <td>{{ row.id }}</td>
           <td>{{ row.unit_id }}</td>
           <td>
@@ -31,14 +31,22 @@
             {% endif %}
           </td>
           <td>{{ row.start_date }} → {{ row.end_date }}</td>
-          <td>{{ row.status }}</td>
           <td>
-            <a href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">View</a>
-            · <a href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='list') }}">Edit</a>
+            {% if row.status == "vahvistettu" %}
+              <span class="status-badge status-green">{{ row.status }}</span>
+            {% elif row.status == "peruttu" %}
+              <span class="status-badge status-red">{{ row.status }}</span>
+            {% else %}
+              <span class="status-badge status-blue">{{ row.status }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">Näytä</a>
+            · <a href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='list') }}">Muokkaa</a>
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6"><em>No reservations yet.</em></td></tr>
+        <tr><td colspan="6" class="empty-state"><em>Ei varauksia vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

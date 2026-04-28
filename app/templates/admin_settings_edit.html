@@ -1,27 +1,38 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Edit {{ setting.key }} · Pindora PMS{% endblock %}
+{% block title %}Muokkaa {{ setting.key }} · Pindora PMS{% endblock %}
 
 {% block content %}
-  <h1>Edit <code>{{ setting.key }}</code></h1>
-  <p class="meta">Type: <code>{{ setting.type }}</code>{% if setting.is_secret %} · secret{% endif %} · Last updated {{ setting.updated_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+  <h1>Muokkaa <code>{{ setting.key }}</code></h1>
+  <p class="meta">Tyyppi: <code>{{ setting.type }}</code>{% if setting.is_secret %} · secret{% endif %} · Last updated {{ setting.updated_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
   <form method="post" action="{{ url_for('admin.settings_edit', key=setting.key) }}" autocomplete="off">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="value">Value ({{ setting.type }})</label>
-    {% if setting.type == 'json' %}
-      <textarea id="value" name="value" rows="8">{{ form_value }}</textarea>
-    {% else %}
-      <input id="value" name="value" type="text" value="{{ form_value }}">
+    {{ form.hidden_tag() }}
+    {% if setting.is_secret %}
+      <label for="reveal_code">Uusi 2FA-koodi (pakollinen arvon näyttöön)</label>
+      <input id="reveal_code" name="reveal_code" type="text" inputmode="numeric" autocomplete="one-time-code">
+      <div class="actions">
+        <button type="submit" name="action" value="reveal" class="btn btn-secondary">Näytä nykyinen arvo</button>
+      </div>
+      {% if reveal_value is not none %}
+        <p class="meta">Nykyinen arvo</p>
+        <pre>{{ reveal_value }}</pre>
+      {% endif %}
     {% endif %}
-    <label for="description">Description</label>
-    <input id="description" name="description" type="text" value="{{ form_description }}">
-    <p><label><input id="is_secret" name="is_secret" type="checkbox" {% if form_is_secret %}checked{% endif %}> Treat as secret (mask in UI, omit from audit)</label></p>
+    <label for="{{ form.value.id }}">Arvo ({{ setting.type }})</label>
+    {% if setting.type == 'json' %}
+      {{ form.value(rows="8") }}
+    {% else %}
+      {{ form.value() }}
+    {% endif %}
+    {{ form.description.label }}
+    {{ form.description() }}
+    <p><label>{{ form.is_secret() }} Käsittele salaisena (piilota UI:ssa, jätä pois auditista)</label></p>
     <div class="actions">
-      <button type="submit">Save</button>
-      <a href="{{ url_for('admin.settings_list') }}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" name="action" value="save">Tallenna</button>
+      <a href="{{ url_for('admin.settings_list') }}" class="btn btn-secondary">Peruuta</a>
     </div>
   </form>
 {% endblock %}

@@ -4,56 +4,56 @@
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.leases_list') }}">Back to leases</a>
-    <a class="btn" href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Edit lease</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.leases_list') }}">Takaisin vuokriin</a>
+    <a class="btn" href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Muokkaa lease</a>
   </div>
   <h1>Lease #{{ row.id }}</h1>
   <div class="card">
-    <p><strong>Status:</strong> {{ row.status }}</p>
-    <p><strong>Property / unit:</strong> {{ row.property_name or "—" }} / {{ row.unit_name or row.unit_id }}</p>
-    <p><strong>Guest:</strong> {{ row.guest_name or "—" }} (#{{ row.guest_id }})</p>
+    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Kohde / unit:</strong> {{ row.property_name or "—" }} / {{ row.unit_name or row.unit_id }}</p>
+    <p><strong>Asiakas:</strong> {{ row.guest_name or "—" }} (#{{ row.guest_id }})</p>
     {% if row.reservation_id %}
-      <p><strong>Reservation:</strong> #{{ row.reservation_id }}</p>
+      <p><strong>Varaus:</strong> #{{ row.reservation_id }}</p>
     {% endif %}
-    <p><strong>Start:</strong> {{ row.start_date }}</p>
-    <p><strong>End:</strong> {{ row.end_date or "—" }}</p>
+    <p><strong>Alku:</strong> {{ row.start_date }}</p>
+    <p><strong>Loppu:</strong> {{ row.end_date or "—" }}</p>
     <p><strong>Rent:</strong> {{ row.rent_amount }}</p>
     <p><strong>Deposit:</strong> {{ row.deposit_amount }}</p>
-    <p><strong>Billing cycle:</strong> {{ row.billing_cycle }}</p>
-    {% if row.notes %}<p><strong>Notes:</strong> {{ row.notes }}</p>{% endif %}
+    <p><strong>Laskutusjakso:</strong> {{ row.billing_cycle }}</p>
+    {% if row.notes %}<p><strong>Huomiot:</strong> {{ row.notes }}</p>{% endif %}
   </div>
 
   {% if row.status == "draft" %}
     <h2>Activate</h2>
     <form method="post" action="{{ url_for('admin.leases_activate', lease_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <p class="meta">Activating makes this lease active and ready for billing.</p>
+      <p class="meta">Aktivointi tekee vuokrasta aktiivisen ja laskutusvalmiin.</p>
       <div class="actions">
-        <button type="submit" class="btn">Activate lease</button>
+        <button type="submit" class="btn">Aktivoi vuokra</button>
       </div>
     </form>
   {% endif %}
 
   {% if row.status == "active" %}
-    <h2>End lease</h2>
+    <h2>Päätä vuokra</h2>
     <form method="post" action="{{ url_for('admin.leases_end', lease_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="end_date">End date (defaults to today if empty)</label>
+      <label for="end_date">Loppupäivä (oletus: tänään, jos tyhjä)</label>
       <input id="end_date" name="end_date" type="date" value="{{ row.end_date or '' }}">
       <label><input type="checkbox" name="confirm_end" value="yes" required> I confirm ending this lease</label>
       <div class="actions">
-        <button type="submit" class="btn btn-secondary">End lease</button>
+        <button type="submit" class="btn btn-secondary">Päätä vuokra</button>
       </div>
     </form>
   {% endif %}
 
   {% if row.status in ["draft", "active"] %}
-    <h2>Cancel lease</h2>
+    <h2>Peruuta vuokra</h2>
     <form method="post" action="{{ url_for('admin.leases_cancel', lease_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label><input type="checkbox" name="confirm_cancel" value="yes" required> I confirm cancellation</label>
+      <label><input type="checkbox" name="confirm_cancel" value="yes" required> Vahvistan peruutuksen</label>
       <div class="actions">
-        <button type="submit" class="btn-danger">Cancel lease</button>
+        <button type="submit" class="btn-danger">Peruuta vuokra</button>
       </div>
     </form>
   {% endif %}

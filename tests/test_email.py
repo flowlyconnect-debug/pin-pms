@@ -5,19 +5,19 @@ from __future__ import annotations
 def test_render_strings_substitutes_variables(app):
     """``render_strings`` performs straight Jinja substitution on all three slots."""
 
-    from app.email.services import render_strings
+    from app.email.templates import render_strings
 
-    subject, body_text, body_html = render_strings(
+    rendered = render_strings(
         subject="Welcome {{ name }}",
         body_text="Hello {{ name }}, your code is {{ code }}.",
         body_html="<p>Hello <strong>{{ name }}</strong>, code: {{ code }}</p>",
         context={"name": "Alice", "code": "12345"},
     )
 
-    assert subject == "Welcome Alice"
-    assert body_text == "Hello Alice, your code is 12345."
-    assert "Hello <strong>Alice</strong>" in body_html
-    assert "12345" in body_html
+    assert rendered.subject == "Welcome Alice"
+    assert rendered.text == "Hello Alice, your code is 12345."
+    assert "Hello <strong>Alice</strong>" in (rendered.html or "")
+    assert "12345" in (rendered.html or "")
 
 
 def test_render_strings_html_autoescapes_but_text_does_not(app):
@@ -28,9 +28,9 @@ def test_render_strings_html_autoescapes_but_text_does_not(app):
     plain-text part stays exact for readers using a text-only client.
     """
 
-    from app.email.services import render_strings
+    from app.email.templates import render_strings
 
-    subject, body_text, body_html = render_strings(
+    rendered = render_strings(
         subject="x",
         body_text="value: {{ value }}",
         body_html="<p>value: {{ value }}</p>",
@@ -38,11 +38,11 @@ def test_render_strings_html_autoescapes_but_text_does_not(app):
     )
 
     # Plain-text body keeps the raw characters — no HTML escaping there.
-    assert "<script>alert(1)</script>" in body_text
+    assert "<script>alert(1)</script>" in rendered.text
 
     # HTML body must escape the angle brackets.
-    assert "<script>" not in body_html
-    assert "&lt;script&gt;" in body_html
+    assert "<script>" not in (rendered.html or "")
+    assert "&lt;script&gt;" in (rendered.html or "")
 
 
 def test_render_template_reads_seeded_db_row(app):
@@ -53,7 +53,7 @@ def test_render_template_reads_seeded_db_row(app):
     """
 
     from app.email.models import EmailTemplate, TemplateKey
-    from app.email.services import render_template
+    from app.email.templates import render_template_for
     from app.extensions import db
 
     db.session.add(
@@ -68,11 +68,11 @@ def test_render_template_reads_seeded_db_row(app):
     )
     db.session.commit()
 
-    subject, body_text, body_html = render_template(
+    rendered = render_template_for(
         TemplateKey.WELCOME_EMAIL,
         context={"user_email": "alice@example.com", "organization_name": "Pindora"},
     )
 
-    assert subject == "Welcome to Pindora"
-    assert body_text == "Hi alice@example.com"
-    assert body_html is None
+    assert rendered.subject == "Welcome to Pindora"
+    assert rendered.text == "Hi alice@example.com"
+    assert rendered.html is None

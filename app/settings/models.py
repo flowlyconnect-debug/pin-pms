@@ -25,6 +25,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.extensions import db
+from sqlalchemy.orm import synonym
 
 
 class SettingType:
@@ -45,11 +46,14 @@ class Setting(db.Model):
     type = db.Column(db.String(16), nullable=False, default=SettingType.STRING)
     description = db.Column(db.String(255), nullable=False, default="")
     is_secret = db.Column(db.Boolean, nullable=False, default=False)
-    updated_by_id = db.Column(
+    updated_by = db.Column(
         db.Integer,
         db.ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Backward-compatible alias so older code paths using ``updated_by_id``
+    # keep working while the DB column name follows the template schema.
+    updated_by_id = synonym("updated_by")
     updated_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,

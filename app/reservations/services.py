@@ -18,7 +18,10 @@ from app.email.models import TemplateKey
 from app.email.services import send_template
 from app.extensions import db
 from app.guests.models import Guest
+from app.billing.models import Invoice, Lease
+from app.maintenance.models import MaintenanceRequest
 from app.properties.models import Property, Unit
+from app.portal import services as portal_services
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
 
@@ -26,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 _RESERVATION_EDIT_STATUSES = frozenset({"confirmed", "cancelled"})
 _PAYMENT_STATUSES = frozenset({"pending", "paid", "cancelled"})
+_CALENDAR_EVENT_TYPES = frozenset({"reservations", "leases", "invoices", "maintenance"})
 
 
 @dataclass
@@ -145,6 +149,7 @@ def get_calendar_events(
     end_date: date | None = None,
     property_id: int | None = None,
     unit_id: int | None = None,
+    include_event_types: set[str] | None = None,
 ) -> list[dict]:
     """Reservations overlapping ``[start_date, end_date)`` for calendar display.
 
@@ -155,6 +160,15 @@ def get_calendar_events(
     Optional ``property_id`` / ``unit_id`` must belong to ``organization_id`` or
     :class:`ReservationServiceError` is raised (no cross-tenant filter leakage).
     """
+
+    selected_types = set(include_event_types or {"reservations"})
+    invalid_types = selected_types - _CALENDAR_EVENT_TYPES
+    if invalid_types:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Invalid calendar event type filter.",
+            status=400,
+        )
 
     query = _scoped_reservation_query(organization_id=organization_id)
     if property_id is not None:
@@ -194,7 +208,11 @@ def get_calendar_events(
         query = query.filter(Reservation.end_date > start_date)
     if end_date is not None:
         query = query.filter(Reservation.start_date < end_date)
-    rows = query.order_by(Reservation.start_date.asc(), Reservation.id.asc()).all()
+    rows = (
+        query.order_by(Reservation.start_date.asc(), Reservation.id.asc()).all()
+        if "reservations" in selected_types
+        else []
+    )
 
     def _calendar_color(status: str) -> str:
         if status == "confirmed":
@@ -212,6 +230,8 @@ def get_calendar_events(
         return trimmed
 
     events: list[dict] = []
+    def _single_day_end(value: date) -> str:
+        return (value + timedelta(days=1)).isoformat()
     for row in rows:
         guest = row.guest
         unit = row.unit
@@ -242,6 +262,171 @@ def get_calendar_events(
                 "editable": row.status != "cancelled",
             }
         )
+    if "leases" in selected_types:
+        lease_query = (
+            Lease.query.join(Unit, Lease.unit_id == Unit.id)
+            .join(Property, Unit.property_id == Property.id)
+            .filter(Lease.organization_id == organization_id)
+        )
+        if property_id is not None:
+            lease_query = lease_query.filter(Property.id == property_id)
+        if unit_id is not None:
+            lease_query = lease_query.filter(Lease.unit_id == unit_id)
+        if start_date is not None:
+            lease_query = lease_query.filter(Lease.start_date >= start_date)
+        if end_date is not None:
+            lease_query = lease_query.filter(Lease.start_date < end_date)
+        lease_rows = lease_query.order_by(Lease.start_date.asc(), Lease.id.asc()).all()
+        for row in lease_rows:
+            events.append(
+                {
+                    "id": f"lease-start-{row.id}",
+                    "title": f"Lease starts: #{row.id}",
+                    "start": row.start_date.isoformat(),
+                    "end": _single_day_end(row.start_date),
+                    "status": row.status,
+                    "unit_id": row.unit_id,
+                    "property_id": row.unit.property_id if row.unit is not None else None,
+                    "color": "#2563eb",
+                    "extendedProps": {
+                        "guest_name": row.guest.full_name if row.guest is not None else "",
+                        "guest_id": row.guest_id,
+                        "property_name": row.unit.property.name if row.unit and row.unit.property else "",
+                        "unit_name": row.unit.name if row.unit is not None else "",
+                        "status": row.status,
+                        "unit_id": row.unit_id,
+                    },
+                    "url": f"/admin/leases/{row.id}",
+                    "editable": False,
+                }
+            )
+        lease_end_query = (
+            Lease.query.join(Unit, Lease.unit_id == Unit.id)
+            .join(Property, Unit.property_id == Property.id)
+            .filter(
+                Lease.organization_id == organization_id,
+                Lease.end_date.isnot(None),
+            )
+        )
+        if property_id is not None:
+            lease_end_query = lease_end_query.filter(Property.id == property_id)
+        if unit_id is not None:
+            lease_end_query = lease_end_query.filter(Lease.unit_id == unit_id)
+        if start_date is not None:
+            lease_end_query = lease_end_query.filter(Lease.end_date >= start_date)
+        if end_date is not None:
+            lease_end_query = lease_end_query.filter(Lease.end_date <= end_date)
+        lease_end_rows = lease_end_query.order_by(Lease.end_date.asc(), Lease.id.asc()).all()
+        for row in lease_end_rows:
+            events.append(
+                {
+                    "id": f"lease-end-{row.id}",
+                    "title": f"Lease ends: #{row.id}",
+                    "start": row.end_date.isoformat(),
+                    "end": _single_day_end(row.end_date),
+                    "status": row.status,
+                    "unit_id": row.unit_id,
+                    "property_id": row.unit.property_id if row.unit is not None else None,
+                    "color": "#1d4ed8",
+                    "extendedProps": {
+                        "guest_name": row.guest.full_name if row.guest is not None else "",
+                        "guest_id": row.guest_id,
+                        "property_name": row.unit.property.name if row.unit and row.unit.property else "",
+                        "unit_name": row.unit.name if row.unit is not None else "",
+                        "status": row.status,
+                        "unit_id": row.unit_id,
+                    },
+                    "url": f"/admin/leases/{row.id}",
+                    "editable": False,
+                }
+            )
+    if "invoices" in selected_types:
+        invoice_query = Invoice.query.filter(Invoice.organization_id == organization_id)
+        if start_date is not None:
+            invoice_query = invoice_query.filter(Invoice.due_date >= start_date)
+        if end_date is not None:
+            invoice_query = invoice_query.filter(Invoice.due_date < end_date)
+        if property_id is not None or unit_id is not None:
+            invoice_query = invoice_query.join(Lease, Invoice.lease_id == Lease.id).join(
+                Unit, Lease.unit_id == Unit.id
+            )
+            if property_id is not None:
+                invoice_query = invoice_query.filter(Unit.property_id == property_id)
+            if unit_id is not None:
+                invoice_query = invoice_query.filter(Unit.id == unit_id)
+        invoice_rows = invoice_query.order_by(Invoice.due_date.asc(), Invoice.id.asc()).all()
+        for row in invoice_rows:
+            events.append(
+                {
+                    "id": f"invoice-due-{row.id}",
+                    "title": f"Invoice due: {row.invoice_number or ('#' + str(row.id))}",
+                    "start": row.due_date.isoformat(),
+                    "end": _single_day_end(row.due_date),
+                    "status": row.status,
+                    "unit_id": row.lease.unit_id if row.lease is not None else None,
+                    "property_id": (
+                        row.lease.unit.property_id
+                        if row.lease is not None and row.lease.unit is not None
+                        else None
+                    ),
+                    "color": "#b45309",
+                    "extendedProps": {
+                        "guest_name": row.guest.full_name if row.guest is not None else "",
+                        "guest_id": row.guest_id,
+                        "property_name": (
+                            row.lease.unit.property.name
+                            if row.lease is not None and row.lease.unit and row.lease.unit.property
+                            else ""
+                        ),
+                        "unit_name": (
+                            row.lease.unit.name if row.lease is not None and row.lease.unit else ""
+                        ),
+                        "status": row.status,
+                        "unit_id": row.lease.unit_id if row.lease is not None else None,
+                    },
+                    "url": f"/admin/invoices/{row.id}",
+                    "editable": False,
+                }
+            )
+    if "maintenance" in selected_types:
+        maintenance_query = MaintenanceRequest.query.filter(
+            MaintenanceRequest.organization_id == organization_id,
+            MaintenanceRequest.due_date.isnot(None),
+        )
+        if start_date is not None:
+            maintenance_query = maintenance_query.filter(MaintenanceRequest.due_date >= start_date)
+        if end_date is not None:
+            maintenance_query = maintenance_query.filter(MaintenanceRequest.due_date < end_date)
+        if property_id is not None:
+            maintenance_query = maintenance_query.filter(MaintenanceRequest.property_id == property_id)
+        if unit_id is not None:
+            maintenance_query = maintenance_query.filter(MaintenanceRequest.unit_id == unit_id)
+        maintenance_rows = maintenance_query.order_by(
+            MaintenanceRequest.due_date.asc(), MaintenanceRequest.id.asc()
+        ).all()
+        for row in maintenance_rows:
+            events.append(
+                {
+                    "id": f"maintenance-due-{row.id}",
+                    "title": f"Maintenance: {row.title}",
+                    "start": row.due_date.isoformat(),
+                    "end": _single_day_end(row.due_date),
+                    "status": row.status,
+                    "unit_id": row.unit_id,
+                    "property_id": row.property_id,
+                    "color": "#dc2626" if row.priority == "urgent" else "#ea580c",
+                    "extendedProps": {
+                        "guest_name": row.guest.full_name if row.guest is not None else "",
+                        "guest_id": row.guest_id,
+                        "property_name": row.property.name if row.property is not None else "",
+                        "unit_name": row.unit.name if row.unit is not None else "",
+                        "status": row.status,
+                        "unit_id": row.unit_id,
+                    },
+                    "url": f"/admin/maintenance-requests/{row.id}",
+                    "editable": False,
+                }
+            )
     return events
 
 
@@ -492,6 +677,20 @@ def update_reservation(
     except Exception:
         db.session.rollback()
         raise
+    if row.status == "cancelled":
+        portal_services.revoke_access_codes_for_reservation(
+            reservation_id=row.id,
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            reason="reservation_cancelled",
+        )
+    elif before["end_date"] != row.end_date.isoformat():
+        portal_services.revoke_access_codes_for_reservation(
+            reservation_id=row.id,
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            reason="reservation_resized",
+        )
     return _serialize_reservation(row)
 
 
@@ -610,6 +809,16 @@ def create_reservation(
             reservation=row,
             guest_name=_display_guest_name(guest=guest, guest_name=row.guest_name),
         )
+    if row.status == "confirmed":
+        try:
+            portal_services.issue_access_code_for_reservation(
+                reservation_id=row.id,
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                idempotency_key=f"reservation-create-{row.id}",
+            )
+        except Exception:
+            logger.exception("Failed to issue lock access code for reservation %s", row.id)
     return _serialize_reservation(row)
 
 
@@ -896,6 +1105,15 @@ def cancel_reservation(
             reservation=row,
             guest_name=_display_guest_name(guest=row.guest, guest_name=row.guest_name),
         )
+    try:
+        portal_services.revoke_access_codes_for_reservation(
+            reservation_id=row.id,
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            reason="reservation_cancelled",
+        )
+    except Exception:
+        logger.exception("Failed revoking lock access code for reservation %s", row.id)
     return _serialize_reservation(row)
 
 

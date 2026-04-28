@@ -1,0 +1,28 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Varaukset · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Omat varaukset</h1>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Kohde</th><th>Huone</th><th>Alku</th><th>Loppu</th><th>Tila</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.property_name }}</td>
+          <td>{{ row.unit_name }}</td>
+          <td>{{ row.start_date }}</td>
+          <td>{{ row.end_date }}</td>
+          <td>{{ row.status }}</td>
+          <td><a href="{{ url_for('portal.reservation_detail', reservation_id=row.id) }}">Näytä</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7"><em>Ei varauksia.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
+

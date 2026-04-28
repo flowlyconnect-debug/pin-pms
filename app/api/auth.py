@@ -4,11 +4,17 @@ from __future__ import annotations
 from functools import wraps
 from typing import Callable
 
-from flask import g, request
+from datetime import datetime, timezone
+import logging
+
+from flask import after_this_request, g, request
 
 from app.api.models import ApiKey
+from app.api.services import record_api_key_usage
 from app.api.schemas import json_error
 from app.extensions import db
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_raw_key() -> str | None:
@@ -60,12 +66,28 @@ def require_api_key(view_func: Callable):
                 status=401,
             )
 
-        api_key.touch()
-        db.session.commit()
-
         g.api_key = api_key
         g.api_organization = api_key.organization
         g.api_user = api_key.user
+        api_key.last_used_at = datetime.now(timezone.utc)
+
+        @after_this_request
+        def _record_usage(response):
+            try:
+                ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote_addr
+                record_api_key_usage(
+                    api_key_id=api_key.id,
+                    endpoint=request.path,
+                    status_code=response.status_code,
+                    ip=ip,
+                    user_agent=request.headers.get("User-Agent"),
+                )
+                db.session.commit()
+            except Exception:  # noqa: BLE001
+                db.session.rollback()
+                logger.exception("Failed to record api key usage for key_id=%s", api_key.id)
+            return response
+
         return view_func(*args, **kwargs)
 
     return wrapper

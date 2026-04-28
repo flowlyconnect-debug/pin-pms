@@ -8,24 +8,35 @@ from __future__ import annotations
 
 from functools import wraps
 
-from flask import abort, flash, jsonify, redirect, render_template, request, send_from_directory, url_for, current_app
+from flask import abort, flash, jsonify, redirect, render_template, request, url_for, current_app
 from flask_login import current_user, login_required
 
 from app.admin import admin_bp
 from app.admin import services as admin_service
-from app.api.models import ApiKey
+from app.admin.forms import (
+    ApiKeyForm,
+    EmailTemplateForm,
+    OrganizationForm,
+    SettingForm,
+    UserCreateForm,
+    UserEditForm,
+)
+from app.api.models import ApiKey, ApiKeyUsage
 from app.api.schemas import json_error, json_ok
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditLog, AuditStatus
+from app.auth.models import TwoFactorEmailCode
 from app.auth.routes import require_superadmin_2fa
-from app.backups.models import Backup, BackupTrigger
 from app.billing import services as billing_service
 from app.maintenance import services as maintenance_service
-from app.backups.services import BackupError, create_backup, restore_backup
 from app.email.models import EmailTemplate, TemplateKey
-from app.email.services import render_strings as render_email_strings, send_template
+from app.email.services import send_template_sync
+from app.email.templates import render_strings as render_email_strings
+from app.email.templates import validate_context as validate_email_context
 from app.extensions import db
 from app.guests import services as guest_service
+from app.integrations.ical.models import ImportedCalendarFeed
+from app.integrations.ical.service import IcalService, IcalServiceError
 from app.settings import services as settings_service
 from app.settings.models import Setting, SettingType
 from app.properties import services as property_service
@@ -458,6 +469,68 @@ def units_edit(unit_id: int):
             return redirect(url_for("admin.units_list", property_id=row["property_id"]))
 
     return render_template("admin/units/edit.html", row=row, form=form, error=error)
+
+
+@admin_bp.route("/units/<int:unit_id>/calendar-sync", methods=["GET", "POST"])
+@require_admin_pms_access
+def units_calendar_sync(unit_id: int):
+    org_id = _pms_org_id()
+    try:
+        row = property_service.get_unit(organization_id=org_id, unit_id=unit_id)
+    except property_service.PropertyServiceError:
+        abort(404)
+
+    service = IcalService()
+    token = service.sign_unit_token(unit_id=unit_id)
+    ics_url = url_for("api.export_unit_calendar_ics", unit_id=unit_id, token=token, _external=True)
+    error: str | None = None
+
+    if request.method == "POST":
+        source_url = (request.form.get("source_url") or "").strip()
+        name = (request.form.get("name") or "").strip() or None
+        if not source_url.lower().startswith(("http://", "https://")):
+            error = "Calendar URL must start with http:// or https://."
+        else:
+            try:
+                service.create_feed(
+                    organization_id=org_id,
+                    unit_id=unit_id,
+                    source_url=source_url,
+                    name=name,
+                )
+            except IcalServiceError as err:
+                error = err.message
+            else:
+                flash("Imported calendar source saved.")
+                return redirect(url_for("admin.units_calendar_sync", unit_id=unit_id))
+
+    feeds = service.list_unit_feeds(organization_id=org_id, unit_id=unit_id)
+    return render_template(
+        "admin/units/calendar_sync.html",
+        row=row,
+        ics_url=ics_url,
+        feeds=feeds,
+        error=error,
+    )
+
+
+@admin_bp.get("/calendar-sync/conflicts")
+@require_admin_pms_access
+def calendar_sync_conflicts():
+    service = IcalService()
+    rows = service.detect_conflicts(organization_id=_pms_org_id())
+    return render_template("admin/calendar_sync_conflicts.html", rows=rows)
+
+
+@admin_bp.post("/calendar-sync/feeds/<int:feed_id>/sync")
+@require_admin_pms_access
+def calendar_sync_feed_now(feed_id: int):
+    row = ImportedCalendarFeed.query.get(feed_id)
+    if row is None or row.organization_id != _pms_org_id():
+        abort(404)
+    IcalService().sync_all_feeds(organization_id=row.organization_id)
+    flash("Calendar sync finished.")
+    return redirect(url_for("admin.units_calendar_sync", unit_id=row.unit_id))
 
 
 @admin_bp.get("/reservations")
@@ -1616,7 +1689,14 @@ def email_template_test_send(key: str):
         flash("Test email needs a valid 'to' address.")
         return redirect(url_for("admin.email_template_edit", key=key))
 
-    ok = send_template(template.key, to=to, context=_preview_context(), async_=False)
+    preview_context = _preview_context()
+    missing = validate_email_context(template.key, preview_context)
+    if missing:
+        missing_list = ", ".join(missing)
+        flash(f"Template context is missing required variables: {missing_list}")
+        return redirect(url_for("admin.email_template_edit", key=key))
+
+    ok = send_template_sync(template.key, to=to, context=preview_context)
     audit_record(
         "email_template.test_sent",
         status=AuditStatus.SUCCESS if ok else AuditStatus.FAILURE,
@@ -1645,60 +1725,61 @@ def email_template_edit(key: str):
     preview_text: str | None = None
     preview_html: str | None = None
 
-    # Working copies of the form fields. We default to the persisted values
-    # so a GET shows the current row, then overwrite from POST data so an
-    # invalid submission (or a preview) does not lose the editor's edits.
-    form_subject = template.subject
-    form_body_text = template.body_text
-    form_body_html = template.body_html or ""
-
+    form = EmailTemplateForm(obj=template)
+    if request.method == "GET":
+        form.subject.data = template.subject
+        form.body_text.data = template.body_text
+        form.body_html.data = template.body_html or ""
     if request.method == "POST":
         action = (request.form.get("action") or "save").strip().lower()
-
-        form_subject = (request.form.get("subject") or "").strip()
-        form_body_text = request.form.get("body_text") or ""
-        form_body_html = (request.form.get("body_html") or "").rstrip()
-        normalized_html: str | None = form_body_html.strip() or None
-
-        if not form_subject:
-            error = "Subject must not be empty."
-        elif not form_body_text.strip():
-            error = "Plain-text body must not be empty (Mailgun requires it)."
-        elif action == "preview":
-            # Render the unsaved strings directly — no DB write — so editors
-            # can iterate without polluting history with half-finished saves.
-            try:
-                preview_subject, preview_text, preview_html = render_email_strings(
-                    subject=form_subject,
-                    body_text=form_body_text,
-                    body_html=normalized_html,
-                    context=_preview_context(),
+        if form.validate():
+            normalized_html: str | None = (form.body_html.data or "").strip() or None
+            if action == "preview":
+                # Render the unsaved strings directly — no DB write — so editors
+                # can iterate without polluting history with half-finished saves.
+                try:
+                    preview_context = _preview_context()
+                    missing = validate_email_context(template.key, preview_context)
+                    if missing:
+                        missing_list = ", ".join(missing)
+                        error = f"Template context is missing required variables: {missing_list}"
+                    else:
+                        rendered = render_email_strings(
+                            subject=form.subject.data.strip(),
+                            body_text=form.body_text.data,
+                            body_html=normalized_html,
+                            context=preview_context,
+                        )
+                        preview_subject, preview_text, preview_html = (
+                            rendered.subject,
+                            rendered.text,
+                            rendered.html,
+                        )
+                except Exception as err:  # noqa: BLE001 — show the editor the syntax error
+                    error = f"Template render failed: {err}"
+            else:
+                template.subject = form.subject.data.strip()
+                template.body_text = form.body_text.data
+                template.body_html = normalized_html
+                template.updated_by_id = current_user.id
+                db.session.commit()
+                audit_record(
+                    "email_template.updated",
+                    status=AuditStatus.SUCCESS,
+                    target_type="email_template",
+                    target_id=template.id,
+                    context={"key": template.key},
+                    commit=True,
                 )
-            except Exception as err:  # noqa: BLE001 — show the editor the syntax error
-                error = f"Template render failed: {err}"
+                flash("Template saved.")
+                return redirect(url_for("admin.email_template_edit", key=key))
         else:
-            template.subject = form_subject
-            template.body_text = form_body_text
-            template.body_html = normalized_html
-            template.updated_by_id = current_user.id
-            db.session.commit()
-            audit_record(
-                "email_template.updated",
-                status=AuditStatus.SUCCESS,
-                target_type="email_template",
-                target_id=template.id,
-                context={"key": template.key},
-                commit=True,
-            )
-            flash("Template saved.")
-            return redirect(url_for("admin.email_template_edit", key=key))
+            error = "Please correct the highlighted fields."
 
     return render_template(
         "admin_email_template_edit.html",
         template=template,
-        form_subject=form_subject,
-        form_body_text=form_body_text,
-        form_body_html=form_body_html,
+        form=form,
         error=error,
         preview_subject=preview_subject,
         preview_text=preview_text,
@@ -1732,161 +1813,6 @@ def _preview_context() -> dict[str, object]:
 
 
 # ---------------------------------------------------------------------------
-# Backups — list + manual trigger. Project brief, section 8.
-# ---------------------------------------------------------------------------
-
-
-@admin_bp.get("/backups")
-@require_superadmin_2fa
-def backups_list():
-    """Show recent backups, newest first."""
-
-    rows = (
-        Backup.query.order_by(Backup.created_at.desc())
-        .limit(100)
-        .all()
-    )
-    return render_template("admin_backups.html", rows=rows)
-
-
-@admin_bp.post("/backups/create")
-@require_superadmin_2fa
-def backups_create():
-    """Run a manual backup synchronously and redirect back to the list.
-
-    Backups are seconds-to-minutes; running the dump in-request keeps the
-    feedback loop tight (the page either flashes "completed" with a size or
-    "failed" with the error). For very large datasets a background job would
-    be a sensible upgrade, but the call site here would not change.
-    """
-
-    try:
-        backup = create_backup(
-            trigger=BackupTrigger.MANUAL,
-            actor_user_id=current_user.id,
-        )
-    except BackupError as err:
-        flash(f"Backup failed: {err}")
-        return redirect(url_for("admin.backups_list"))
-
-    flash(f"Backup created: {backup.filename} ({backup.size_human}).")
-    return redirect(url_for("admin.backups_list"))
-
-
-@admin_bp.get("/backups/<int:backup_id>/download")
-@require_superadmin_2fa
-def backups_download(backup_id: int):
-    """Stream a backup file to the superadmin's browser.
-
-    Project brief section 8: superadmin must be able to download a backup.
-    The file is served directly from ``BACKUP_DIR`` (validated against the
-    DB row to prevent path traversal). Every download is audited.
-    """
-
-    backup = Backup.query.get(backup_id)
-    if backup is None or backup.status != "success":
-        abort(404)
-
-    backup_dir = current_app.config.get("BACKUP_DIR", "/var/backups/pindora")
-    audit_record(
-        "backup.downloaded",
-        status=AuditStatus.SUCCESS,
-        target_type="backup",
-        target_id=backup.id,
-        context={"filename": backup.filename},
-        commit=True,
-    )
-    return send_from_directory(
-        directory=backup_dir,
-        path=backup.filename,
-        as_attachment=True,
-        download_name=backup.filename,
-    )
-
-
-@admin_bp.route("/backups/<int:backup_id>/restore", methods=["GET", "POST"])
-@require_superadmin_2fa
-def backups_restore(backup_id: int):
-    """Restore the database from a previously taken backup.
-
-    Per project brief section 8 the operator must confirm by re-entering
-    their password and a fresh TOTP code before the destructive load runs.
-    The view enforces that order: a GET shows the warning + form; the POST
-    re-validates the credentials, takes a safe-copy of the current state,
-    and then loads the chosen file inside a single transaction.
-    """
-
-    import pyotp
-
-    from app.audit import record as audit_record_local  # alias for clarity
-    from app.audit.models import AuditStatus as _AuditStatus
-    from app.users.models import User
-
-    backup = Backup.query.get(backup_id)
-    if backup is None:
-        abort(404)
-    if backup.status != "success":
-        abort(404)  # Only completed backups can be restored.
-
-    error: str | None = None
-
-    if request.method == "POST":
-        password = request.form.get("password") or ""
-        totp_code = (request.form.get("totp_code") or "").replace(" ", "").strip()
-
-        # Re-fetch the user so we read the password hash and totp_secret as
-        # they currently sit in the DB, not from the cached session object.
-        user: User = User.query.get(current_user.id)
-
-        # Step 1: password.
-        if not user or not user.check_password(password):
-            audit_record_local(
-                "backup.restore.auth_failed",
-                status=_AuditStatus.FAILURE,
-                target_type="backup",
-                target_id=backup.id,
-                context={"stage": "password"},
-                commit=True,
-            )
-            error = "Password did not match."
-        # Step 2: 2FA.
-        elif not user.totp_secret or not pyotp.TOTP(user.totp_secret).verify(
-            totp_code, valid_window=1
-        ):
-            audit_record_local(
-                "backup.restore.auth_failed",
-                status=_AuditStatus.FAILURE,
-                target_type="backup",
-                target_id=backup.id,
-                context={"stage": "2fa"},
-                commit=True,
-            )
-            error = "Verification code did not match."
-        else:
-            # Step 3: safe-copy + restore.
-            try:
-                safe_copy = restore_backup(
-                    filename=backup.filename,
-                    actor_user_id=current_user.id,
-                )
-            except BackupError as err:
-                flash(f"Restore failed: {err}")
-                return redirect(url_for("admin.backups_list"))
-
-            flash(
-                f"Restore complete from {backup.filename}. A safe-copy of the "
-                f"previous state was saved as {safe_copy.filename}."
-            )
-            return redirect(url_for("admin.backups_list"))
-
-    return render_template(
-        "admin_backup_restore.html",
-        backup=backup,
-        error=error,
-    )
-
-
-# ---------------------------------------------------------------------------
 # Settings — list + edit + create. Project brief, section 9.
 # ---------------------------------------------------------------------------
 
@@ -1910,47 +1836,35 @@ def settings_new():
     """Create a new setting row (key + type are required and immutable later)."""
 
     error: str | None = None
-    form = {
-        "key": "",
-        "value": "",
-        "type": SettingType.STRING,
-        "description": "",
-        "is_secret": False,
-    }
+    form = SettingForm()
+    form.type.data = form.type.data or SettingType.STRING
 
-    if request.method == "POST":
-        form["key"] = (request.form.get("key") or "").strip()
-        form["value"] = request.form.get("value") or ""
-        form["type"] = (request.form.get("type") or SettingType.STRING).strip()
-        form["description"] = (request.form.get("description") or "").strip()
-        form["is_secret"] = bool(request.form.get("is_secret"))
-
-        if not form["key"]:
-            error = "Key is required."
-        elif form["type"] not in SettingType.ALL:
-            error = f"Type must be one of: {', '.join(SettingType.ALL)}."
-        elif settings_service.find(form["key"]) is not None:
-            error = f"A setting with key {form['key']!r} already exists."
+    if form.validate_on_submit():
+        setting_key = form.key.data.strip()
+        setting_type = form.type.data
+        if settings_service.find(setting_key) is not None:
+            error = f"A setting with key {setting_key!r} already exists."
         else:
             try:
                 settings_service.set_value(
-                    form["key"],
-                    _coerce_form_value(form["value"], form["type"]),
-                    type_=form["type"],
-                    description=form["description"],
-                    is_secret=form["is_secret"],
+                    setting_key,
+                    _coerce_form_value(form.value.data or "", setting_type),
+                    type_=setting_type,
+                    description=(form.description.data or "").strip(),
+                    is_secret=bool(form.is_secret.data),
                     actor_user_id=current_user.id,
                 )
             except settings_service.SettingValueError as err:
-                error = f"Invalid value for type {form['type']!r}: {err}"
+                error = f"Invalid value for type {setting_type!r}: {err}"
             else:
-                flash(f"Setting {form['key']!r} created.")
-                return redirect(url_for("admin.settings_edit", key=form["key"]))
+                flash(f"Setting {setting_key!r} created.")
+                return redirect(url_for("admin.settings_edit", key=setting_key))
+    elif request.method == "POST":
+        error = "Please correct the highlighted fields."
 
     return render_template(
         "admin_settings_new.html",
         form=form,
-        types=SettingType.ALL,
         error=error,
     )
 
@@ -1965,50 +1879,61 @@ def settings_edit(key: str):
         abort(404)
 
     error: str | None = None
-    if row.is_secret:
-        form_value = ""
-    else:
-        form_value = settings_service.mask_for_display(row)
-
-    form_description = row.description
-    form_is_secret = row.is_secret
+    form = SettingForm(obj=row)
+    form.key.data = row.key
+    form.type.data = row.type
+    reveal_value = None
+    if request.method == "GET":
+        form.value.data = "" if row.is_secret else settings_service.mask_for_display(row)
+        form.description.data = row.description
+        form.is_secret.data = row.is_secret
 
     if request.method == "POST":
-        form_value = request.form.get("value") or ""
-        form_description = (request.form.get("description") or "").strip()
-        form_is_secret = bool(request.form.get("is_secret"))
-
-        if row.is_secret and form_value == "":
-            new_value = settings_service.get(row.key)
-        else:
-            try:
-                new_value = _coerce_form_value(form_value, row.type)
-            except (ValueError, settings_service.SettingValueError) as err:
-                error = f"Invalid value for type {row.type!r}: {err}"
-                new_value = None
-
-        if error is None:
-            try:
-                settings_service.set_value(
-                    row.key,
-                    new_value,
-                    description=form_description,
-                    is_secret=form_is_secret,
-                    actor_user_id=current_user.id,
-                )
-            except settings_service.SettingValueError as err:
-                error = str(err)
+        post_action = (request.form.get("action") or "save").strip().lower()
+        if post_action == "reveal":
+            code = (request.form.get("reveal_code") or "").replace(" ", "").strip()
+            if not _verify_fresh_2fa_code(code):
+                error = "A valid fresh 2FA code is required to reveal this secret."
+                form.value.data = ""
             else:
-                flash("Setting saved.")
-                return redirect(url_for("admin.settings_edit", key=row.key))
+                reveal_value = settings_service.get(row.key, default="")
+                form.value.data = reveal_value if reveal_value is not None else ""
+        if post_action == "reveal":
+            pass
+        elif form.validate():
+            submitted_value = form.value.data or ""
+            if row.is_secret and submitted_value == "":
+                new_value = settings_service.get(row.key)
+            else:
+                try:
+                    new_value = _coerce_form_value(submitted_value, row.type)
+                except (ValueError, settings_service.SettingValueError) as err:
+                    error = f"Invalid value for type {row.type!r}: {err}"
+                    new_value = None
+
+            if error is None:
+                try:
+                    settings_service.set_value(
+                        row.key,
+                        new_value,
+                        description=(form.description.data or "").strip(),
+                        is_secret=bool(form.is_secret.data),
+                        actor_user_id=current_user.id,
+                    )
+                except settings_service.SettingValueError as err:
+                    error = str(err)
+                else:
+                    flash("Setting saved.")
+                    return redirect(url_for("admin.settings_edit", key=row.key))
+        else:
+            error = "Please correct the highlighted fields."
 
     return render_template(
         "admin_settings_edit.html",
         setting=row,
-        form_value=form_value,
-        form_description=form_description,
-        form_is_secret=form_is_secret,
+        form=form,
         error=error,
+        reveal_value=reveal_value,
     )
 
 
@@ -2027,6 +1952,20 @@ def _coerce_form_value(raw: str, type_: str):
     return raw
 
 
+def _verify_fresh_2fa_code(code: str) -> bool:
+    if not code:
+        return False
+    if current_user.verify_totp(code):
+        return True
+    if current_user.consume_backup_code(code):
+        db.session.commit()
+        return True
+    if TwoFactorEmailCode.consume_active_code(user_id=current_user.id, raw_code=code):
+        db.session.commit()
+        return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Users -- superadmin CRUD. Project brief section 3.
 # ---------------------------------------------------------------------------
@@ -2043,37 +1982,22 @@ def users_list():
 @require_superadmin_2fa
 def users_new():
     organizations = Organization.query.order_by(Organization.name.asc()).all()
-    form = {
-        "email": "",
-        "role": UserRole.USER.value,
-        "organization_id": "",
-        "password": "",
-    }
+    form = UserCreateForm()
+    form.role.data = form.role.data or UserRole.USER.value
+    form.organization_id.choices = [(o.id, o.name) for o in organizations]
     error: str | None = None
 
-    if request.method == "POST":
-        form["email"] = (request.form.get("email") or "").strip().lower()
-        form["role"] = (request.form.get("role") or UserRole.USER.value).strip()
-        form["organization_id"] = (request.form.get("organization_id") or "").strip()
-        form["password"] = request.form.get("password") or ""
-
-        if not form["email"] or "@" not in form["email"]:
-            error = "Valid email is required."
-        elif form["role"] not in {r.value for r in UserRole}:
-            error = "Role is not valid."
-        elif not form["organization_id"]:
-            error = "Organization is required."
-        elif len(form["password"]) < 12:
-            error = "Password must be at least 12 characters."
-        elif User.query.filter_by(email=form["email"]).first() is not None:
-            error = f"User '{form['email']}' already exists."
+    if form.validate_on_submit():
+        normalized_email = form.email.data.strip().lower()
+        if User.query.filter_by(email=normalized_email).first() is not None:
+            error = f"User '{normalized_email}' already exists."
         else:
             try:
                 user = admin_service.create_user(
-                    email=form["email"],
-                    password=form["password"],
-                    role=form["role"],
-                    organization_id=int(form["organization_id"]),
+                    email=normalized_email,
+                    password=form.password.data,
+                    role=form.role.data,
+                    organization_id=form.organization_id.data,
                     actor_type=ActorType.USER,
                     actor_id=current_user.id,
                     actor_email=current_user.email,
@@ -2083,6 +2007,8 @@ def users_new():
             else:
                 flash(f"User {user.email} created.")
                 return redirect(url_for("admin.users_list"))
+    elif request.method == "POST":
+        error = "Please correct the highlighted fields."
 
     return render_template(
         "admin_user_form.html",
@@ -2100,71 +2026,77 @@ def users_new():
 def users_edit(user_id: int):
     target_user = User.query.get_or_404(user_id)
     organizations = Organization.query.order_by(Organization.name.asc()).all()
-    form = {
-        "email": target_user.email,
-        "role": target_user.role,
-        "organization_id": str(target_user.organization_id),
-        "password": "",
-    }
+    form = UserEditForm(obj=target_user)
+    form.organization_id.choices = [(o.id, o.name) for o in organizations]
+    if request.method == "GET":
+        form.organization_id.data = target_user.organization_id
+        form.role.data = target_user.role
+        form.is_active.data = target_user.is_active
     error: str | None = None
 
-    if request.method == "POST":
-        new_role = (request.form.get("role") or target_user.role).strip()
-        new_org_id = (request.form.get("organization_id") or "").strip()
-        new_password = request.form.get("password") or ""
-
-        form["role"] = new_role
-        form["organization_id"] = new_org_id
-
-        if new_role not in {r.value for r in UserRole}:
-            error = "Role is not valid."
-        elif not new_org_id:
-            error = "Organization is required."
-        elif new_password and len(new_password) < 12:
-            error = "Password (if changed) must be at least 12 characters."
-        else:
-            old_role = target_user.role
-            old_org_id = target_user.organization_id
-            try:
-                target_user.organization_id = int(new_org_id)
-                if new_password:
-                    admin_service.change_password(
-                        user_id=target_user.id,
-                        new_password=new_password,
-                        actor_type=ActorType.USER,
-                        actor_id=current_user.id,
-                        actor_email=current_user.email,
-                        commit=False,
-                    )
-                if old_role != new_role:
-                    admin_service.update_user_role(
-                        user_id=target_user.id,
-                        new_role=new_role,
-                        actor_type=ActorType.USER,
-                        actor_id=current_user.id,
-                        actor_email=current_user.email,
-                        commit=False,
-                    )
-            except admin_service.UserServiceError as err:
-                db.session.rollback()
-                error = str(err)
-            else:
-                audit_record(
-                    "user.updated",
-                    status=AuditStatus.SUCCESS,
+    if form.validate_on_submit():
+        old_role = target_user.role
+        old_org_id = target_user.organization_id
+        old_is_active = target_user.is_active
+        try:
+            target_user.organization_id = form.organization_id.data
+            if form.password.data:
+                admin_service.change_password(
+                    user_id=target_user.id,
+                    new_password=form.password.data,
                     actor_type=ActorType.USER,
                     actor_id=current_user.id,
                     actor_email=current_user.email,
-                    target_type="user",
-                    target_id=target_user.id,
-                    context={
-                        "old_organization_id": old_org_id,
-                        "new_organization_id": target_user.organization_id,
-                    },
-                    commit=True,
+                    commit=False,
                 )
-                flash("User updated.")
-                return redirect(url_for("admin.users_list"))
+            if old_role != form.role.data:
+                admin_service.update_user_role(
+                    user_id=target_user.id,
+                    new_role=form.role.data,
+                    actor_type=ActorType.USER,
+                    actor_id=current_user.id,
+                    actor_email=current_user.email,
+                    commit=False,
+                )
+            if old_is_active != form.is_active.data:
+                if form.is_active.data:
+                    admin_service.reactivate_user(
+                        user_id=target_user.id,
+                        actor_type=ActorType.USER,
+                        actor_id=current_user.id,
+                        actor_email=current_user.email,
+                        commit=False,
+                    )
+                else:
+                    admin_service.deactivate_user(
+                        user_id=target_user.id,
+                        actor_type=ActorType.USER,
+                        actor_id=current_user.id,
+                        actor_email=current_user.email,
+                        commit=False,
+                    )
+        except admin_service.UserServiceError as err:
+            db.session.rollback()
+            error = str(err)
+        else:
+            audit_record(
+                "user.updated",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.USER,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                target_type="user",
+                target_id=target_user.id,
+                context={
+                    "old_organization_id": old_org_id,
+                    "new_organization_id": target_user.organization_id,
+                },
+                commit=True,
+            )
+            flash("User updated.")
+            return redirect(url_for("admin.users_list"))
+    elif request.method == "POST":
+        error = "Please correct the highlighted fields."
 
     return render_template(
         "admin_user_form.html",
@@ -2224,17 +2156,15 @@ def organizations_list():
 @admin_bp.route("/organizations/new", methods=["GET", "POST"])
 @require_superadmin_2fa
 def organizations_new():
-    form = {"name": ""}
+    form = OrganizationForm()
     error: str | None = None
 
-    if request.method == "POST":
-        form["name"] = (request.form.get("name") or "").strip()
-        if not form["name"]:
-            error = "Name is required."
-        elif Organization.query.filter_by(name=form["name"]).first() is not None:
-            error = f"Organization '{form['name']}' already exists."
+    if form.validate_on_submit():
+        org_name = form.name.data.strip()
+        if Organization.query.filter_by(name=org_name).first() is not None:
+            error = f"Organization '{org_name}' already exists."
         else:
-            org = Organization(name=form["name"])
+            org = Organization(name=org_name)
             db.session.add(org)
             db.session.flush()
             audit_record(
@@ -2250,6 +2180,8 @@ def organizations_new():
             )
             flash(f"Organization '{org.name}' created.")
             return redirect(url_for("admin.organizations_list"))
+    elif request.method == "POST":
+        error = "Please correct the highlighted fields."
 
     return render_template(
         "admin_organization_form.html",
@@ -2264,29 +2196,27 @@ def organizations_new():
 @require_superadmin_2fa
 def organizations_edit(org_id: int):
     org = Organization.query.get_or_404(org_id)
-    form = {"name": org.name}
+    form = OrganizationForm(obj=org)
     error: str | None = None
 
-    if request.method == "POST":
-        form["name"] = (request.form.get("name") or "").strip()
-        if not form["name"]:
-            error = "Name is required."
-        else:
-            old_name = org.name
-            org.name = form["name"]
-            audit_record(
-                "organization.updated",
-                status=AuditStatus.SUCCESS,
-                actor_type=ActorType.USER,
-                actor_id=current_user.id,
-                actor_email=current_user.email,
-                target_type="organization",
-                target_id=org.id,
-                context={"old_name": old_name, "new_name": org.name},
-                commit=True,
-            )
-            flash("Organization updated.")
-            return redirect(url_for("admin.organizations_list"))
+    if form.validate_on_submit():
+        old_name = org.name
+        org.name = form.name.data.strip()
+        audit_record(
+            "organization.updated",
+            status=AuditStatus.SUCCESS,
+            actor_type=ActorType.USER,
+            actor_id=current_user.id,
+            actor_email=current_user.email,
+            target_type="organization",
+            target_id=org.id,
+            context={"old_name": old_name, "new_name": org.name},
+            commit=True,
+        )
+        flash("Organization updated.")
+        return redirect(url_for("admin.organizations_list"))
+    elif request.method == "POST":
+        error = "Please correct the highlighted fields."
 
     return render_template(
         "admin_organization_form.html",
@@ -2315,44 +2245,26 @@ def api_keys_list():
 def api_keys_new():
     organizations = Organization.query.order_by(Organization.name.asc()).all()
     users = User.query.filter_by(is_active=True).order_by(User.email.asc()).all()
-    form = {
-        "name": "",
-        "organization_id": "",
-        "user_id": "",
-        "scopes": "",
-        "expires_days": "",
-    }
+    form = ApiKeyForm()
+    form.organization_id.choices = [(o.id, o.name) for o in organizations]
+    form.user_id.choices = [(0, "-- none (org-scoped) --")] + [(u.id, u.email) for u in users]
     error: str | None = None
 
-    if request.method == "POST":
-        form["name"] = (request.form.get("name") or "").strip()
-        form["organization_id"] = (request.form.get("organization_id") or "").strip()
-        form["user_id"] = (request.form.get("user_id") or "").strip()
-        form["scopes"] = (request.form.get("scopes") or "").strip()
-        form["expires_days"] = (request.form.get("expires_days") or "").strip()
-
-        expires_at = None
-        if not form["name"]:
-            error = "Name is required."
-        elif not form["organization_id"]:
-            error = "Organization is required."
-        elif form["expires_days"]:
-            try:
-                days = int(form["expires_days"])
-                if days <= 0:
-                    raise ValueError
-            except ValueError:
-                error = "Expires (days) must be a positive integer."
-            else:
-                from datetime import datetime, timedelta, timezone as _tz
-                expires_at = datetime.now(_tz.utc) + timedelta(days=days)
-
+    if form.validate_on_submit():
+        selected_user_id = form.user_id.data if form.user_id.data and form.user_id.data > 0 else None
+        expires_at = form.expires_at.data
+        if selected_user_id is not None:
+            selected_user = User.query.get(selected_user_id)
+            if selected_user is None:
+                error = "Selected user does not exist."
+            elif selected_user.organization_id != form.organization_id.data:
+                error = "Selected user must belong to the selected organization."
         if error is None:
             api_key, raw_key = ApiKey.issue(
-                name=form["name"],
-                organization_id=int(form["organization_id"]),
-                user_id=int(form["user_id"]) if form["user_id"] else None,
-                scopes=form["scopes"],
+                name=form.name.data.strip(),
+                organization_id=form.organization_id.data,
+                user_id=selected_user_id,
+                scopes=(form.scopes.data or "").strip(),
                 expires_at=expires_at,
             )
             db.session.add(api_key)
@@ -2376,6 +2288,8 @@ def api_keys_new():
                 "API key issued. The plaintext is shown once below -- copy it now."
             )
             return redirect(url_for("admin.api_keys_list", show_raw=raw_key))
+    elif request.method == "POST":
+        error = "Please correct the highlighted fields."
 
     return render_template(
         "admin_api_key_form.html",
@@ -2428,3 +2342,16 @@ def api_keys_delete(key_id: int):
     )
     flash(f"API key {prefix} deleted.")
     return redirect(url_for("admin.api_keys_list"))
+
+
+@admin_bp.get("/api-keys/<int:key_id>/usage")
+@require_superadmin_2fa
+def api_keys_usage(key_id: int):
+    api_key = ApiKey.query.get_or_404(key_id)
+    rows = (
+        ApiKeyUsage.query.filter_by(api_key_id=api_key.id)
+        .order_by(ApiKeyUsage.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return render_template("admin/api_key_usage.html", api_key=api_key, rows=rows)

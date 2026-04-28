@@ -7,12 +7,13 @@ Minimum surface required by the project brief (section 6):
 """
 from __future__ import annotations
 
-from flask import g, request
+from flask import Response, g, request
 
 from app.api import api_bp
 from app.api.auth import require_api_key
 from app.api.schemas import json_error, json_ok
 from app.billing import services as billing_service
+from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
 from app.properties import services as property_service
 from app.reservations import services as reservation_service
@@ -175,6 +176,19 @@ def create_unit(property_id: int):
     except property_service.PropertyServiceError as err:
         return json_error(err.code, err.message, status=err.status)
     return json_ok(data, status=201)
+
+
+@api_bp.get("/units/<int:unit_id>/calendar.ics")
+def export_unit_calendar_ics(unit_id: int):
+    token = (request.args.get("token") or "").strip()
+    service = IcalService()
+    try:
+        if not service.verify_unit_token(unit_id=unit_id, token=token):
+            return json_error("forbidden", "Invalid calendar token.", status=403)
+        payload = service.export_unit_calendar(unit_id=unit_id)
+    except IcalServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return Response(payload, mimetype="text/calendar; charset=utf-8")
 
 
 @api_bp.get("/reservations")

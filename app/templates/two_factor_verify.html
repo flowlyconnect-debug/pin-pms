@@ -3,23 +3,54 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>2FA Verify</title>
+    <title>Vahvista kirjautuminen — Pindora PMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
   </head>
-  <body>
-    <h1>Verify 2FA</h1>
-    <p>Enter the 6-digit code from your authenticator app.</p>
+  <body class="pms-login-page">
+    <a class="pms-login-skip" href="#pms-login-main">Siirry vahvistukseen</a>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <p style="color: red;">{{ messages[0] }}</p>
-      {% endif %}
-    {% endwith %}
+    <header class="pms-login-nav">
+      <a class="pms-login-brand" href="{{ url_for('core.index') }}" aria-label="Pindora PMS etusivu">
+        <span class="pms-login-brand-mark" aria-hidden="true"></span>
+        <span>Pindora PMS</span>
+      </a>
+      <nav class="pms-login-nav-links" aria-label="Sivu">
+        <a href="{{ url_for('auth.login') }}">Kirjaudu</a>
+      </nav>
+    </header>
 
-    <form method="post" action="/2fa/verify">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="code">Verification code</label>
-      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
-      <button type="submit">Verify</button>
-    </form>
+    <main id="pms-login-main" class="pms-login-main">
+      <section class="pms-login-hero" aria-labelledby="pms-login-headline">
+        <h1 id="pms-login-headline">Vahvista kirjautuminen</h1>
+        <p class="pms-login-subtitle">Syötä sovelluksen antama kuusinumeroinen koodi.</p>
+      </section>
+
+      <section class="pms-login-card" aria-labelledby="pms-2fa-verify-title">
+        <h2 id="pms-2fa-verify-title" class="pms-login-card-title">Vahvista kirjautuminen</h2>
+        <p class="pms-login-card-lead">Syötä sovelluksen antama kuusinumeroinen koodi.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="pms-login-alerts" role="status" aria-live="polite" aria-label="Ilmoitukset">
+              {% for category, m in messages %}
+                <p class="pms-login-alert pms-login-alert--{% if category == 'error' %}error{% elif category == 'success' %}success{% else %}info{% endif %}">{{ m }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <form method="post" action="/2fa/verify">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="pms-login-field">
+            <label for="code">Vahvistuskoodi</label>
+            <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+          </div>
+          <button class="pms-login-submit" type="submit">Vahvista</button>
+        </form>
+
+        <p class="pms-login-forgot"><a href="{{ url_for('auth.login') }}">Takaisin kirjautumiseen</a></p>
+        <p class="pms-login-forgot"><a href="{{ url_for('auth.two_factor_email_code') }}">Lähetä koodi sähköpostiin</a></p>
+      </section>
+    </main>
   </body>
 </html>

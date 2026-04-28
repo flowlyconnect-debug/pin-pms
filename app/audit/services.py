@@ -21,6 +21,7 @@ Design notes
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional
 
 from sqlalchemy.orm.exc import DetachedInstanceError, ObjectDeletedError
@@ -171,3 +172,26 @@ def record(
         except Exception:  # noqa: BLE001
             pass
         return None
+
+
+def vacuum_audit_logs(*, keep_days: int) -> int:
+    """Delete audit rows older than ``keep_days`` and write a vacuum audit row."""
+    days = int(keep_days or 0)
+    if days <= 0:
+        raise ValueError("keep_days must be a positive integer.")
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    deleted = AuditLog.query.filter(AuditLog.created_at < cutoff).delete(
+        synchronize_session=False
+    )
+    db.session.commit()
+
+    record(
+        "audit.logs.vacuumed",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.SYSTEM,
+        target_type="audit_log",
+        context={"deleted_count": int(deleted or 0), "keep_days": days},
+        commit=True,
+    )
+    return int(deleted or 0)

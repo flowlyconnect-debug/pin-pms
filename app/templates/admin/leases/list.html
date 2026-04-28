@@ -1,43 +1,53 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Leases · Pindora PMS{% endblock %}
+{% block title %}Vuokrasopimukset · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn" href="{{ url_for('admin.leases_new') }}">New lease</a>
+    <a class="btn" href="{{ url_for('admin.leases_new') }}">Luo vuokra</a>
   </div>
-  <h1>Leases</h1>
-  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <h1>Vuokrasopimukset</h1>
+  <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
   <table>
     <thead>
       <tr>
         <th>ID</th>
-        <th>Unit</th>
-        <th>Guest</th>
-        <th>Dates</th>
+        <th>Huone</th>
+        <th>Asiakas</th>
+        <th>Päivät</th>
         <th>Rent</th>
         <th>Cycle</th>
-        <th>Status</th>
-        <th>Actions</th>
+        <th>Tila</th>
+        <th>Toiminnot</th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
-        <tr>
+        <tr class="table-row-link" data-href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">
           <td>{{ row.id }}</td>
           <td>{{ row.property_name or "—" }} / {{ row.unit_name or row.unit_id }}</td>
           <td>{{ row.guest_name or "—" }} (#{{ row.guest_id }})</td>
           <td>{{ row.start_date }}{% if row.end_date %} → {{ row.end_date }}{% else %} → …{% endif %}</td>
           <td>{{ row.rent_amount }}</td>
           <td>{{ row.billing_cycle }}</td>
-          <td>{{ row.status }}</td>
           <td>
-            <a href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">View</a>
-            · <a href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Edit</a>
+            {% if row.status in ["active"] %}
+              <span class="status-badge status-green">{{ row.status }}</span>
+            {% elif row.status in ["peruttu"] %}
+              <span class="status-badge status-red">{{ row.status }}</span>
+            {% elif row.status in ["draft"] %}
+              <span class="status-badge status-blue">{{ row.status }}</span>
+            {% else %}
+              <span class="status-badge status-gray">{{ row.status }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">Näytä</a>
+            · <a href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Muokkaa</a>
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="8"><em>No leases yet.</em></td></tr>
+        <tr><td colspan="8" class="empty-state"><em>Ei leases yet.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.leases_new') }}">Luo vuokra</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -1,38 +1,226 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Admin Dashboard · Pindora PMS{% endblock %}
+{% block title %}Admin dashboard · Pindora PMS{% endblock %}
 
 {% block content %}
   <h1>Admin dashboard</h1>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.7rem;margin-bottom:1rem;">
-    <div class="card"><strong>Total properties</strong><div style="font-size:1.3rem;">{{ summary.total_properties }}</div></div>
-    <div class="card"><strong>Total units</strong><div style="font-size:1.3rem;">{{ summary.total_units }}</div></div>
-    <div class="card"><strong>Active reservations</strong><div style="font-size:1.3rem;">{{ summary.active_reservations }}</div></div>
-    <div class="card"><strong>Cancelled reservations</strong><div style="font-size:1.3rem;">{{ summary.cancelled_reservations }}</div></div>
-    <div class="card"><strong>Occupancy % (today)</strong><div style="font-size:1.3rem;">{{ summary.occupancy_percent }}</div></div>
-    <div class="card"><strong>Arrivals today</strong><div style="font-size:1.3rem;">{{ summary.arrivals_today }}</div></div>
-    <div class="card"><strong>Departures today</strong><div style="font-size:1.3rem;">{{ summary.departures_today }}</div></div>
-    <div class="card"><strong>Current guests</strong><div style="font-size:1.3rem;">{{ summary.current_guests }}</div></div>
-    <div class="card"><strong>Upcoming reservations</strong><div style="font-size:1.3rem;">{{ summary.upcoming_reservations }}</div></div>
+  <div class="admin-kpi-grid">
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🏨</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Total properties</span>
+          <span class="admin-kpi-value">{{ summary.total_properties }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🚪</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Total units</span>
+          <span class="admin-kpi-value">{{ summary.total_units }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">✅</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Active reservations</span>
+          <span class="admin-kpi-value">{{ summary.active_reservations }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">✖</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Cancelled reservations</span>
+          <span class="admin-kpi-value">{{ summary.cancelled_reservations }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">📈</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Occupancy % (today)</span>
+          <span class="admin-kpi-value">{{ summary.occupancy_percent }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🛬</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Saapuvat tänään</span>
+          <span class="admin-kpi-value">{{ summary.arrivals_today }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🛫</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Lähtevät tänään</span>
+          <span class="admin-kpi-value">{{ summary.departures_today }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🧑</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Asiakkaita nyt</span>
+          <span class="admin-kpi-value">{{ summary.current_guests }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🗓</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Tulevat varaukset</span>
+          <span class="admin-kpi-value">{{ summary.upcoming_reservations }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🧾</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Aktiiviset vuokrasopimukset</span>
+          <span class="admin-kpi-value">{{ summary.active_leases }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">💳</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Avoimet laskut</span>
+          <span class="admin-kpi-value">{{ summary.open_invoices }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card admin-kpi-card--danger">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">⚠</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Myöhässä olevat laskut</span>
+          <span class="admin-kpi-value">{{ summary.overdue_invoices }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🛠</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Avoimet huollot</span>
+          <span class="admin-kpi-value">{{ summary.open_maintenance_requests }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card admin-kpi-card--danger">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">🚨</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Kiireelliset huollot</span>
+          <span class="admin-kpi-value">{{ summary.Kiireellinen_maintenance_requests }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-kpi-card">
+      <div class="admin-kpi-top">
+        <div class="admin-kpi-icon" aria-hidden="true">⏳</div>
+        <div class="admin-kpi-body">
+          <span class="admin-kpi-label">Päättyvät 7 vrk</span>
+          <span class="admin-kpi-value">{{ summary.leases_ending_next_7_days }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Top 5 myöhässä</h2>
+  <div class="admin-table-panel">
+    <table>
+      <thead>
+        <tr><th>Lasku</th><th>Eräpäivä</th><th>Summa</th><th>Tila</th></tr>
+      </thead>
+      <tbody>
+        {% for row in summary.top_overdue_invoices %}
+          <tr class="table-row-link" data-href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">
+            <td><a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">{{ row.invoice_number or ("#" ~ row.id) }}</a></td>
+            <td>{{ row.due_date or "—" }}</td>
+            <td>{{ row.amount }} {{ row.currency }}</td>
+            <td><span class="status-badge status-red">{{ row.status }}</span></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="empty-state"><em>Ei myöhässä olevia laskuja.</em><div class="actions"><a class="btn btn-secondary" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Top 5 kiireellistä/avointa huoltoa</h2>
+  <div class="admin-table-panel">
+    <table>
+      <thead>
+        <tr><th>Pyyntö</th><th>Prioriteetti</th><th>Tila</th><th>Eräpäivä</th></tr>
+      </thead>
+      <tbody>
+        {% for row in summary.top_open_maintenance_requests %}
+          <tr class="table-row-link" data-href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">
+            <td><a href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">#{{ row.id }} {{ row.title }}</a></td>
+            <td>
+              {% if row.priority in ["Kiireellinen", "Korkea"] %}
+                <span class="status-badge status-red">{{ row.priority }}</span>
+              {% elif row.priority == "Normaali" %}
+                <span class="status-badge status-amber">{{ row.priority }}</span>
+              {% else %}
+                <span class="status-badge status-gray">{{ row.priority }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.status == "resolved" %}
+                <span class="status-badge status-green">{{ row.status }}</span>
+              {% elif row.status == "peruttu" %}
+                <span class="status-badge status-red">{{ row.status }}</span>
+              {% elif row.status in ["in_progress", "waiting"] %}
+                <span class="status-badge status-amber">{{ row.status }}</span>
+              {% else %}
+                <span class="status-badge status-blue">{{ row.status }}</span>
+              {% endif %}
+            </td>
+            <td>{{ row.due_date or "—" }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="empty-state"><em>Ei kiireellisiä tai avoimia huoltoja.</em><div class="actions"><a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_new') }}">Luo pyyntö</a></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
   <h2>Latest audit events</h2>
-  <table>
-    <thead>
-      <tr><th>Time</th><th>Action</th><th>Status</th><th>Target</th></tr>
-    </thead>
-    <tbody>
-      {% for row in summary.latest_audit_events %}
-        <tr>
-          <td>{{ row.created_at or "" }}</td>
-          <td>{{ row.action }}</td>
-          <td>{{ row.status or "" }}</td>
-          <td>{% if row.target_type %}{{ row.target_type }}{% if row.target_id is not none %} #{{ row.target_id }}{% endif %}{% else %}—{% endif %}</td>
-        </tr>
-      {% else %}
-        <tr><td colspan="4"><em>No audit events yet.</em></td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="admin-table-panel">
+    <table>
+      <thead>
+        <tr><th>Aika</th><th>Toiminto</th><th>Tila</th><th>Kohde</th></tr>
+      </thead>
+      <tbody>
+        {% for row in summary.latest_audit_events %}
+          <tr>
+            <td>{{ row.created_at or "" }}</td>
+            <td>{{ row.action }}</td>
+            <td>{{ row.status or "" }}</td>
+            <td>{% if row.target_type %}{{ row.target_type }}{% if row.target_id is not none %} #{{ row.target_id }}{% endif %}{% else %}—{% endif %}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="empty-state"><em>Ei audit-tapahtumia vielä.</em></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 {% endblock %}

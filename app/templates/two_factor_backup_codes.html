@@ -3,34 +3,33 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>2FA Recovery Codes</title>
+    <title>2FA-varakoodit</title>
   </head>
   <body>
-    <h1>Two-factor recovery codes</h1>
+    <h1>2FA-varakoodit</h1>
 
     {% if plaintext_codes %}
-      <p><strong>Save these one-time recovery codes now.</strong>
-      They will only be shown once. Use one in place of a 6-digit code if you
-      lose access to your authenticator app.</p>
+      <p><strong>Tallenna nämä kertakäyttöiset varakoodit nyt.</strong>
+      Ne näytetään vain kerran. Käytä varakoodia 6-numeroisen koodin sijaan,
+      jos et pääse tunnistussovellukseen.</p>
       <ul>
         {% for code in plaintext_codes %}
           <li><code>{{ code }}</code></li>
         {% endfor %}
       </ul>
-      <p>Store them in a secure place (password manager, sealed envelope).
-      Each code works exactly once.</p>
+      <p>Säilytä koodit turvallisesti (esim. salasanojen hallinnassa).
+      Jokainen koodi toimii vain kerran.</p>
     {% else %}
-      <p>You currently have <strong>{{ codes_remaining }}</strong> recovery
-      code(s) left.</p>
-      <p>If you have lost track of them, generate a new set below. The
-      previous codes will stop working as soon as the new set is issued.</p>
+      <p>Sinulla on tällä hetkellä <strong>{{ codes_remaining }}</strong> varakoodia jäljellä.</p>
+      <p>Jos et enää löydä koodeja, luo uusi koodisetti. Vanhat koodit
+      lakkaavat toimimasta heti, kun uusi setti luodaan.</p>
     {% endif %}
 
     <form method="post" action="{{ url_for('auth.two_factor_backup_codes') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit">Regenerate recovery codes</button>
+      <button type="submit">Luo uudet koodit</button>
     </form>
 
-    <p><a href="{{ url_for('auth.two_factor_verify') }}">Continue to verification →</a></p>
+    <p><a href="{{ url_for('auth.two_factor_verify') }}">Jatka vahvistukseen →</a></p>
   </body>
 </html>

@@ -1,28 +1,28 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Guest #{{ row.id }} · Pindora PMS{% endblock %}
+{% block title %}Asiakas #{{ row.id }} · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.guests_list') }}">Back to guests</a>
-    <a class="btn" href="{{ url_for('admin.guests_edit', guest_id=row.id) }}">Edit guest</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.guests_list') }}">Takaisin asiakkaisiin</a>
+    <a class="btn" href="{{ url_for('admin.guests_edit', guest_id=row.id) }}">Muokkaa guest</a>
   </div>
   <h1>{{ row.full_name }}</h1>
   <div class="card">
-    <p><strong>Email:</strong> {{ row.email or "—" }}</p>
-    <p><strong>Phone:</strong> {{ row.phone or "—" }}</p>
-    <p><strong>Notes:</strong> {{ row.notes or "—" }}</p>
-    <p><strong>Preferences:</strong> {{ row.preferences or "—" }}</p>
+    <p><strong>Sähköposti:</strong> {{ row.email or "—" }}</p>
+    <p><strong>Puhelin:</strong> {{ row.phone or "—" }}</p>
+    <p><strong>Huomiot:</strong> {{ row.notes or "—" }}</p>
+    <p><strong>Mieltymykset:</strong> {{ row.preferences or "—" }}</p>
   </div>
-  <h2>Reservation history</h2>
+  <h2>Varaus history</h2>
   <table>
     <thead>
       <tr>
         <th>ID</th>
-        <th>Property</th>
-        <th>Unit</th>
-        <th>Dates</th>
-        <th>Status</th>
+        <th>Kohde</th>
+        <th>Huone</th>
+        <th>Päivät</th>
+        <th>Tila</th>
       </tr>
     </thead>
     <tbody>
@@ -35,7 +35,7 @@
           <td>{{ reservation.status }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="5"><em>No reservations linked to this guest.</em></td></tr>
+        <tr><td colspan="5"><em>Ei tähän asiakkaaseen liitettyjä varauksia.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>

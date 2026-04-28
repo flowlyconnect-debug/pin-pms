@@ -1,20 +1,20 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Units · Pindora PMS{% endblock %}
+{% block title %}Huoneet · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.properties_detail', property_id=property_row.id) }}">Property</a>
-    <a class="btn" href="{{ url_for('admin.units_new', property_id=property_row.id) }}">New unit</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.properties_detail', property_id=property_row.id) }}">Kohde</a>
+    <a class="btn" href="{{ url_for('admin.units_new', property_id=property_row.id) }}">Uusi huone</a>
   </div>
-  <h1>Units for {{ property_row.name }}</h1>
+  <h1>Huoneet: {{ property_row.name }}</h1>
   <table>
     <thead>
       <tr>
         <th>ID</th>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Actions</th>
+        <th>Nimi</th>
+        <th>Tyyppi</th>
+        <th>Toiminnot</th>
       </tr>
     </thead>
     <tbody>
@@ -23,10 +23,14 @@
           <td>{{ row.id }}</td>
           <td>{{ row.name }}</td>
           <td>{{ row.unit_type or "" }}</td>
-          <td><a href="{{ url_for('admin.units_edit', unit_id=row.id) }}">Edit</a></td>
+          <td>
+            <a href="{{ url_for('admin.units_edit', unit_id=row.id) }}">Muokkaa</a>
+            ·
+            <a href="{{ url_for('admin.units_calendar_sync', unit_id=row.id) }}">Kalenterisynk</a>
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="4"><em>No units yet.</em></td></tr>
+        <tr><td colspan="4"><em>Ei huoneita vielä.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -1,16 +1,16 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Settings · Pindora PMS{% endblock %}
+{% block title %}Asetukset · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a href="{{ url_for('admin.settings_new') }}" class="btn">New setting</a>
+    <a href="{{ url_for('admin.settings_new') }}" class="btn">Uusi asetus</a>
   </div>
-  <h1>Settings</h1>
-  <p class="meta">Settings are read via <code>app.settings.services.get(key)</code>; saves are audited as <code>setting.updated</code>.</p>
+  <h1>Asetukset</h1>
+  <p class="meta">Asetukset luetaan <code>app.settings.services.get(key)</code>-kutsulla; tallennukset auditoidaan tapahtumana <code>setting.updated</code>.</p>
   <table>
     <thead>
-      <tr><th>Key</th><th>Value</th><th>Type</th><th>Description</th><th>Updated</th></tr>
+      <tr><th>Key</th><th>Value</th><th>Tyyppi</th><th>Kuvaus</th><th>Updated</th></tr>
     </thead>
     <tbody>
       {% for r in rows %}
@@ -22,7 +22,7 @@
           <td class="meta">{{ r.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="5">No settings yet.</td></tr>
+        <tr><td colspan="5">Ei asetuksia vielä.</td></tr>
       {% endfor %}
     </tbody>
   </table>

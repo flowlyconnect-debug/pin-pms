@@ -12,7 +12,7 @@
       font-size: 12px;
       line-height: 1.2;
     }
-    .fc-event-cancelled { opacity: .55; }
+    .fc-event-peruttu { opacity: .55; }
     .calendar-filters { margin-bottom: .75rem; display: flex; gap: 1.25rem; align-items: flex-end; flex-wrap: wrap; }
     .calendar-filters label { font-size: .875rem; color: #374151; }
     .calendar-filters select { margin-top: .25rem; min-width: 12rem; padding: .35rem .5rem; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; }
@@ -21,11 +21,21 @@
 
 {% block content %}
   <h1>Reservation calendar</h1>
-  <p class="meta">Drag a reservation to change dates (same property rules apply in the backend). Click opens details.</p>
+  <p class="meta">Vedä varausta muuttaaksesi päivämääriä (samat kohdesäännöt myös taustalla). Klikkaus avaa tiedot.</p>
   <div class="calendar-filters">
     <label>
-      Property
-      <select id="filter-property" aria-label="Filter by property">
+      Event type
+      <select id="filter-event-types" aria-label="Suodata tapahtumatyyppi">
+        <option value="reservations">Varaukset</option>
+        <option value="reservations,leases,invoices,maintenance">All</option>
+        <option value="leases">Vuokrasopimukset</option>
+        <option value="invoices">Laskut</option>
+        <option value="maintenance">Huolto</option>
+      </select>
+    </label>
+    <label>
+      Kohde
+      <select id="filter-property" aria-label="Suodata kohde">
         <option value="">All properties</option>
         {% for p in properties %}
           <option value="{{ p.id }}">{{ p.name }}</option>
@@ -33,8 +43,8 @@
       </select>
     </label>
     <label>
-      Unit
-      <select id="filter-unit" aria-label="Filter by unit">
+      Huone
+      <select id="filter-unit" aria-label="Suodata huone">
         <option value="">All units</option>
         {% for u in units %}
           <option value="{{ u.id }}" data-property-id="{{ u.property_id }}">{{ u.name }}</option>
@@ -48,6 +58,7 @@
       var el = document.getElementById("calendar");
       var propEl = document.getElementById("filter-property");
       var unitEl = document.getElementById("filter-unit");
+      var typeEl = document.getElementById("filter-event-types");
       var csrfMeta = document.querySelector('meta[name="csrf-token"]');
       var csrfToken = csrfMeta ? csrfMeta.getAttribute("content") : "";
 
@@ -92,6 +103,9 @@
         if (unitEl && unitEl.value) {
           params.unit_id = unitEl.value;
         }
+        if (typeEl && typeEl.value) {
+          params.event_types = typeEl.value;
+        }
         return params;
       }
 
@@ -118,25 +132,43 @@
           var props = info.event.extendedProps || {};
           var st = props.status;
           if (st === "cancelled") {
-            info.el.classList.add("fc-event-cancelled");
+            info.el.classList.add("fc-event-peruttu");
           }
           info.el.title =
-            "Guest: " + (props.guest_name || "") + "\n" +
-            "Property: " + (props.property_name || "") + "\n" +
-            "Unit: " + (props.unit_name || "") + "\n" +
-            "Status: " + (props.status || "") + "\n" +
-            "Start: " + (info.event.start ? info.event.start.toLocaleDateString() : "") + "\n" +
-            "End: " + (info.event.end ? info.event.end.toLocaleDateString() : "");
+            "Asiakas: " + (props.guest_name || "") + "\n" +
+            "Kohde: " + (props.property_name || "") + "\n" +
+            "Huone: " + (props.unit_name || "") + "\n" +
+            "Tila: " + (props.status || "") + "\n" +
+            "Alku: " + (info.event.start ? info.event.start.toLocaleDateString() : "") + "\n" +
+            "Loppu: " + (info.event.end ? info.event.end.toLocaleDateString() : "");
         },
         eventClick: function (info) {
           info.jsEvent.preventDefault();
           var rid = info.event.id;
-          if (rid !== undefined && rid !== null && rid !== "") {
+          if (
+            rid !== undefined &&
+            rid !== null &&
+            rid !== "" &&
+            /^\d+$/.test(String(rid))
+          ) {
             window.location.href = "/admin/reservations/" + String(rid);
+            return;
+          }
+          var targetUrl = info.event.url;
+          if (targetUrl) {
+            window.location.href = targetUrl;
           }
         },
         eventDrop: function (info) {
           var ev = info.event;
+          if (ev.extendedProps && ev.extendedProps.status && !ev.extendedProps.unit_id) {
+            info.revert();
+            return;
+          }
+          if (ev.editable === false) {
+            info.revert();
+            return;
+          }
           var start = ev.startStr ? ev.startStr.slice(0, 10) : null;
           var end = ev.endStr ? ev.endStr.slice(0, 10) : null;
           if (!start) {
@@ -150,7 +182,7 @@
           var unitId = props.unit_id;
           if (unitId === undefined || unitId === null) {
             info.revert();
-            alert("Missing unit for this reservation.");
+            alert("Huone puuttuu tältä varaukselta.");
             return;
           }
           var url = "/admin/reservations/" + String(ev.id) + "/move";
@@ -187,6 +219,10 @@
         },
         eventResize: function (info) {
           var ev = info.event;
+          if (ev.editable === false) {
+            info.revert();
+            return;
+          }
           var start = ev.startStr ? ev.startStr.slice(0, 10) : null;
           var end = ev.endStr ? ev.endStr.slice(0, 10) : null;
           if (!start || !end) {
@@ -235,6 +271,11 @@
       }
       if (unitEl) {
         unitEl.addEventListener("change", function () {
+          calendar.refetchEvents();
+        });
+      }
+      if (typeEl) {
+        typeEl.addEventListener("change", function () {
           calendar.refetchEvents();
         });
       }

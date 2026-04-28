@@ -1,53 +1,53 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Reservation #{{ row.id }} · Pindora PMS{% endblock %}
+{% block title %}Varaus #{{ row.id }} · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.calendar_page') }}">Calendar</a>
-    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Back to reservations</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.calendar_page') }}">Kalenteri</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Takaisin varauksiin</a>
     <a class="btn" href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='detail') }}">Edit reservation</a>
-    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_invoice_pdf', reservation_id=row.id) }}">Download invoice PDF</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_invoice_pdf', reservation_id=row.id) }}">Lataa lasku PDF</a>
   </div>
-  <h1>Reservation #{{ row.id }}</h1>
+  <h1>Varaus #{{ row.id }}</h1>
   <div class="card">
     <p>
-      <strong>Guest name:</strong> {{ row.guest_name }}
+      <strong>Asiakkaan nimi:</strong> {{ row.guest_name }}
       {% if row.guest_id %}
-        · <a href="{{ url_for('admin.guests_detail', guest_id=row.guest_id) }}">Open guest profile</a>
+        · <a href="{{ url_for('admin.guests_detail', guest_id=row.guest_id) }}">Avaa asiakasprofiili</a>
       {% endif %}
     </p>
-    <p><strong>Property:</strong> {{ row.property_name }}</p>
-    <p><strong>Unit:</strong> {{ row.unit_name }}</p>
-    <p><strong>Start date:</strong> {{ row.start_date }}</p>
-    <p><strong>End date:</strong> {{ row.end_date }}</p>
-    <p><strong>Status:</strong> {{ row.status }}</p>
-    <p><strong>Amount:</strong> {{ row.amount or "-" }}</p>
-    <p><strong>Currency:</strong> {{ row.currency }}</p>
+    <p><strong>Kohde:</strong> {{ row.property_name }}</p>
+    <p><strong>Huone:</strong> {{ row.unit_name }}</p>
+    <p><strong>Alkupäivä:</strong> {{ row.start_date }}</p>
+    <p><strong>Loppupäivä:</strong> {{ row.end_date }}</p>
+    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Summa:</strong> {{ row.amount or "-" }}</p>
+    <p><strong>Valuutta:</strong> {{ row.currency }}</p>
     <p><strong>Payment status:</strong> {{ row.payment_status }}</p>
-    <p><strong>Invoice number:</strong> {{ row.invoice_number or "-" }}</p>
-    <p><strong>Invoice date:</strong> {{ row.invoice_date or "-" }}</p>
-    <p><strong>Due date:</strong> {{ row.due_date or "-" }}</p>
+    <p><strong>Laskunumero:</strong> {{ row.invoice_number or "-" }}</p>
+    <p><strong>Laskun päivä:</strong> {{ row.invoice_date or "-" }}</p>
+    <p><strong>Eräpäivä:</strong> {{ row.due_date or "-" }}</p>
   </div>
   {% if row.payment_status != "paid" %}
-    <h2>Payment</h2>
+    <h2>Maksu</h2>
     <form method="post" action="{{ url_for('admin.reservations_mark_paid', reservation_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="actions">
-        <button type="submit" class="btn">Mark as paid</button>
+        <button type="submit" class="btn">Merkitse maksetuksi</button>
       </div>
     </form>
   {% endif %}
   {% if row.status != "cancelled" %}
-    <h2>Cancel reservation</h2>
+    <h2>Peruuta varaus</h2>
     <form method="post" action="{{ url_for('admin.reservations_cancel', reservation_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label><input type="checkbox" name="confirm_cancel" value="yes" required> I confirm cancellation</label>
+      <label><input type="checkbox" name="confirm_cancel" value="yes" required> Vahvistan peruutuksen</label>
       <div class="actions">
-        <button type="submit" class="btn-danger">Cancel reservation</button>
+        <button type="submit" class="btn-danger">Peruuta varaus</button>
       </div>
     </form>
   {% else %}
-    <p class="meta">This reservation is cancelled.</p>
+    <p class="meta">Tämä varaus on peruttu.</p>
   {% endif %}
 {% endblock %}

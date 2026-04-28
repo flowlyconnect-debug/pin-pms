@@ -1,31 +1,31 @@
 {% extends "admin/base.html" %}
 
-{% block title %}New Guest · Pindora PMS{% endblock %}
+{% block title %}Uusi asiakas · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.guests_list') }}">Back to guests</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.guests_list') }}">Takaisin asiakkaisiin</a>
   </div>
-  <h1>New guest</h1>
+  <h1>Uusi asiakas</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="first_name">First name</label>
+    <label for="first_name">Etunimi</label>
     <input id="first_name" name="first_name" type="text" required value="{{ form.first_name }}">
-    <label for="last_name">Last name</label>
+    <label for="last_name">Sukunimi</label>
     <input id="last_name" name="last_name" type="text" required value="{{ form.last_name }}">
-    <label for="email">Email</label>
+    <label for="email">Sähköposti</label>
     <input id="email" name="email" type="email" value="{{ form.email }}">
-    <label for="phone">Phone</label>
+    <label for="phone">Puhelin</label>
     <input id="phone" name="phone" type="text" value="{{ form.phone }}">
-    <label for="notes">Notes</label>
+    <label for="notes">Eites</label>
     <textarea id="notes" name="notes" rows="4">{{ form.notes }}</textarea>
-    <label for="preferences">Preferences</label>
+    <label for="preferences">Mieltymykset</label>
     <textarea id="preferences" name="preferences" rows="4">{{ form.preferences }}</textarea>
     <div class="actions">
-      <button type="submit">Create guest</button>
+      <button type="submit">Luo asiakas</button>
     </div>
   </form>
 {% endblock %}

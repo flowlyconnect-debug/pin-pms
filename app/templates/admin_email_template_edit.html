@@ -1,9 +1,9 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Edit {{ template.key }} · Pindora PMS{% endblock %}
+{% block title %}Muokkaa {{ template.key }} · Pindora PMS{% endblock %}
 
 {% block content %}
-  <h1>Edit <code>{{ template.key }}</code></h1>
+  <h1>Muokkaa <code>{{ template.key }}</code></h1>
   <p class="meta">{{ template.description }}</p>
   {% if template.available_variables %}
     <p class="meta"><strong>Available variables:</strong>
@@ -16,34 +16,34 @@
     <div class="error">{{ error }}</div>
   {% endif %}
   <form method="post" action="{{ url_for('admin.email_template_edit', key=template.key) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="subject">Subject</label>
-    <input id="subject" name="subject" type="text" required value="{{ form_subject }}">
-    <label for="body_text">Plain-text body (required)</label>
-    <textarea id="body_text" name="body_text" rows="10" required>{{ form_body_text }}</textarea>
-    <label for="body_html">HTML body (optional)</label>
-    <textarea id="body_html" name="body_html" rows="10">{{ form_body_html }}</textarea>
+    {{ form.hidden_tag() }}
+    {{ form.subject.label }}
+    {{ form.subject(required=true) }}
+    {{ form.body_text.label(text="Plain-text body (required)") }}
+    {{ form.body_text(rows="10", required=true) }}
+    {{ form.body_html.label(text="HTML body (optional)") }}
+    {{ form.body_html(rows="10") }}
     <div class="actions">
-      <button type="submit" name="action" value="save">Save</button>
-      <button type="submit" name="action" value="preview" class="btn-secondary">Preview</button>
+      <button type="submit" name="action" value="save">Tallenna</button>
+      <button type="submit" name="action" value="preview" class="btn-secondary">Esikatselu</button>
     </div>
   </form>
 
-  <h2>Send test email</h2>
+  <h2>Lähetä testiviesti</h2>
   <form method="post" action="{{ url_for('admin.email_template_test_send', key=template.key) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="test_to">Recipient</label>
-    <input id="test_to" name="to" type="email" placeholder="you@example.com" value="{{ current_user.email }}">
+    {{ form.csrf_token }}
+    <label for="test_to">Vastaanottaja</label>
+    <input id="test_to" name="to" type="email" placeholder="sinä@example.com" value="{{ current_user.email }}">
     <div class="actions">
-      <button type="submit" class="btn-secondary">Send test</button>
+      <button type="submit" class="btn-secondary">Lähetä testi</button>
     </div>
-    <p class="meta">Sends a one-off email using the saved template. Useful to verify Mailgun configuration and rendering after changes.</p>
+    <p class="meta">Lähettää kertaluonteisen viestin tallennetulla pohjalla. Hyödyllinen Mailgun-asetusten ja ulkoasun tarkistukseen muutosten jälkeen.</p>
   </form>
   {% if preview_subject is not none %}
-    <h2>Preview</h2>
+    <h2>Esikatselu</h2>
     <div class="card">
-      <p><strong>Subject:</strong> {{ preview_subject }}</p>
-      <p><strong>Plain text:</strong></p>
+      <p><strong>Aihe:</strong> {{ preview_subject }}</p>
+      <p><strong>Teksti:</strong></p>
       <pre>{{ preview_text }}</pre>
       {% if preview_html %}
         <p><strong>HTML:</strong></p>

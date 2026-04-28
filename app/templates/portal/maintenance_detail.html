@@ -1,0 +1,18 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Huolto #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Huolto #{{ row.id }}</h1>
+  <div class="card">
+    <p><strong>Otsikko:</strong> {{ row.title }}</p>
+    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Prioriteetti:</strong> {{ row.priority }}</p>
+    <p><strong>Kohde:</strong> {{ row.property_name }}</p>
+    <p><strong>Huone:</strong> {{ row.unit_name or "—" }}</p>
+    <p><strong>Eräpäivä:</strong> {{ row.due_date or "—" }}</p>
+    <p><strong>Kuvaus:</strong></p>
+    <p style="white-space:pre-wrap;">{{ row.description or "—" }}</p>
+  </div>
+{% endblock %}
+

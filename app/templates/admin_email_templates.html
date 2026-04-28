@@ -1,13 +1,13 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Email templates · Pindora PMS{% endblock %}
+{% block title %}Sähköpostipohjat · Pindora PMS{% endblock %}
 
 {% block content %}
-  <h1>Email templates</h1>
-  <p class="meta">Editable templates. Saves are logged as <code>email_template.updated</code>.</p>
+  <h1>Sähköpostipohjat</h1>
+  <p class="meta">Muokkaaable templates. Tallennas are logged as <code>email_template.updated</code>.</p>
   <table>
     <thead>
-      <tr><th>Key</th><th>Subject</th><th>Description</th><th>Updated</th></tr>
+      <tr><th>Key</th><th>Subject</th><th>Kuvaus</th><th>Updated</th></tr>
     </thead>
     <tbody>
       {% for t in templates %}

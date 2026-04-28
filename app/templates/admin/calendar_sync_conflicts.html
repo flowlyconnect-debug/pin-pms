@@ -1,0 +1,34 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Kalenteriristiriidat · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Kalenteri import conflicts</h1>
+  <p class="meta">Conflicts mean internal reservation dates overlap with imported iCal blocks.</p>
+
+  {% if rows %}
+    <table>
+      <thead>
+        <tr>
+          <th>Varaus</th>
+          <th>Huone</th>
+          <th>Internal dates</th>
+          <th>Imported block</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td><a href="{{ url_for('admin.reservations_detail', reservation_id=row.reservation_id) }}">#{{ row.reservation_id }}</a></td>
+            <td>{{ row.unit_id }}</td>
+            <td>{{ row.reservation_start }} - {{ row.reservation_end }}</td>
+            <td>{{ row.external_start }} - {{ row.external_end }}{% if row.external_summary %} ({{ row.external_summary }}){% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="meta">Ristiriitoja ei löytynyt.</p>
+  {% endif %}
+{% endblock %}
+

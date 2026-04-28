@@ -43,9 +43,9 @@
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.calendar_page') }}">Calendar</a>
-    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Reservations</a>
-    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">View reservation</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.calendar_page') }}">Kalenteri</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Varaukset</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">Näytä varaus</a>
   </div>
   <h1>Edit reservation #{{ row.id }}</h1>
   {% if error %}
@@ -56,34 +56,34 @@
     <input type="hidden" name="return_to" value="{{ form.return_to }}">
 
     <div class="guest-search-wrap">
-      <label for="guest_search">Guest</label>
+      <label for="guest_search">Asiakas</label>
       <input
         type="text"
         id="guest_search"
         name="guest_search"
-        placeholder="Search guest..."
+        placeholder="Hae asiakas..."
         autocomplete="off"
         value="{{ form.guest_search }}"
       >
       <input type="hidden" id="guest_id" name="guest_id" value="{{ form.guest_id }}">
       <div id="guest_search_results" class="guest-results" aria-live="polite"></div>
-      <button type="button" class="btn btn-secondary" id="guest_search_clear" style="margin-top: 0.35rem;">Clear guest selection</button>
+      <button type="button" class="btn btn-secondary" id="guest_search_clear" style="margin-top: 0.35rem;">Tyhjennä asiakas</button>
     </div>
 
     <label for="guest_name">Guest name</label>
     <input id="guest_name" name="guest_name" type="text" required autocomplete="off" value="{{ form.guest_name }}">
 
-    <label for="property_id">Property</label>
+    <label for="property_id">Kohde</label>
     <select id="property_id" name="property_id" required>
-      <option value="">Select property</option>
+      <option value="">Valitse kohde</option>
       {% for p in properties %}
         <option value="{{ p.id }}" {% if form.property_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
       {% endfor %}
     </select>
 
-    <label for="unit_id">Unit</label>
+    <label for="unit_id">Huone</label>
     <select id="unit_id" name="unit_id" required>
-      <option value="">Select unit</option>
+      <option value="">Valitse huone</option>
       {% for unit in units %}
         <option
           value="{{ unit.id }}"
@@ -93,26 +93,26 @@
       {% endfor %}
     </select>
 
-    <label for="start_date">Start date</label>
+    <label for="start_date">Alkupäivä</label>
     <input id="start_date" name="start_date" type="date" required value="{{ form.start_date }}">
 
-    <label for="end_date">End date</label>
+    <label for="end_date">Loppupäivä</label>
     <input id="end_date" name="end_date" type="date" required value="{{ form.end_date }}">
 
-    <label for="amount">Amount</label>
+    <label for="amount">Summa</label>
     <input id="amount" name="amount" type="number" min="0" step="0.01" value="{{ form.amount }}">
 
-    <label for="currency">Currency</label>
+    <label for="currency">Valuutta</label>
     <input id="currency" name="currency" type="text" maxlength="3" value="{{ form.currency or 'EUR' }}">
 
-    <label for="status">Status</label>
+    <label for="status">Tila</label>
     <select id="status" name="status" required>
-      <option value="confirmed" {% if form.status == "confirmed" %}selected{% endif %}>confirmed</option>
-      <option value="cancelled" {% if form.status == "cancelled" %}selected{% endif %}>cancelled</option>
+      <option value="confirmed" {% if form.status == "confirmed" %}selected{% endif %}>Vahvistettu</option>
+      <option value="cancelled" {% if form.status == "cancelled" %}selected{% endif %}>Peruttu</option>
     </select>
 
     <div class="actions">
-      <button type="submit">Save changes</button>
+      <button type="submit">Tallenna</button>
     </div>
   </form>
   <script>
@@ -121,7 +121,7 @@
       var unitSel = document.getElementById("unit_id");
       if (!prop || !unitSel) return;
 
-      function filterUnits() {
+      function filterHuoneet() {
         var pid = prop.value;
         var opts = unitSel.querySelectorAll("option[value]");
         var firstVisible = null;
@@ -137,8 +137,8 @@
         }
       }
 
-      prop.addEventListener("change", filterUnits);
-      filterUnits();
+      prop.addEventListener("change", filterHuoneet);
+      filterHuoneet();
     })();
   </script>
   <script>
@@ -157,30 +157,30 @@
         resultsEl.style.display = "none";
       }
 
-      function labelForGuest(g) {
+      function labelForAsiakas(g) {
         var name = (g.name || g.full_name || "").trim();
         var email = (g.email || "").trim();
         if (name && email) {
           return name + " (" + email + ")";
         }
-        return name || email || ("Guest #" + String(g.id));
+        return name || email || ("Asiakas #" + String(g.id));
       }
 
       function showPick(g) {
         idEl.value = String(g.id);
-        searchEl.value = labelForGuest(g);
+        searchEl.value = labelForAsiakas(g);
         hideResults();
       }
 
       function render(list) {
         if (!list.length) {
-          resultsEl.innerHTML = "<div class=\"guest-no-results\">No guests found</div>";
+          resultsEl.innerHTML = "<div class=\"guest-no-results\">Asiakkaita ei löytynyt</div>";
           resultsEl.style.display = "block";
           return;
         }
         resultsEl.innerHTML = "";
         list.forEach(function (g) {
-          var label = labelForGuest(g);
+          var label = labelForAsiakas(g);
           if (!label.trim()) {
             return;
           }
@@ -196,12 +196,12 @@
           resultsEl.appendChild(btn);
         });
         if (!resultsEl.children.length) {
-          resultsEl.innerHTML = "<div class=\"guest-no-results\">No guests found</div>";
+          resultsEl.innerHTML = "<div class=\"guest-no-results\">Asiakkaita ei löytynyt</div>";
         }
         resultsEl.style.display = "block";
       }
 
-      function fetchGuests(q) {
+      function fetchAsiakkaat(q) {
         if (!String(q || "").trim()) {
           hideResults();
           return;
@@ -222,7 +222,7 @@
         clearTimeout(timer);
         var q = searchEl.value;
         timer = setTimeout(function () {
-          fetchGuests(q);
+          fetchAsiakkaat(q);
         }, 200);
       });
 

@@ -1,40 +1,50 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Invoices · Pindora PMS{% endblock %}
+{% block title %}Laskut · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn" href="{{ url_for('admin.invoices_new') }}">New invoice</a>
+    <a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a>
     <form method="post" action="{{ url_for('admin.invoices_mark_overdue') }}" style="display:inline;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-secondary">Mark overdue (this org)</button>
+      <button type="submit" class="btn btn-secondary">Merkitse myöhässä</button>
     </form>
   </div>
-  <h1>Invoices</h1>
-  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <h1>Laskut</h1>
+  <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
   <table>
     <thead>
       <tr>
         <th>Number</th>
-        <th>Amount</th>
-        <th>Due</th>
-        <th>Status</th>
+        <th>Summa</th>
+        <th>Erä</th>
+        <th>Tila</th>
         <th>Lease</th>
-        <th>Actions</th>
+        <th>Toiminnot</th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
-        <tr>
+        <tr class="table-row-link" data-href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">
           <td>{{ row.invoice_number or "—" }}</td>
           <td>{{ row.amount }} {{ row.currency }}</td>
           <td>{{ row.due_date }}</td>
-          <td>{{ row.status }}</td>
+          <td>
+            {% if row.status == "paid" %}
+              <span class="status-badge status-green">{{ row.status }}</span>
+            {% elif row.status in ["overdue", "peruttu"] %}
+              <span class="status-badge status-red">{{ row.status }}</span>
+            {% elif row.status in ["open", "draft"] %}
+              <span class="status-badge status-blue">{{ row.status }}</span>
+            {% else %}
+              <span class="status-badge status-gray">{{ row.status }}</span>
+            {% endif %}
+          </td>
           <td>{% if row.lease_id %}#{{ row.lease_id }}{% else %}—{% endif %}</td>
-          <td><a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">View</a></td>
+          <td><a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">Näytä</a></td>
         </tr>
       {% else %}
-        <tr><td colspan="6"><em>No invoices yet.</em></td></tr>
+        <tr><td colspan="6" class="empty-state"><em>Ei laskuja vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

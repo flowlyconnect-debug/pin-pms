@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>2FA-koodi sähköpostiin</title>
+  </head>
+  <body>
+    <h1>2FA-koodi sähköpostiin</h1>
+    <p>Käytä tätä, jos tunnistussovellus ei ole käytössä.</p>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <p style="color: red;">{{ messages[0] }}</p>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" action="{{ url_for('auth.two_factor_email_code') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">Lähetä 2FA-koodi sähköpostiin</button>
+    </form>
+
+    <p><a href="{{ url_for('auth.two_factor_verify') }}">Takaisin vahvistukseen</a></p>
+  </body>
+</html>

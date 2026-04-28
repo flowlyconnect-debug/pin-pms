@@ -1,0 +1,20 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Varaus #{{ row.id }} · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Varaus #{{ row.id }}</h1>
+  <div class="card">
+    <p><strong>Kohde:</strong> {{ row.property_name }}</p>
+    <p><strong>Huone:</strong> {{ row.unit_name }}</p>
+    <p><strong>Asiakas:</strong> {{ row.guest_name }}</p>
+    <p><strong>Alku:</strong> {{ row.start_date }}</p>
+    <p><strong>Loppu:</strong> {{ row.end_date }}</p>
+    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Maksu:</strong> {{ row.payment_status }}</p>
+    {% if row.amount %}
+      <p><strong>Summa:</strong> {{ row.amount }} {{ row.currency }}</p>
+    {% endif %}
+  </div>
+{% endblock %}
+

@@ -1,10 +1,10 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Edit Unit · Pindora PMS{% endblock %}
+{% block title %}Edit unit · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.units_list', property_id=row.property_id) }}">Back to units</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.units_list', property_id=row.property_id) }}">Takaisin huoneisiin</a>
   </div>
   <h1>Edit unit</h1>
   {% if error %}
@@ -12,12 +12,12 @@
   {% endif %}
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="name">Name</label>
+    <label for="name">Nimi</label>
     <input id="name" name="name" type="text" required value="{{ form.name }}">
-    <label for="unit_type">Type</label>
+    <label for="unit_type">Tyyppi</label>
     <input id="unit_type" name="unit_type" type="text" value="{{ form.unit_type }}">
     <div class="actions">
-      <button type="submit">Save unit</button>
+      <button type="submit">Tallenna huone</button>
     </div>
   </form>
 {% endblock %}

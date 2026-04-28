@@ -125,6 +125,7 @@ def login():
 
         if user:
             login_user(user)
+            session.permanent = True
             audit_login_success(user)
             if user.is_superadmin:
                 session["2fa_verified"] = False

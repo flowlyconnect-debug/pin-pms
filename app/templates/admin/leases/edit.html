@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Edit lease #{{ row.id }} · Pindora PMS{% endblock %}
+{% block title %}Muokkaa lease #{{ row.id }} · Pindora PMS{% endblock %}
 
 {% block head_extra %}
   <style>
@@ -14,7 +14,7 @@
       z-index: 30;
       margin-top: 4px;
       max-height: 220px;
-      overflow-y: auto;
+      overfMatala-y: auto;
       background: #fff;
       border: 1px solid #d1d5db;
       border-radius: 6px;
@@ -40,10 +40,10 @@
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">Back to lease</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">Takaisin vuokraan</a>
   </div>
-  <h1>Edit lease #{{ row.id }}</h1>
-  <p class="meta">Status: <strong>{{ row.status }}</strong></p>
+  <h1>Muokkaa lease #{{ row.id }}</h1>
+  <p class="meta">Tila: <strong>{{ row.status }}</strong></p>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
@@ -51,25 +51,25 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     {% if row.status == "draft" %}
-      <label for="unit_id">Unit</label>
+      <label for="unit_id">Huone</label>
       <select id="unit_id" name="unit_id" required>
-        <option value="">Select unit</option>
+        <option value="">Valitse huone</option>
         {% for unit in units %}
           <option value="{{ unit.id }}" {% if form.unit_id == unit.id|string %}selected{% endif %}>#{{ unit.id }} - {{ unit.property.name }} / {{ unit.name }}</option>
         {% endfor %}
       </select>
       <div class="guest-search-wrap">
-        <label for="guest_search">Guest</label>
+        <label for="guest_search">Asiakas</label>
         <input type="text" id="guest_search" name="guest_search" autocomplete="off" value="{{ form.guest_search }}">
         <input type="hidden" id="guest_id" name="guest_id" value="{{ form.guest_id }}">
         <div id="guest_search_results" class="guest-results" aria-live="polite"></div>
-        <button type="button" class="btn btn-secondary" id="guest_search_clear" style="margin-top: 0.35rem;">Clear guest selection</button>
+        <button type="button" class="btn btn-secondary" id="guest_search_clear" style="margin-top: 0.35rem;">Tyhjennä asiakas</button>
       </div>
-      <label for="reservation_id">Reservation ID (optional)</label>
+      <label for="reservation_id">Varaus-ID (valinnainen)</label>
       <input id="reservation_id" name="reservation_id" type="number" min="1" value="{{ form.reservation_id }}">
-      <label for="start_date">Start date</label>
+      <label for="start_date">Alkupäivä</label>
       <input id="start_date" name="start_date" type="date" required value="{{ form.start_date }}">
-      <label for="billing_cycle">Billing cycle</label>
+      <label for="billing_cycle">Laskutusjakso</label>
       <select id="billing_cycle" name="billing_cycle">
         <option value="monthly" {% if form.billing_cycle == "monthly" %}selected{% endif %}>Monthly</option>
         <option value="weekly" {% if form.billing_cycle == "weekly" %}selected{% endif %}>Weekly</option>
@@ -78,22 +78,22 @@
     {% endif %}
 
     {% if row.status in ["draft", "active"] %}
-      <label for="end_date">End date (optional)</label>
+      <label for="end_date">Loppupäivä (valinnainen)</label>
       <input id="end_date" name="end_date" type="date" value="{{ form.end_date }}">
     {% endif %}
 
     {% if row.status in ["draft", "active"] %}
-      <label for="rent_amount">Rent amount</label>
+      <label for="rent_amount">Vuokrasumma</label>
       <input id="rent_amount" name="rent_amount" type="number" min="0" step="0.01" required value="{{ form.rent_amount }}">
-      <label for="deposit_amount">Deposit amount</label>
+      <label for="deposit_amount">Vakuussumma</label>
       <input id="deposit_amount" name="deposit_amount" type="number" min="0" step="0.01" value="{{ form.deposit_amount }}">
     {% endif %}
 
-    <label for="notes">Notes</label>
+    <label for="notes">Eites</label>
     <textarea id="notes" name="notes" rows="3">{{ form.notes }}</textarea>
 
     <div class="actions">
-      <button type="submit" class="btn">Save</button>
+      <button type="submit" class="btn">Tallenna</button>
     </div>
   </form>
 
@@ -108,22 +108,22 @@
       if (!searchEl || !idEl || !resultsEl) return;
       var timer = null;
       function hideResults() { resultsEl.innerHTML = ""; resultsEl.style.display = "none"; }
-      function labelForGuest(g) {
+      function labelForAsiakas(g) {
         var name = (g.name || g.full_name || "").trim();
         var email = (g.email || "").trim();
         if (name && email) return name + " (" + email + ")";
-        return name || email || ("Guest #" + String(g.id));
+        return name || email || ("Asiakas #" + String(g.id));
       }
-      function showPick(g) { idEl.value = String(g.id); searchEl.value = labelForGuest(g); hideResults(); }
+      function showPick(g) { idEl.value = String(g.id); searchEl.value = labelForAsiakas(g); hideResults(); }
       function render(list) {
         if (!list.length) {
-          resultsEl.innerHTML = "<div class=\"guest-no-results\">No guests found</div>";
+          resultsEl.innerHTML = "<div class=\"guest-no-results\">Asiakkaita ei löytynyt</div>";
           resultsEl.style.display = "block";
           return;
         }
         resultsEl.innerHTML = "";
         list.forEach(function (g) {
-          var label = labelForGuest(g);
+          var label = labelForAsiakas(g);
           if (!label.trim()) return;
           var btn = document.createElement("button");
           btn.type = "button";
@@ -133,11 +133,11 @@
           resultsEl.appendChild(btn);
         });
         if (!resultsEl.children.length) {
-          resultsEl.innerHTML = "<div class=\"guest-no-results\">No guests found</div>";
+          resultsEl.innerHTML = "<div class=\"guest-no-results\">Asiakkaita ei löytynyt</div>";
         }
         resultsEl.style.display = "block";
       }
-      function fetchGuests(q) {
+      function fetchAsiakkaat(q) {
         if (!String(q || "").trim()) { hideResults(); return; }
         fetch(searchUrl + "?q=" + encodeURIComponent(q), { credentials: "same-origin" })
           .then(function (r) { return r.json(); })
@@ -145,8 +145,8 @@
           .catch(function () { hideResults(); });
       }
       searchEl.addEventListener("input", function () {
-        clearTimeout(timer);
-        timer = setTimeout(function () { fetchGuests(searchEl.value); }, 200);
+        clearAikaout(timer);
+        timer = setAikaout(function () { fetchAsiakkaat(searchEl.value); }, 200);
       });
       if (clearBtn) {
         clearBtn.addEventListener("click", function () { idEl.value = ""; searchEl.value = ""; hideResults(); });

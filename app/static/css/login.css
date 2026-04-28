@@ -1,0 +1,437 @@
+/* Pindora PMS — public / portal login shell (premium red accent, glass card) */
+
+:root {
+  --pms-login-bg-1: #f7f2f2;
+  --pms-login-bg-2: #efeaea;
+  --pms-login-bg-3: #e8e2e2;
+  --pms-login-text: #2a2223;
+  --pms-login-text-muted: #5c5052;
+  --pms-login-accent: #c62828;
+  --pms-login-accent-hover: #9e1f24;
+  --pms-login-accent-soft: rgba(198, 40, 40, 0.1);
+  --pms-login-accent-ring: rgba(198, 40, 40, 0.22);
+  --pms-login-card-bg: rgba(255, 252, 252, 0.74);
+  --pms-login-card-border: rgba(255, 255, 255, 0.88);
+  --pms-login-input-bg: rgba(255, 255, 255, 0.94);
+  --pms-login-shadow: 0 24px 48px rgba(42, 18, 22, 0.07), 0 8px 16px rgba(42, 18, 22, 0.035);
+  --pms-login-radius-lg: 20px;
+  --pms-login-radius-md: 12px;
+  --pms-login-radius-sm: 10px;
+  /* Validation: distinct burgundy surface (not the same as brand CTA red) */
+  --pms-login-danger-bg: #fce8e8;
+  --pms-login-danger-text: #7a1519;
+  --pms-login-success-bg: #e8f5e9;
+  --pms-login-success-text: #1b5e20;
+  /* Neutral info (avoids “blue error” next to brand red) */
+  --pms-login-info-bg: #eceae9;
+  --pms-login-info-text: #3d3839;
+  --pms-login-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.pms-login-page {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--pms-login-font);
+  color: var(--pms-login-text);
+  background: linear-gradient(145deg, var(--pms-login-bg-1) 0%, var(--pms-login-bg-2) 42%, var(--pms-login-bg-3) 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.pms-login-skip {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.pms-login-skip:focus {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  width: auto;
+  height: auto;
+  padding: 10px 14px;
+  background: #fff;
+  border-radius: 8px;
+  z-index: 1000;
+  box-shadow: var(--pms-login-shadow);
+  outline: 2px solid var(--pms-login-accent);
+}
+
+/* —— Nav —— */
+.pms-login-nav {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.pms-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-decoration: none;
+  color: inherit;
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: -0.02em;
+}
+
+.pms-login-brand:focus-visible {
+  outline: 2px solid var(--pms-login-accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.pms-login-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #d84a4f 0%, #c62828 48%, #9e1f24 100%);
+  box-shadow: 0 4px 14px rgba(158, 31, 36, 0.28);
+}
+
+.pms-login-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.pms-login-nav-links a {
+  color: var(--pms-login-accent);
+  text-decoration: none;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.pms-login-nav-links a:hover {
+  color: var(--pms-login-accent-hover);
+  background: var(--pms-login-accent-soft);
+}
+
+.pms-login-nav-links a:focus-visible {
+  outline: 2px solid var(--pms-login-accent);
+  outline-offset: 2px;
+}
+
+.pms-login-nav-links a[aria-current="page"] {
+  color: var(--pms-login-accent);
+  font-weight: 600;
+}
+
+/* —— Main grid —— */
+.pms-login-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr min(420px, 100%);
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 2.5rem;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .pms-login-main {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .pms-login-hero {
+    text-align: center;
+    max-width: 36rem;
+    margin: 0 auto;
+  }
+
+  .pms-login-chips {
+    justify-content: center;
+  }
+}
+
+/* —— Hero —— */
+.pms-login-hero {
+  padding-right: clamp(0px, 3vw, 1rem);
+}
+
+.pms-login-hero h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.75rem, 4vw, 2.35rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--pms-login-text);
+}
+
+.pms-login-subtitle {
+  margin: 0 0 1.75rem;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--pms-login-text-muted);
+  max-width: 28rem;
+}
+
+.pms-login-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pms-login-chips li {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #5d2326;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(198, 40, 40, 0.1);
+  border: 1px solid rgba(198, 40, 40, 0.16);
+  box-shadow: 0 1px 2px rgba(42, 18, 22, 0.04);
+}
+
+.pms-login-hero-foot {
+  margin-top: 2rem;
+  font-size: 0.875rem;
+  color: var(--pms-login-text-muted);
+  line-height: 1.5;
+}
+
+.pms-login-hero-foot a {
+  color: var(--pms-login-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pms-login-hero-foot a:hover {
+  text-decoration: underline;
+}
+
+.pms-login-hero-foot a:focus-visible {
+  outline: 2px solid var(--pms-login-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* —— Card —— */
+.pms-login-card {
+  background: var(--pms-login-card-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--pms-login-card-border);
+  border-radius: var(--pms-login-radius-lg);
+  box-shadow: var(--pms-login-shadow);
+  padding: clamp(1.5rem, 4vw, 2rem);
+}
+
+.pms-login-card-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.pms-login-card-lead {
+  margin: 0 0 1.25rem;
+  font-size: 0.9375rem;
+  color: var(--pms-login-text-muted);
+  line-height: 1.45;
+}
+
+.pms-login-card-lead a {
+  color: var(--pms-login-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pms-login-card-lead a:hover {
+  text-decoration: underline;
+}
+
+.pms-login-card-lead a:focus-visible {
+  outline: 2px solid var(--pms-login-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* —— Alerts (flash + inline error) —— */
+.pms-login-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pms-login-alert {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--pms-login-radius-sm);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.pms-login-alert--error {
+  background: var(--pms-login-danger-bg);
+  color: var(--pms-login-danger-text);
+}
+
+.pms-login-alert--success {
+  background: var(--pms-login-success-bg);
+  color: var(--pms-login-success-text);
+}
+
+.pms-login-alert--info {
+  background: var(--pms-login-info-bg);
+  color: var(--pms-login-info-text);
+}
+
+/* —— Form —— */
+.pms-login-field {
+  margin-bottom: 1rem;
+}
+
+.pms-login-field label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--pms-login-text-muted);
+}
+
+.pms-login-field input[type="email"],
+.pms-login-field input[type="password"],
+.pms-login-field input[type="text"] {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--pms-login-text);
+  background: var(--pms-login-input-bg);
+  border: 1px solid rgba(42, 34, 35, 0.12);
+  border-radius: var(--pms-login-radius-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pms-login-field input:hover {
+  border-color: rgba(42, 34, 35, 0.2);
+}
+
+.pms-login-field input:focus {
+  outline: none;
+  border-color: var(--pms-login-accent);
+  box-shadow: 0 0 0 3px var(--pms-login-accent-ring);
+}
+
+.pms-login-submit {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  background: linear-gradient(145deg, #d84a4f 0%, #c62828 42%, #9e1f24 100%);
+  border: none;
+  border-radius: var(--pms-login-radius-sm);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(158, 31, 36, 0.3);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.pms-login-submit:hover {
+  box-shadow: 0 6px 20px rgba(158, 31, 36, 0.36);
+}
+
+.pms-login-submit:focus-visible {
+  outline: 2px solid var(--pms-login-accent-hover);
+  outline-offset: 3px;
+}
+
+.pms-login-submit:active {
+  transform: translateY(1px);
+}
+
+.pms-login-forgot {
+  margin-top: 1.1rem;
+  text-align: center;
+}
+
+.pms-login-forgot a {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--pms-login-accent);
+  text-decoration: none;
+}
+
+.pms-login-forgot a:hover {
+  text-decoration: underline;
+}
+
+.pms-login-forgot a:focus-visible {
+  outline: 2px solid var(--pms-login-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.pms-login-logout-note {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  color: var(--pms-login-text-muted);
+}
+
+.pms-login-logout-note a {
+  color: var(--pms-login-accent);
+  font-weight: 600;
+}
+
+/* —— Portal: section divider —— */
+.pms-login-section-label {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pms-login-text-muted);
+}
+
+.pms-login-section-label:first-of-type {
+  margin-top: 0;
+}
+
+.pms-login-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  color: var(--pms-login-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.pms-login-divider::before,
+.pms-login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(198, 40, 40, 0.12);
+}

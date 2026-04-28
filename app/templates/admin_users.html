@@ -1,19 +1,19 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Users · Pindora PMS{% endblock %}
+{% block title %}Käyttäjät · Pindora PMS{% endblock %}
 
 {% block content %}
-  <h1>Users</h1>
-  <p><a href="{{ url_for('admin.users_new') }}">+ New user</a></p>
+  <h1>Käyttäjät</h1>
+  <p><a href="{{ url_for('admin.users_new') }}">+ Uusi käyttäjä</a></p>
   <table>
     <thead>
       <tr>
-        <th>Email</th>
+        <th>Sähköposti</th>
         <th>Role</th>
         <th>Organization</th>
-        <th>Active</th>
+        <th>Aktiivinen</th>
         <th>2FA</th>
-        <th>Actions</th>
+        <th>Toiminnot</th>
       </tr>
     </thead>
     <tbody>
@@ -25,7 +25,7 @@
           <td>{{ "yes" if u.is_active else "no" }}</td>
           <td>{{ "on" if u.is_2fa_enabled else "off" }}</td>
           <td>
-            <a href="{{ url_for('admin.users_edit', user_id=u.id) }}">Edit</a>
+            <a href="{{ url_for('admin.users_edit', user_id=u.id) }}">Muokkaa</a>
             <form method="post" action="{{ url_for('admin.users_toggle_active', user_id=u.id) }}" style="display:inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit">{{ "Deactivate" if u.is_active else "Activate" }}</button>
@@ -33,7 +33,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6">No users.</td></tr>
+        <tr><td colspan="6">Ei users.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -3,29 +3,66 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>2FA Setup</title>
+    <title>Ota 2FA käyttöön — Pindora PMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
   </head>
-  <body>
-    <h1>Set up 2FA</h1>
-    <p>Scan this QR code in your authenticator app, then enter the 6-digit code.</p>
+  <body class="pms-login-page">
+    <a class="pms-login-skip" href="#pms-login-main">Siirry 2FA-asetuksiin</a>
 
-    <div>{{ qr_svg|safe }}</div>
-    <p>Secret: <code>{{ secret }}</code></p>
+    <header class="pms-login-nav">
+      <a class="pms-login-brand" href="{{ url_for('core.index') }}" aria-label="Pindora PMS etusivu">
+        <span class="pms-login-brand-mark" aria-hidden="true"></span>
+        <span>Pindora PMS</span>
+      </a>
+      <nav class="pms-login-nav-links" aria-label="Sivu">
+        <a href="{{ url_for('auth.login') }}">Kirjaudu</a>
+        <a href="#" aria-current="page">2FA-asetus</a>
+      </nav>
+    </header>
 
-    {% if error %}
-      <p style="color: red;">{{ error }}</p>
-    {% endif %}
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <p style="color: red;">{{ messages[0] }}</p>
-      {% endif %}
-    {% endwith %}
+    <main id="pms-login-main" class="pms-login-main">
+      <section class="pms-login-hero" aria-labelledby="pms-login-headline">
+        <h1 id="pms-login-headline">Suojaa tilisi kaksivaiheisella tunnistautumisella.</h1>
+        <p class="pms-login-subtitle">Skannaa QR-koodi tunnistussovelluksella ja vahvista 6-numeroisella koodilla.</p>
+        <ul class="pms-login-chips">
+          <li>Account security</li>
+          <li>TOTP app</li>
+          <li>One-time codes</li>
+        </ul>
+      </section>
 
-    <form method="post" action="/2fa/setup">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="code">Verification code</label>
-      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
-      <button type="submit">Enable 2FA</button>
-    </form>
+      <section class="pms-login-card" aria-labelledby="pms-2fa-setup-title">
+        <h2 id="pms-2fa-setup-title" class="pms-login-card-title">Ota 2FA käyttöön</h2>
+        <p class="pms-login-card-lead">Skannaa alla oleva koodi tunnistussovelluksella.</p>
+
+        {% if error %}
+          <div class="pms-login-alerts" role="status" aria-live="polite" aria-label="Ilmoitukset">
+            <p class="pms-login-alert pms-login-alert--error">{{ error }}</p>
+          </div>
+        {% endif %}
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="pms-login-alerts" role="status" aria-live="polite" aria-label="Ilmoitukset">
+              <p class="pms-login-alert pms-login-alert--error">{{ messages[0] }}</p>
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <div class="pms-login-field">
+          <label>QR code</label>
+          <div>{{ qr_svg|safe }}</div>
+        </div>
+        <p class="pms-login-card-lead">Secret: <code>{{ secret }}</code></p>
+
+        <form method="post" action="/2fa/setup">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="pms-login-field">
+            <label for="code">Vahvistuskoodi</label>
+            <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+          </div>
+          <button class="pms-login-submit" type="submit">Ota 2FA käyttöön</button>
+        </form>
+      </section>
+    </main>
   </body>
 </html>

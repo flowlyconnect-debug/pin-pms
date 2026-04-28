@@ -20,6 +20,8 @@ def test_login_success_redirects_authenticated_user(client, regular_user):
     assert response.status_code == 302
     # Should redirect to the index. ``Location`` is absolute in newer Flask.
     assert response.headers["Location"].rstrip("/").endswith("")
+    with client.session_transaction() as sess:
+        assert sess.get("_permanent", False) is True
 
 
 def test_login_success_redirects_admin_to_admin_home(client, admin_user):

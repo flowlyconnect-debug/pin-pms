@@ -1,28 +1,24 @@
 {% extends "admin/base.html" %}
 
-{% block title %}New setting · Pindora PMS{% endblock %}
+{% block title %}Uusi asetus · Pindora PMS{% endblock %}
 
 {% block content %}
-  <h1>New setting</h1>
+  <h1>Uusi asetus</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
   <form method="post" action="{{ url_for('admin.settings_new') }}" autocomplete="off">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="key">Key</label>
-    <input id="key" name="key" type="text" required value="{{ form.key }}">
+    {{ form.hidden_tag() }}
+    {{ form.key.label }}
+    {{ form.key(required=true) }}
     <p class="meta">Unique snake_case key, e.g. <code>company_name</code>.</p>
-    <label for="type">Type</label>
-    <select id="type" name="type">
-      {% for t in types %}
-        <option value="{{ t }}" {% if form.type == t %}selected{% endif %}>{{ t }}</option>
-      {% endfor %}
-    </select>
-    <label for="value">Value</label>
-    <textarea id="value" name="value" rows="4">{{ form.value }}</textarea>
-    <label for="description">Description</label>
-    <input id="description" name="description" type="text" value="{{ form.description }}">
-    <p><label><input id="is_secret" name="is_secret" type="checkbox" {% if form.is_secret %}checked{% endif %}> Treat as secret</label></p>
-    <div class="actions"><button type="submit">Create</button></div>
+    {{ form.type.label }}
+    {{ form.type() }}
+    {{ form.value.label }}
+    {{ form.value(rows="4") }}
+    {{ form.description.label }}
+    {{ form.description() }}
+    <p><label>{{ form.is_secret() }} Treat as secret</label></p>
+    <div class="actions"><button type="submit">Luo</button></div>
   </form>
 {% endblock %}

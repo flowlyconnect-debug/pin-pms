@@ -1,0 +1,14 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Portaalin etusivu · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Oma etusivu</h1>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.7rem;">
+    <div class="card"><strong>Aktiiviset varaukset</strong><div style="font-size:1.3rem;">{{ stats.active_reservations }}</div></div>
+    <div class="card"><strong>Aktiivinen vuokrasopimus</strong><div style="font-size:1.3rem;">{{ "Kyllä" if stats.active_lease_id else "Ei" }}</div></div>
+    <div class="card"><strong>Avoimet laskut</strong><div style="font-size:1.3rem;">{{ stats.unpaid_invoices }}</div></div>
+    <div class="card"><strong>Avoimet huollot</strong><div style="font-size:1.3rem;">{{ stats.open_maintenance_requests }}</div></div>
+  </div>
+{% endblock %}
+

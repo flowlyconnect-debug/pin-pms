@@ -1,20 +1,20 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{% if is_new %}New organization{% else %}Edit {{ target_org.name }}{% endif %} · Pindora PMS{% endblock %}
+{% block title %}{% if is_new %}Uusi organisaatio{% else %}Muokkaa {{ target_org.name }}{% endif %} · Pindora PMS{% endblock %}
 
 {% block content %}
-  <h1>{% if is_new %}Create organization{% else %}Edit <code>{{ target_org.name }}</code>{% endif %}</h1>
+  <h1>{% if is_new %}Luo organization{% else %}Muokkaa <code>{{ target_org.name }}</code>{% endif %}</h1>
 
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
   <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="name">Name</label>
-    <input id="name" name="name" type="text" required value="{{ form.name }}">
+    {{ form.hidden_tag() }}
+    {{ form.name.label }}
+    {{ form.name(required=true) }}
 
     <div class="actions">
-      <button type="submit">{% if is_new %}Create{% else %}Save{% endif %}</button>
-      <a href="{{ url_for('admin.organizations_list') }}">Cancel</a>
+      <button type="submit">{% if is_new %}Luo{% else %}Tallenna{% endif %}</button>
+      <a href="{{ url_for('admin.organizations_list') }}">Peruuta</a>
     </div>
   </form>
 {% endblock %}

@@ -8,30 +8,30 @@
   <body>
     <h1>Pindora PMS</h1>
     {% if current_user.is_authenticated %}
-      <p>Signed in as <strong>{{ current_user.email }}</strong> ({{ current_user.role }}).</p>
+      <p>Kirjautunut: <strong>{{ current_user.email }}</strong> ({{ current_user.role }}).</p>
       {% if current_user.role in ['admin', 'superadmin'] %}
         <p>
-          <a href="{{ url_for('admin.properties_list') }}">Properties</a>
+          <a href="{{ url_for('admin.properties_list') }}">Kohteet</a>
           ·
-          <a href="{{ url_for('admin.reservations_list') }}">Reservations</a>
+          <a href="{{ url_for('admin.reservations_list') }}">Varaukset</a>
           ·
-          <a href="{{ url_for('admin.reports_index') }}">Reports</a>
+          <a href="{{ url_for('admin.reports_index') }}">Raportit</a>
         </p>
       {% endif %}
       {% if current_user.is_superadmin %}
         <p>
-          <a href="{{ url_for('admin.audit') }}">Audit log</a>
+          <a href="{{ url_for('admin.audit') }}">Audit-loki</a>
           ·
-          <a href="{{ url_for('admin.email_templates_list') }}">Email templates</a>
+          <a href="{{ url_for('admin.email_templates_list') }}">Sähköpostipohjat</a>
           ·
-          <a href="{{ url_for('admin.backups_list') }}">Backups</a>
+          <a href="{{ url_for('backups_admin.backups_list') }}">Varmuuskopiot</a>
           ·
-          <a href="{{ url_for('admin.settings_list') }}">Settings</a>
+          <a href="{{ url_for('admin.settings_list') }}">Asetukset</a>
         </p>
       {% endif %}
-      <p><a href="{{ url_for('auth.logout') }}">Logout</a></p>
+      <p><a href="{{ url_for('auth.logout') }}">Kirjaudu ulos</a></p>
     {% else %}
-      <p><a href="{{ url_for('auth.login') }}">Login</a></p>
+      <p><a href="{{ url_for('auth.login') }}">Kirjaudu</a></p>
     {% endif %}
   </body>
 </html>

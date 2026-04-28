@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from logging import Formatter, LogRecord, StreamHandler
+from typing import Any, Mapping, Sequence
 
 from flask import Flask
 
@@ -40,7 +41,25 @@ class SecretRedactingFilter(logging.Filter):
         if redacted != message:
             record.msg = redacted
             record.args = ()
+        record.__dict__ = _redact_secret_context(record.__dict__)
         return True
+
+
+def _redact_secret_context(payload: Any) -> Any:
+    """Recursively redact payloads where ``is_secret`` is true."""
+
+    if isinstance(payload, Mapping):
+        is_secret = bool(payload.get("is_secret"))
+        out: dict[Any, Any] = {}
+        for key, value in payload.items():
+            if is_secret and str(key).lower() in {"value", "raw_value", "setting_value"}:
+                out[key] = "***"
+                continue
+            out[key] = _redact_secret_context(value)
+        return out
+    if isinstance(payload, Sequence) and not isinstance(payload, (str, bytes, bytearray)):
+        return [_redact_secret_context(item) for item in payload]
+    return payload
 
 
 def configure_logging(app: Flask) -> None:

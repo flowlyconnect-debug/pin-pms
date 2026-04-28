@@ -13,6 +13,7 @@ import hmac
 import os
 import secrets
 
+from flask import current_app, has_app_context
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -54,7 +55,10 @@ def constant_time_equals(a: str, b: str) -> bool:
 
 
 def _password_min_length() -> int:
-    raw = (os.getenv("PASSWORD_MIN_LENGTH") or "12").strip()
+    if has_app_context():
+        raw = str(current_app.config.get("PASSWORD_MIN_LENGTH", "12")).strip()
+    else:
+        raw = (os.getenv("PASSWORD_MIN_LENGTH") or "12").strip()
     try:
         value = int(raw)
     except ValueError:

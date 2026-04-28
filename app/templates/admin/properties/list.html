@@ -1,20 +1,20 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Properties · Pindora PMS{% endblock %}
+{% block title %}Kohteet · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn" href="{{ url_for('admin.properties_new') }}">New property</a>
+    <a class="btn" href="{{ url_for('admin.properties_new') }}">Uusi kohde</a>
   </div>
-  <h1>Properties</h1>
-  <p class="meta">Total: {{ total }} · Page: {{ page }}</p>
+  <h1>Kohteet</h1>
+  <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
   <table>
     <thead>
       <tr>
         <th>ID</th>
-        <th>Name</th>
-        <th>Address</th>
-        <th>Actions</th>
+        <th>Nimi</th>
+        <th>Osoite</th>
+        <th>Toiminnot</th>
       </tr>
     </thead>
     <tbody>
@@ -24,13 +24,13 @@
           <td>{{ row.name }}</td>
           <td>{{ row.address or "" }}</td>
           <td>
-            <a href="{{ url_for('admin.properties_detail', property_id=row.id) }}">View</a>
-            · <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Edit</a>
-            · <a href="{{ url_for('admin.units_list', property_id=row.id) }}">Units</a>
+            <a href="{{ url_for('admin.properties_detail', property_id=row.id) }}">Näytä</a>
+            · <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Muokkaa</a>
+            · <a href="{{ url_for('admin.units_list', property_id=row.id) }}">Huoneet</a>
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="4"><em>No properties yet.</em></td></tr>
+        <tr><td colspan="4"><em>Ei kohteita vielä.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>

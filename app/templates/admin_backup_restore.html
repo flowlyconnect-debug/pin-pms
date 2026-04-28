@@ -1,35 +1,35 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Restore backup · Pindora PMS{% endblock %}
+{% block title %}Palauta varmuuskopio · Pindora PMS{% endblock %}
 
 {% block content %}
-  <h1>Restore from backup</h1>
+  <h1>Palauta varmuuskopio</h1>
   <div class="error">
-    <strong>This action will overwrite the current database.</strong>
+    <strong>Tämä toiminto korvaa nykyisen tietokannan.</strong>
     <ul>
-      <li>Current data will be replaced by this backup.</li>
+      <li>Nykyiset tiedot korvataan tällä varmuuskopiolla.</li>
       <li>A pre-restore safe-copy is created automatically.</li>
     </ul>
   </div>
   <div class="card">
     <p><strong>File:</strong> {{ backup.filename }}</p>
-    <p><strong>Created:</strong> {{ backup.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</p>
+    <p><strong>Luotu:</strong> {{ backup.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</p>
     <p><strong>Size:</strong> {{ backup.size_human }}</p>
     <p><strong>Trigger:</strong> {{ backup.trigger }}</p>
   </div>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
-  <p>Re-enter your password and a fresh 2FA code to continue.</p>
-  <form method="post" action="{{ url_for('admin.backups_restore', backup_id=backup.id) }}" autocomplete="off">
+  <p>Syötä salasana ja uusi 2FA-koodi jatkaaksesi.</p>
+  <form method="post" action="{{ url_for('backups_admin.backups_restore', backup_id=backup.id) }}" autocomplete="off">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="password">Your password</label>
+    <label for="password">Salasanasi</label>
     <input id="password" name="password" type="password" required autocomplete="current-password">
-    <label for="totp_code">Authenticator code</label>
+    <label for="totp_code">Sovelluksen koodi</label>
     <input id="totp_code" name="totp_code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
     <div class="actions">
-      <button type="submit" class="btn-danger">Yes, restore from this backup</button>
-      <a href="{{ url_for('admin.backups_list') }}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn-danger">Palauta tästä kopio</button>
+      <a href="{{ url_for('backups_admin.backups_list') }}" class="btn btn-secondary">Peruuta</a>
     </div>
   </form>
 {% endblock %}

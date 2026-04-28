@@ -1,0 +1,25 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Omat laskut · Pindora PMS{% endblock %}
+
+{% block content %}
+  <h1>Omat laskut</h1>
+  <table>
+    <thead>
+      <tr><th>Lasku</th><th>Summa</th><th>Eräpäivä</th><th>Tila</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.invoice_number or ("#" ~ row.id) }}</td>
+          <td>{{ row.amount }} {{ row.currency }}</td>
+          <td>{{ row.due_date }}</td>
+          <td>{{ row.status }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4"><em>Ei invoices.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
+

@@ -15,3 +15,7 @@ qrcode
 requests
 APScheduler
 reportlab
+icalendar
+boto3
+moto[s3]
+apispec

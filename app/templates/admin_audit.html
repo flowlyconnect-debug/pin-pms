@@ -1,18 +1,18 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Audit log · Pindora PMS{% endblock %}
+{% block title %}Audit-loki · Pindora PMS{% endblock %}
 
 {% block content %}
-  <h1>Audit log</h1>
+  <h1>Audit-loki</h1>
   <form method="get" class="card">
-    <label for="action">Action (prefix match)</label>
+    <label for="action">Toiminto (prefix match)</label>
     <input id="action" type="text" name="action" value="{{ action_filter }}" placeholder="auth.login">
     <label for="email">Actor email</label>
     <input id="email" type="text" name="email" value="{{ email_filter }}" placeholder="user@example.com">
     <label for="page_size">Per page</label>
     <input id="page_size" type="number" name="page_size" value="{{ page_size }}" min="1" max="200">
     <div class="actions">
-      <button type="submit">Filter</button>
+      <button type="submit">Suodata</button>
       {% if action_filter or email_filter %}
         <a class="btn btn-secondary" href="{{ url_for('admin.audit') }}">Reset</a>
       {% endif %}
@@ -22,7 +22,7 @@
   <table>
     <thead>
       <tr>
-        <th>Timestamp (UTC)</th><th>Action</th><th>Status</th><th>Actor</th><th>Target</th><th>IP</th><th>Context</th>
+        <th>Aikastamp (UTC)</th><th>Toiminto</th><th>Tila</th><th>Actor</th><th>Kohde</th><th>IP</th><th>Context</th>
       </tr>
     </thead>
     <tbody>
@@ -37,7 +37,7 @@
           <td>{% if row.context %}<code>{{ row.context|tojson }}</code>{% endif %}</td>
         </tr>
       {% else %}
-        <tr><td colspan="7"><em>No events match the current filter.</em></td></tr>
+        <tr><td colspan="7"><em>Ei events match the current filter.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -48,7 +48,7 @@
     {% else %}
       <span class="meta">&larr; Previous</span>
     {% endif %}
-    <span class="meta">Page {{ page }}</span>
+    <span class="meta">Sivu {{ page }}</span>
     {% if has_next %}
       <a class="btn btn-secondary" href="?{{ qs_base }}&page={{ page + 1 }}">Next &rarr;</a>
     {% else %}

@@ -2,9 +2,10 @@ import os
 
 from dotenv import load_dotenv
 
-from app import create_app
-
+# Load ``.env`` before ``from app import …`` so ``app.config`` sees POSTGRES_* / DATABASE_URL.
 load_dotenv()
+
+from app import create_app
 
 app = create_app(os.getenv("FLASK_CONFIG", "default"))
 

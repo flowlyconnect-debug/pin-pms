@@ -37,6 +37,35 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 
+def _default_postgres_host() -> str:
+    """Choose sensible host default for host pytest vs compose container."""
+
+    # In Docker Compose the PostgreSQL service is reachable as ``db``.
+    # On a host machine (plain ``pytest``) loopback with published port is correct.
+    if os.path.exists("/.dockerenv"):
+        return "db"
+    return "127.0.0.1"
+
+
+def _docker_host_port_from_database_url() -> tuple[str | None, int | None]:
+    """Extract host/port from DATABASE_URL when running inside Docker."""
+
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url or not os.path.exists("/.dockerenv"):
+        return None, None
+
+    try:
+        from sqlalchemy.engine import make_url
+
+        parsed = make_url(database_url)
+    except Exception:
+        return None, None
+
+    host = parsed.host
+    port = parsed.port
+    return host, port
+
+
 # ---------------------------------------------------------------------------
 # Resolve test connection params from POSTGRES_* (raw, unencoded).
 # ---------------------------------------------------------------------------
@@ -44,6 +73,18 @@ from werkzeug.security import generate_password_hash
 
 def _conn_params() -> dict[str, object]:
     """Plain connection parameters as pytest sees them — never URL-encoded."""
+
+    host = os.getenv("POSTGRES_HOST", _default_postgres_host())
+    port = int(os.getenv("POSTGRES_PORT", "5433"))
+
+    # Some setups keep host-oriented POSTGRES_* values even inside the web
+    # container (127.0.0.1:5433). Prefer DATABASE_URL host/port in Docker.
+    if host in {"127.0.0.1", "localhost"}:
+        docker_host, docker_port = _docker_host_port_from_database_url()
+        if docker_host:
+            host = docker_host
+        if docker_port:
+            port = int(docker_port)
 
     # Default to loopback so ``pytest`` on a developer machine (outside Docker)
     # does not resolve the compose service name ``db`` (which only exists on the
@@ -53,8 +94,9 @@ def _conn_params() -> dict[str, object]:
     # out of the box. If ``POSTGRES_PASSWORD`` is unset, default to ``postgres``;
     # if it is set to an empty string (trust auth), that value is preserved.
     return {
-        "host": os.getenv("POSTGRES_HOST", "127.0.0.1"),
-        "port": int(os.getenv("POSTGRES_PORT", "5432")),
+        "host": host,
+        # Keep defaults aligned with .env.example and docker-compose published port.
+        "port": port,
         "user": os.environ["POSTGRES_USER"] if "POSTGRES_USER" in os.environ else "postgres",
         "password": (
             os.environ["POSTGRES_PASSWORD"]

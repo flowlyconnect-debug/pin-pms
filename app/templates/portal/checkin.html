@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Online check-in · Pindora PMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/portal_checkin.css') }}">
+  </head>
+  <body>
+    <main class="checkin-shell">
+      <section class="checkin-card">
+        <h1>Online check-in</h1>
+        <p class="muted">Complete your details and receive your access code.</p>
+        {% if error %}
+          <div class="alert error">{{ error }}</div>
+        {% endif %}
+        {% if access_code %}
+          <div class="alert success">
+            <strong>Your door code:</strong> {{ access_code }}
+            <p>This code is shown only once on this page and also sent by email.</p>
+          </div>
+        {% else %}
+          <form method="post" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="idempotency_key" value="{{ pyyntö.headers.get('X-Pyyntö-Id', '') }}">
+            <label>Full name
+              <input type="text" name="full_name" required>
+            </label>
+            <label>Date of birth
+              <input type="date" name="date_of_birth" required>
+            </label>
+            <label>ID document photo
+              <input type="file" name="id_document" accept="image/*" required>
+            </label>
+            <label>House rules signature (type full name)
+              <input type="text" name="rules_signature" required>
+            </label>
+            <label class="consent">
+              <input type="checkbox" name="rules_ok" required> I accept house rules.
+            </label>
+            <button type="submit">Viimeistele check-in</button>
+          </form>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

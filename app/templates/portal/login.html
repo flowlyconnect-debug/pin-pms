@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Asiakasportaali — Pindora PMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+  </head>
+  <body class="pms-login-page">
+    <a class="pms-login-skip" href="#pms-login-main">Siirry kirjautumiseen</a>
+
+    <header class="pms-login-nav">
+      <a class="pms-login-brand" href="{{ url_for('portal.login') }}" aria-label="Pindora asiakasportaali">
+        <span class="pms-login-brand-mark" aria-hidden="true"></span>
+        <span>Pindora PMS</span>
+      </a>
+      <nav class="pms-login-nav-links" aria-label="Sivu">
+        <a href="#portal-features">Majoitus</a>
+        <a href="#support">Tuki</a>
+        <a href="{{ url_for('auth.login') }}">Henkilökunnan kirjautuminen</a>
+      </nav>
+    </header>
+
+    <main id="pms-login-main" class="pms-login-main">
+      <section class="pms-login-hero" aria-labelledby="pms-login-headline">
+        <h1 id="pms-login-headline">Asiakasportaali varauksille ja pyynnöille.</h1>
+        <p class="pms-login-subtitle">Näet varaukset, laskut ja huollot samasta paikasta.</p>
+        <ul id="portal-features" class="pms-login-chips">
+          <li>Varaukset</li>
+          <li>Laskut</li>
+          <li>Huolto</li>
+        </ul>
+        <p id="support" class="pms-login-hero-foot">Kysyttävää majoituksesta? <a href="#pms-login-card">Kirjaudu alta</a> tai ota yhteys majoittajaan.</p>
+      </section>
+
+      <section id="pms-login-card" class="pms-login-card" aria-labelledby="pms-login-card-title">
+        <h2 id="pms-login-card-title" class="pms-login-card-title">Asiakasportaali</h2>
+        <p class="pms-login-card-lead">Käytä varauksen sähköpostia. Henkilökunta kirjautuu <a href="{{ url_for('auth.login') }}">tästä</a>.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages or error %}
+            <div class="pms-login-alerts" role="status" aria-live="polite" aria-label="Ilmoitukset">
+              {% for category, m in messages %}
+                <p class="pms-login-alert pms-login-alert--{% if category == 'error' %}error{% elif category == 'success' %}success{% else %}info{% endif %}">{{ m }}</p>
+              {% endfor %}
+              {% if error %}
+                <p class="pms-login-alert pms-login-alert--error">{{ error }}</p>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <p class="pms-login-section-label">Sähköposti ja salasana</p>
+        <form method="post" action="{{ url_for('portal.login') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="pms-login-field">
+            <label for="email">Sähköposti</label>
+            <input id="email" name="email" type="email" autocomplete="username" required>
+          </div>
+          <div class="pms-login-field">
+            <label for="password">Salasana</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <button class="pms-login-submit" type="submit">Kirjaudu</button>
+        </form>
+
+        <div class="pms-login-divider" role="presentation"><span>tai</span></div>
+
+        <p class="pms-login-section-label">Kirjautumislinkki</p>
+        <form method="post" action="{{ url_for('portal.request_magic_link') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="pms-login-field">
+            <label for="magic-email">Sähköposti</label>
+            <input id="magic-email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <button class="pms-login-submit" type="submit">Lähetä kirjautumislinkki</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

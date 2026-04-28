@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}New maintenance request · Pindora PMS{% endblock %}
+{% block title %}Uusi huolto · Pindora PMS{% endblock %}
 
 {% block head_extra %}
   <script>
@@ -9,7 +9,7 @@
       var unitSel = document.getElementById("unit_id");
       if (!prop || !unitSel) return;
       var all = Array.prototype.slice.call(unitSel.querySelectorAll("option"));
-      function filterUnits() {
+      function filterHuoneet() {
         var pid = String(prop.value || "");
         all.forEach(function (opt) {
           if (!opt.value) { opt.hidden = false; return; }
@@ -21,60 +21,60 @@
           unitSel.value = "";
         }
       }
-      prop.addEventListener("change", filterUnits);
-      filterUnits();
+      prop.addEventListener("change", filterHuoneet);
+      filterHuoneet();
     });
   </script>
 {% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_list') }}">Back to list</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_list') }}">Takaisin listaan</a>
   </div>
-  <h1>New maintenance request</h1>
+  <h1>Uusi huolto</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="property_id">Property</label>
+    <label for="property_id">Kohde</label>
     <select id="property_id" name="property_id" required>
-      <option value="">Select property</option>
+      <option value="">Valitse kohde</option>
       {% for p in properties %}
         <option value="{{ p.id }}" {% if form.property_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
       {% endfor %}
     </select>
-    <label for="unit_id">Unit (optional)</label>
+    <label for="unit_id">Huone (valinnainen)</label>
     <select id="unit_id" name="unit_id">
       <option value="">—</option>
       {% for u in units %}
         <option value="{{ u.id }}" data-property="{{ u.property_id }}" {% if form.unit_id == u.id|string %}selected{% endif %}>{{ u.property.name }} / {{ u.name }}</option>
       {% endfor %}
     </select>
-    <label for="guest_id">Guest ID (optional)</label>
-    <input id="guest_id" name="guest_id" type="number" min="1" value="{{ form.guest_id }}" placeholder="Guest profile id">
-    <label for="reservation_id">Reservation ID (optional)</label>
+    <label for="guest_id">Asiakas-ID (valinnainen)</label>
+    <input id="guest_id" name="guest_id" type="number" min="1" value="{{ form.guest_id }}" placeholder="Asiakasprofiilin ID">
+    <label for="reservation_id">Varaus-ID (valinnainen)</label>
     <input id="reservation_id" name="reservation_id" type="number" min="1" value="{{ form.reservation_id }}">
-    <label for="title">Title</label>
+    <label for="title">Otsikko</label>
     <input id="title" name="title" required value="{{ form.title }}">
-    <label for="description">Description</label>
+    <label for="description">Kuvaus</label>
     <textarea id="description" name="description" rows="4">{{ form.description }}</textarea>
-    <label for="priority">Priority</label>
+    <label for="priority">Prioriteetti</label>
     <select id="priority" name="priority">
-      <option value="low" {% if form.priority == "low" %}selected{% endif %}>low</option>
-      <option value="normal" {% if form.priority == "normal" %}selected{% endif %}>normal</option>
-      <option value="high" {% if form.priority == "high" %}selected{% endif %}>high</option>
-      <option value="urgent" {% if form.priority == "urgent" %}selected{% endif %}>urgent</option>
+      <option value="Matala" {% if form.priority == "Matala" %}selected{% endif %}>Matala</option>
+      <option value="Normaali" {% if form.priority == "Normaali" %}selected{% endif %}>Normaali</option>
+      <option value="Korkea" {% if form.priority == "Korkea" %}selected{% endif %}>Korkea</option>
+      <option value="Kiireellinen" {% if form.priority == "Kiireellinen" %}selected{% endif %}>Kiireellinen</option>
     </select>
-    <label for="status">Status</label>
+    <label for="status">Tila</label>
     <select id="status" name="status">
-      <option value="new" {% if form.status == "new" %}selected{% endif %}>new</option>
-      <option value="in_progress" {% if form.status == "in_progress" %}selected{% endif %}>in_progress</option>
-      <option value="waiting" {% if form.status == "waiting" %}selected{% endif %}>waiting</option>
+      <option value="new" {% if form.status == "new" %}selected{% endif %}>Uusi</option>
+      <option value="in_progress" {% if form.status == "in_progress" %}selected{% endif %}>Työn alla</option>
+      <option value="waiting" {% if form.status == "waiting" %}selected{% endif %}>Odottaa</option>
     </select>
-    <label for="due_date">Due date (optional)</label>
+    <label for="due_date">Eräpäivä (valinnainen)</label>
     <input id="due_date" name="due_date" type="date" value="{{ form.due_date }}">
-    <label for="assigned_to_id">Assign to (optional)</label>
+    <label for="assigned_to_id">Vastuuhenkilö (valinnainen)</label>
     <select id="assigned_to_id" name="assigned_to_id">
       <option value="">—</option>
       {% for u in assignees %}
@@ -82,7 +82,7 @@
       {% endfor %}
     </select>
     <div class="actions">
-      <button type="submit" class="btn">Create</button>
+      <button type="submit" class="btn">Luo</button>
     </div>
   </form>
 {% endblock %}
