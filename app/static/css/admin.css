@@ -704,6 +704,78 @@ body.admin-sidebar-open {
   color: var(--admin-accent-dark);
 }
 
+.dashboard-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dashboard-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.9rem 0;
+}
+
+.dashboard-dayline {
+  margin: 0.4rem 0 1rem;
+  font-size: 0.95rem;
+}
+
+.dashboard-actions {
+  margin-bottom: 1rem;
+}
+
+.dashboard-action-list,
+.dashboard-reservation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-action-item + .dashboard-action-item,
+.dashboard-reservation-list li + li {
+  margin-top: 0.55rem;
+}
+
+.dashboard-action-link {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--admin-border);
+  background: #fff;
+  text-decoration: none;
+}
+
+.dashboard-action-label {
+  color: var(--admin-text);
+  font-weight: 600;
+}
+
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.dashboard-reservation-list a {
+  text-decoration: none;
+}
+
+.dashboard-mini-summary {
+  margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+  .dashboard-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* —— Status badges —— */
 .status-badge {
   display: inline-flex;

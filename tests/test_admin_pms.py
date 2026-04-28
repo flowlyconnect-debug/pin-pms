@@ -939,11 +939,11 @@ def test_dashboard_shows_correct_counts_for_admin_organization(client, admin_use
 
     response = client.get("/admin")
     assert response.status_code == 200
-    assert b"Kohteita yhteens\xc3\xa4" not in response.data
-    assert b"Yksik\xc3\xb6it\xc3\xa4 yhteens\xc3\xa4" not in response.data
-    assert b"Aktiiviset varaukset" in response.data
-    assert b"K\xc3\xa4ytt\xc3\xb6aste t\xc3\xa4n\xc3\xa4\xc3\xa4n" in response.data
-    assert b"Perutut varaukset" not in response.data
+    assert b"Hallintapaneeli" in response.data
+    assert b"Vaatii toimintaa" in response.data
+    assert b"T\xc3\xa4n\xc3\xa4\xc3\xa4n saapuu" in response.data
+    assert b"T\xc3\xa4n\xc3\xa4\xc3\xa4n l\xc3\xa4htee" in response.data
+    assert b"Aikaj\xc3\xa4rjestyksess\xc3\xa4" in response.data
 
 
 def test_dashboard_occupancy_percent_matches_nightly_logic(client, admin_user):
@@ -2837,8 +2837,9 @@ def test_dashboard_includes_lease_invoice_maintenance_stats(client, admin_user):
 
     dashboard = client.get("/admin/dashboard")
     assert dashboard.status_code == 200
-    assert b"Kiireelliset huollot" in dashboard.data
-    assert b">1<" in dashboard.data
+    assert b"Vaatii toimintaa" in dashboard.data
+    assert b"My\xc3\xb6h\xc3\xa4ss\xc3\xa4 oleva lasku" in dashboard.data
+    assert b"Uusi huoltopyynt\xc3\xb6" in dashboard.data
 
 
 def test_dashboard_new_stats_respect_tenant_isolation(client, admin_user):
@@ -2976,6 +2977,204 @@ def test_dashboard_new_stats_respect_tenant_isolation(client, admin_user):
     assert stats["active_leases"] == 1
     assert stats["overdue_invoices"] == 0
     assert stats["open_maintenance_requests"] == 0
+    assert stats["action_required"] == []
+
+
+def test_dashboard_action_required_panel_shows_expected_rows(client, admin_user):
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    from app.billing.models import Invoice
+    from app.extensions import db
+    from app.guests.models import Guest
+    from app.integrations.ical.models import ImportedCalendarEvent, ImportedCalendarFeed
+    from app.maintenance.models import MaintenanceRequest
+    from app.properties.models import Property, Unit
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    prop = Property(organization_id=admin_user.organization_id, name="Toiminta Hotel", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="A1", unit_type="double")
+    db.session.add(unit)
+    db.session.flush()
+    guest = Guest(
+        organization_id=admin_user.organization_id,
+        first_name="Panel",
+        last_name="Guest",
+        email="panel@example.com",
+    )
+    db.session.add(guest)
+    db.session.flush()
+    db.session.add(
+        Invoice(
+            organization_id=admin_user.organization_id,
+            lease_id=None,
+            reservation_id=None,
+            guest_id=guest.id,
+            invoice_number="BIL-PANEL-1",
+            amount=120,
+            currency="EUR",
+            due_date=date(2026, 4, 20),
+            paid_at=None,
+            status="overdue",
+            description="panel overdue",
+            metadata_json=None,
+            created_by_id=admin_user.id,
+            updated_by_id=None,
+        )
+    )
+    db.session.add(
+        MaintenanceRequest(
+            organization_id=admin_user.organization_id,
+            property_id=prop.id,
+            unit_id=unit.id,
+            guest_id=guest.id,
+            reservation_id=None,
+            title="Panel urgent request",
+            description=None,
+            status="new",
+            priority="urgent",
+            assigned_to_id=None,
+            due_date=date(2026, 4, 25),
+            resolved_at=None,
+            created_by_id=admin_user.id,
+        )
+    )
+    feed = ImportedCalendarFeed(
+        organization_id=admin_user.organization_id,
+        unit_id=unit.id,
+        name="Panel feed",
+        source_url="https://example.com/panel.ics",
+        is_active=True,
+    )
+    db.session.add(feed)
+    db.session.flush()
+    db.session.add(
+        ImportedCalendarEvent(
+            organization_id=admin_user.organization_id,
+            unit_id=unit.id,
+            feed_id=feed.id,
+            external_uid="panel-conflict-1",
+            summary="Conflict: panel import mismatch",
+            start_date=date(2026, 4, 29),
+            end_date=date(2026, 4, 30),
+            created_at=datetime(2026, 4, 29, 8, 0, tzinfo=timezone.utc),
+        )
+    )
+    db.session.commit()
+
+    with patch("app.admin.services.date") as mock_date:
+        mock_date.today.return_value = date(2026, 4, 29)
+        response = client.get("/admin/dashboard")
+
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    vaatii_split = html.split("Aikajärjestyksessä", 1)
+    assert len(vaatii_split) == 2
+    action_panel_html = vaatii_split[0]
+    assert "Vaatii toimintaa" in action_panel_html
+    assert "Myöhässä oleva lasku BIL-PANEL-1" in action_panel_html
+    assert "Uusi huoltopyyntö" in action_panel_html
+    assert "iCal-konflikti" in action_panel_html
+
+
+def test_dashboard_action_required_panel_respects_tenant_isolation(client, admin_user):
+    from app.billing.models import Invoice
+    from app.extensions import db
+    from app.guests.models import Guest
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    own_prop = Property(organization_id=admin_user.organization_id, name="Own Action", address=None)
+    db.session.add(own_prop)
+    db.session.flush()
+    own_unit = Unit(property_id=own_prop.id, name="OA1", unit_type="double")
+    db.session.add(own_unit)
+    db.session.flush()
+    own_guest = Guest(
+        organization_id=admin_user.organization_id,
+        first_name="Own",
+        last_name="Action",
+        email="own-action@example.com",
+    )
+    db.session.add(own_guest)
+    db.session.flush()
+    db.session.add(
+        Invoice(
+            organization_id=admin_user.organization_id,
+            lease_id=None,
+            reservation_id=None,
+            guest_id=own_guest.id,
+            invoice_number="BIL-OWN-ACTION",
+            amount=80,
+            currency="EUR",
+            due_date=date(2026, 4, 19),
+            paid_at=None,
+            status="overdue",
+            description="own",
+            metadata_json=None,
+            created_by_id=admin_user.id,
+            updated_by_id=None,
+        )
+    )
+
+    other_org = Organization(name="Action Other Tenant")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="other-action@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="Other Action", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="OT1", unit_type="single")
+    db.session.add(other_unit)
+    db.session.flush()
+    other_guest = Guest(
+        organization_id=other_org.id,
+        first_name="Other",
+        last_name="Action",
+        email="other-action@example.com",
+    )
+    db.session.add(other_guest)
+    db.session.flush()
+    db.session.add(
+        Invoice(
+            organization_id=other_org.id,
+            lease_id=None,
+            reservation_id=None,
+            guest_id=other_guest.id,
+            invoice_number="BIL-OTHER-ACTION",
+            amount=90,
+            currency="EUR",
+            due_date=date(2026, 4, 18),
+            paid_at=None,
+            status="overdue",
+            description="other",
+            metadata_json=None,
+            created_by_id=other_user.id,
+            updated_by_id=None,
+        )
+    )
+    db.session.commit()
+
+    response = client.get("/admin/dashboard")
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    assert "BIL-OWN-ACTION" in html
+    assert "BIL-OTHER-ACTION" not in html
 
 
 def test_calendar_events_can_include_non_reservation_modules(client, admin_user):
