@@ -128,6 +128,14 @@ docker compose exec web pytest -q
 
 ## API documentation
 
+Interactive API docs are available at:
+
+- `GET /api/v1/docs` (Swagger UI)
+- `GET /api/v1/openapi.json` (raw OpenAPI spec)
+
+The OpenAPI spec is generated automatically from Flask routes under `/api/v1`,
+so endpoint additions/changes appear in docs without maintaining a manual list.
+
 All API responses use a uniform envelope:
 
 - success: `{ "success": true, "data": ..., "error": null }`
@@ -138,47 +146,6 @@ Authentication:
 - `Authorization: Bearer pms_<key>` or `X-API-Key: pms_<key>`
 - API keys are stored hashed in DB (`key_hash`), plaintext shown only once at creation
 
-Core endpoints:
-
-- `GET /api/v1/health`
-- `GET /api/v1/me`
-
-PMS endpoints:
-
-- `GET /api/v1/properties`
-- `POST /api/v1/properties`
-- `GET /api/v1/properties/<id>`
-- `GET /api/v1/properties/<id>/units`
-- `POST /api/v1/properties/<id>/units`
-- `GET /api/v1/reservations`
-- `POST /api/v1/reservations`
-- `GET /api/v1/reservations/<id>`
-- `PATCH /api/v1/reservations/<id>/cancel`
-
-Leases and invoices:
-
-- `GET /api/v1/leases`, `POST /api/v1/leases`, `GET /api/v1/leases/<id>`,
-  `PATCH /api/v1/leases/<id>`
-- `GET /api/v1/invoices`, `POST /api/v1/invoices`, `GET /api/v1/invoices/<id>`,
-  `POST /api/v1/invoices/<id>/mark-paid`, `POST /api/v1/invoices/<id>/cancel`
-
-`POST /api/v1/leases` and `POST/PATCH` lease, and invoice mutations, require an
-API key **linked to a user** (`user_id` on the key) so `created_by_id` /
-audit actors resolve correctly.
-
-Maintenance requests:
-
-- `GET /api/v1/maintenance-requests` — optional query: `status`, `priority`,
-  `property_id`, `unit_id` (with `page` / `per_page`)
-- `POST /api/v1/maintenance-requests`
-- `GET /api/v1/maintenance-requests/<id>`
-- `PATCH /api/v1/maintenance-requests/<id>`
-- `POST /api/v1/maintenance-requests/<id>/resolve`
-- `POST /api/v1/maintenance-requests/<id>/cancel`
-
-`POST`, `PATCH`, resolve, and cancel require an API key **linked to a user**
-(for `created_by_id` and audit context). Admin UI: `/admin/maintenance-requests`.
-
 Notes:
 
 - tenant isolation is enforced by `organization_id`
@@ -188,7 +155,7 @@ Notes:
   ownership, and non-negative amounts; invoice numbers are unique per tenant
   (`BIL-<org_id>-<invoice_id>`)
 
-## Billing CLI
+## CLI commands
 
 Mark open invoices overdue (same logic as the optional scheduled job):
 
@@ -206,6 +173,18 @@ After pulling new email template keys, run:
 
 ```bash
 flask seed-email-templates
+```
+
+Delete expired auth/portal token rows:
+
+```bash
+flask cleanup-expired-tokens
+```
+
+Vacuum audit logs and keep only the newest N days:
+
+```bash
+flask vacuum-audit-logs --keep-days 90
 ```
 
 ## Backup usage
@@ -307,7 +286,7 @@ TLS paths. See `deploy/README.md` for step-by-step instructions.
 ## Acceptance checklist
 
 - [x] App starts with one command (`docker compose up --build -d`)
-- [x] Migrations work (`flask db upgrade`)
+- [x] Migrations work on a clean database (`flask db upgrade`)
 - [x] Superadmin can be created from CLI
 - [x] Superadmin requires 2FA for admin actions
 - [x] API works with API key auth
@@ -317,7 +296,9 @@ TLS paths. See `deploy/README.md` for step-by-step instructions.
 - [x] Daily backup scheduler exists
 - [x] Backup restore flow exists
 - [x] Audit log stores critical events
-- [x] Tests pass
+- [x] `flask backup-create` works from CLI
+- [x] `flask backup-restore` works from CLI (including Postgres 16 compatibility)
+- [x] Full test suite passes (`python -m pytest -q`)
 - [x] README explains deployment
 
 ## License
