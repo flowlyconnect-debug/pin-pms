@@ -3,39 +3,50 @@
 {% block title %}Hallintapaneeli · Pin PMS{% endblock %}
 
 {% block content %}
-  {% set maintenance_priority_labels = {
-    "urgent": "Kiireellinen",
-    "high": "Korkea",
-    "normal": "Normaali",
-    "low": "Matala",
-  } %}
-  {% set maintenance_status_labels = {
-    "new": "Uusi",
-    "in_progress": "Työn alla",
-    "waiting": "Odottaa",
-    "resolved": "Ratkaistu",
-    "cancelled": "Peruttu",
-  } %}
   {% set revenue = summary.revenue or {} %}
   {% set integrations = summary.integrations or {} %}
   {% set ical_status = integrations.get("ical", {}) %}
   {% set pindora_status = integrations.get("pindora", {}) %}
   {% set backup_status = summary.backup_status %}
   {% set email_health = summary.email_health %}
-  {% set trend = revenue.get("trend_pct") %}
-  {% set trend_up = trend is not none and trend > 0 %}
-  {% set trend_down = trend is not none and trend < 0 %}
+  {% set occupancy = summary.occupancy_percent or 0 %}
+  {% set occ_class = "kpi-progress-low" %}
+  {% if occupancy > 70 %}
+    {% set occ_class = "kpi-progress-high" %}
+  {% elif occupancy >= 40 %}
+    {% set occ_class = "kpi-progress-mid" %}
+  {% endif %}
+  <style>
+    .dashboard-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:.6rem; margin:.9rem 0 1rem; }
+    .dashboard-kpi-card { border:1px solid var(--admin-border); border-radius:10px; background:#fff; padding:.6rem .7rem; min-height:74px; display:flex; flex-direction:column; justify-content:space-between; }
+    .dashboard-kpi-label { font-size:.74rem; color:var(--admin-muted); text-transform:uppercase; letter-spacing:.04em; }
+    .dashboard-kpi-value { font-size:1.1rem; font-weight:700; color:var(--admin-text); }
+    .kpi-progress-track { margin-top:.35rem; width:100%; height:6px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
+    .kpi-progress-fill { height:100%; border-radius:999px; }
+    .kpi-progress-high { background:#15803d; }
+    .kpi-progress-mid { background:#ca8a04; }
+    .kpi-progress-low { background:#6b7280; }
+    .dashboard-unit-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.6rem; }
+    .dashboard-unit-card { border-radius:10px; padding:.6rem .7rem; border:1px solid transparent; text-decoration:none; display:block; }
+    .dashboard-unit-card strong { display:block; font-size:.95rem; margin-bottom:.2rem; }
+    .dashboard-unit-card small { font-size:.82rem; }
+    .unit-state-free { background:#f3f4f6; color:#1f2937; border-color:#e5e7eb; }
+    .unit-state-occupied { background:#dbeafe; color:#1e3a8a; border-color:#bfdbfe; }
+    .unit-state-arriving { background:#fef9c3; color:#713f12; border-color:#fde68a; }
+    .unit-state-departing { background:#ffedd5; color:#9a3412; border-color:#fdba74; }
+    .unit-state-blocked { background:#374151; color:#f9fafb; border-color:#4b5563; }
+    .dashboard-week-strip { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:.45rem; }
+    .dashboard-week-day { border:1px solid var(--admin-border); border-radius:8px; padding:.45rem .5rem; text-decoration:none; color:var(--admin-text); background:#fff; }
+    .dashboard-week-head { font-size:.78rem; font-weight:700; margin-bottom:.3rem; display:block; }
+    .dashboard-week-occ { width:100%; height:8px; border-radius:999px; background:rgba(30,64,175,.12); margin-bottom:.25rem; position:relative; overflow:hidden; }
+    .dashboard-week-occ > span { position:absolute; left:0; top:0; bottom:0; background:#1d4ed8; opacity:calc(.2 + (var(--occ,0) / 100 * .8)); width:var(--occ,0%); }
+    .dashboard-status-line { margin-top:1rem; }
+    @media (max-width: 900px) { .dashboard-week-strip { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  </style>
 
   <div class="dashboard-header">
     <h1>Hallintapaneeli</h1>
-    <div class="dashboard-header-meta">
-      <p class="meta">{{ summary.today_iso }}</p>
-      <div class="dashboard-range-filter" role="tablist" aria-label="Aikajakso">
-        <a class="dashboard-range-option {{ 'is-active' if summary.range_key == 'today' else '' }}" href="{{ url_for('admin.admin_home', range='today') }}">Tänään</a>
-        <a class="dashboard-range-option {{ 'is-active' if summary.range_key == '7d' else '' }}" href="{{ url_for('admin.admin_home', range='7d') }}">7 vrk</a>
-        <a class="dashboard-range-option {{ 'is-active' if summary.range_key == '30d' else '' }}" href="{{ url_for('admin.admin_home', range='30d') }}">30 vrk</a>
-      </div>
-    </div>
+    <p class="meta">{{ summary.today_iso }}</p>
   </div>
 
   <div class="dashboard-quick-actions">
@@ -44,60 +55,26 @@
     <a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_new') }}">Uusi huoltopyyntö</a>
   </div>
 
-  <div class="dashboard-dayline card">
-    Tänään: <strong>{{ summary.arrivals_today }}</strong> saapuu /
-    <strong>{{ summary.departures_today }}</strong> lähtee /
-    <strong>{{ summary.current_guests }}</strong> yöpyy
-  </div>
+  <section class="dashboard-kpi-row" aria-label="Tärkeimmät tunnusluvut">
+    <article class="dashboard-kpi-card">
+      <span class="dashboard-kpi-label">Käyttöaste tänään</span>
+      <span class="dashboard-kpi-value">{{ "%.1f"|format(occupancy) }} %</span>
+      <span class="kpi-progress-track"><span class="kpi-progress-fill {{ occ_class }}" style="width: {{ occupancy }}%;"></span></span>
+    </article>
+    <article class="dashboard-kpi-card"><span class="dashboard-kpi-label">Saapuu tänään</span><span class="dashboard-kpi-value">{{ summary.arrivals_today }}</span></article>
+    <article class="dashboard-kpi-card"><span class="dashboard-kpi-label">Lähtee tänään</span><span class="dashboard-kpi-value">{{ summary.departures_today }}</span></article>
+    <article class="dashboard-kpi-card"><span class="dashboard-kpi-label">Avoimet huollot</span><span class="dashboard-kpi-value">{{ summary.open_maintenance_requests }}</span></article>
+    <article class="dashboard-kpi-card"><span class="dashboard-kpi-label">Avoimet laskut €</span><span class="dashboard-kpi-value">{{ summary.open_invoices_amount_fi }}</span></article>
+    <article class="dashboard-kpi-card"><span class="dashboard-kpi-label">Tämä kk €</span><span class="dashboard-kpi-value">{{ revenue.get("month_to_date_fi", "0,00 €") }}</span></article>
+  </section>
 
   <section class="card dashboard-actions">
     <h2>Vaatii toimintaa</h2>
-    <div class="dashboard-status-line">
-      {% if backup_status %}
-        {% set backup_bad = backup_status.state in ["failed", "stale", "missing"] %}
-        <a class="dashboard-status-item {{ 'is-bad' if backup_bad else 'is-good' }}" href="{{ url_for('backups_admin.backups_list') }}">
-          <strong>Backup {{ "✗" if backup_bad else "✓" }}</strong>
-          {% if backup_status.last_success_at %}
-            {{ backup_status.last_success_at.strftime("%d.%m. %H:%M") }}
-          {% else %}
-            ei dataa
-          {% endif %}
-        </a>
-      {% endif %}
-      {% set pindora_bad = (not pindora_status.get("configured")) or (pindora_status.get("failed_calls_24h", 0) > 0) %}
-      <a class="dashboard-status-item {{ 'is-bad' if pindora_bad else 'is-good' }}" href="{{ url_for('admin.properties_list') }}">
-        <strong>Pindora API {{ "✗" if pindora_bad else "✓" }}</strong>
-        {% if pindora_status.get("last_call_at") %}
-          {{ pindora_status.get("last_call_at").strftime("%d.%m. %H:%M") }}
-        {% else %}
-          ei kutsuja
-        {% endif %}
-      </a>
-      {% set ical_bad = (ical_status.get("feeds_active", 0) == 0) or (ical_status.get("conflicts_open", 0) > 0) %}
-      <a class="dashboard-status-item {{ 'is-bad' if ical_bad else 'is-good' }}" href="{{ url_for('admin.calendar_sync_conflicts') }}">
-        <strong>iCal {{ "✗" if ical_bad else "✓" }}</strong>
-        {% if ical_status.get("last_sync_at") %}
-          synkronoitu {{ ical_status.get("last_sync_at").strftime("%d.%m. %H:%M") }}
-        {% else %}
-          ei synkronoitu
-        {% endif %}
-        · {{ ical_status.get("conflicts_open", 0) }} konfliktia
-      </a>
-      {% if email_health %}
-        {% set email_bad = email_health.get("failed_count", 0) > 0 %}
-        <a class="dashboard-status-item {{ 'is-bad' if email_bad else 'is-warn' }}" href="{{ url_for('admin.email_templates_list') }}">
-          <strong>Sähköpostit {{ email_health.get("window_label", "24 h") }}</strong>
-          {{ email_health.get("sent_count", 0) }} lähetetty / {{ email_health.get("failed_count", 0) }} epäonnistunut
-        </a>
-      {% endif %}
-    </div>
     <ul class="dashboard-action-list">
       {% for item in summary.action_required %}
         <li class="dashboard-action-item">
           <a href="{{ item.link }}" class="dashboard-action-link">
-            <span class="status-badge {{ 'status-red' if item.severity == 'danger' else 'status-amber' }}">
-              {{ "Kriittinen" if item.severity == "danger" else "Huomio" }}
-            </span>
+            <span class="status-badge {{ 'status-red' if item.severity == 'danger' else 'status-amber' }}">{{ "Kriittinen" if item.severity == "danger" else "Huomio" }}</span>
             <span class="dashboard-action-label">{{ item.label }}</span>
             <small class="meta">{{ item.since or "—" }}</small>
           </a>
@@ -114,13 +91,8 @@
       <ul class="dashboard-reservation-list">
         {% for row in summary.today_arrivals %}
           <li>
-            <a href="{{ url_for('admin.reservations_detail', reservation_id=row.reservation_id) }}">
-              <strong>{{ row.unit_label }}</strong> — {{ row.guest_name }}
-            </a>
-            <div class="meta">
-              {{ row.start_date }}–{{ row.end_date }} ·
-              {% if row.has_access_code %}Pääsykoodi valmis{% else %}Pääsykoodi puuttuu{% endif %}
-            </div>
+            <a href="{{ url_for('admin.reservations_detail', reservation_id=row.reservation_id) }}"><strong>{{ row.unit_label }}</strong> — {{ row.guest_name }}</a>
+            <div class="meta">{{ row.start_date }}–{{ row.end_date }} · {% if row.has_access_code %}Pääsykoodi valmis{% else %}Pääsykoodi puuttuu{% endif %}</div>
           </li>
         {% else %}
           <li class="empty-state"><em>Ei saapuvia varauksia tälle päivälle.</em></li>
@@ -133,9 +105,7 @@
       <ul class="dashboard-reservation-list">
         {% for row in summary.today_departures %}
           <li>
-            <a href="{{ url_for('admin.reservations_detail', reservation_id=row.reservation_id) }}">
-              <strong>{{ row.unit_label }}</strong> — {{ row.guest_name }}
-            </a>
+            <a href="{{ url_for('admin.reservations_detail', reservation_id=row.reservation_id) }}"><strong>{{ row.unit_label }}</strong> — {{ row.guest_name }}</a>
             <div class="meta">{{ row.start_date }}–{{ row.end_date }}</div>
           </li>
         {% else %}
@@ -145,107 +115,57 @@
     </section>
   </div>
 
-  <section class="card dashboard-revenue">
-    <h2>Liikevaihto</h2>
-    <p class="dashboard-revenue-line">
-      {{ summary.range_label }}:
-      <strong>{{ revenue.get("range_total", 0) }} €</strong>
-      {% if trend is not none %}
-        <span class="dashboard-trend {{ 'up' if trend_up else 'down' if trend_down else 'flat' }}">
-          {{ "▲" if trend_up else "▼" if trend_down else "■" }} {{ "%.0f"|format(trend|abs) }} % edelliseen jaksoon
-        </span>
-      {% else %}
-        <span class="dashboard-trend flat">■ ei vertailua</span>
-      {% endif %}
-    </p>
-    <p class="dashboard-revenue-line">
-      Avoimet saatavat:
-      <strong>{{ revenue.get("open_receivables", 0) }} €</strong>
-      (joista myöhässä {{ revenue.get("overdue_amount", 0) }} €)
-    </p>
-  </section>
-
-  <section class="card dashboard-week-overview">
-    <h2>Mini-viikkokalenteri</h2>
-    <div class="dashboard-week-grid">
-      {% for day in summary.week_overview %}
-        <a class="dashboard-week-day" href="{{ day.calendar_link }}">
-          <strong>{{ day.date }}</strong>
-          <span>{{ day.reservation_count }} varausta</span>
-          <span class="dashboard-week-occupancy">
-            <span class="dashboard-week-occupancy-bar" style="--occupancy: {{ day.occupancy_percent }}%;"></span>
-            {{ day.occupancy_percent }} %
-          </span>
+  <section class="card">
+    <h2>Yksiköiden tilanne tänään</h2>
+    <div class="dashboard-unit-grid">
+      {% for item in summary.unit_status_overview %}
+        <a class="dashboard-unit-card unit-state-{{ item.state }}" href="{{ item.link }}" data-state="{{ item.state }}">
+          <strong>{{ item.unit_label }}</strong>
+          {% if item.state == "free" %}
+            <small>Vapaa</small>
+          {% elif item.state == "blocked" %}
+            <small>Pois käytöstä</small>
+          {% elif item.state == "arriving" %}
+            <small>Saapuu: {{ item.guest_name }}{% if item.until_date %} → {{ item.until_date }}{% endif %}</small>
+          {% elif item.state == "departing" %}
+            <small>Lähtee: {{ item.guest_name }}</small>
+          {% else %}
+            <small>{{ item.guest_name }}{% if item.until_date %} → {{ item.until_date }}{% endif %}</small>
+          {% endif %}
         </a>
+      {% else %}
+        <div class="empty-state"><em>Ei yksiköitä organisaatiossa.</em></div>
       {% endfor %}
     </div>
   </section>
 
-  <div class="dashboard-mini-summary card">
-    Tänään yöpyy <strong>{{ summary.current_guests }}</strong> ·
-    {{ summary.range_label }} saapuu <strong>{{ summary.arrivals_in_range }}</strong> ·
-    {{ summary.range_label }} lähtee <strong>{{ summary.departures_in_range }}</strong> ·
-    Käyttöaste <strong>{{ summary.occupancy_percent }} %</strong>
-  </div>
+  <section class="card">
+    <h2>Tämä viikko</h2>
+    <div class="dashboard-week-strip">
+      {% for day in summary.week_overview %}
+        <a class="dashboard-week-day" href="{{ day.calendar_link }}" title="Varaukset {{ day.reservations_count }}, saapuvat {{ day.arrivals_count }}, lähtevät {{ day.departures_count }}, käyttöaste {{ day.occupancy_pct }} %">
+          <span class="dashboard-week-head">{{ day.weekday_label_fi }}</span>
+          <span class="dashboard-week-occ" style="--occ: {{ day.occupancy_pct }}%;"><span></span></span>
+          <small>{{ day.reservations_count }} var. · {{ day.arrivals_count }} saap. · {{ day.departures_count }} läht.</small>
+        </a>
+      {% else %}
+        <div class="empty-state"><em>Ei viikon dataa.</em></div>
+      {% endfor %}
+    </div>
+  </section>
 
-  <h2>Aikajärjestyksessä</h2>
-  <h3>5 myöhässä olevaa laskua</h3>
-  <div class="admin-table-panel">
-    <table>
-      <thead>
-        <tr><th>Lasku</th><th>Eräpäivä</th><th>Summa</th><th>Tila</th></tr>
-      </thead>
-      <tbody>
-        {% for row in summary.top_overdue_invoices %}
-          <tr class="table-row-link" data-href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">
-            <td><a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">{{ row.invoice_number or ("#" ~ row.id) }}</a></td>
-            <td>{{ row.due_date or "—" }}</td>
-            <td>{{ row.amount }} {{ row.currency }}</td>
-            <td><span class="status-badge status-red">{{ row.status }}</span></td>
-          </tr>
-        {% else %}
-          <tr><td colspan="4" class="empty-state"><em>Ei myöhässä olevia laskuja.</em><div class="actions"><a class="btn btn-secondary" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <h3>5 kiireellisintä avointa huoltoa</h3>
-  <div class="admin-table-panel">
-    <table>
-      <thead>
-        <tr><th>Pyyntö</th><th>Prioriteetti</th><th>Tila</th><th>Eräpäivä</th></tr>
-      </thead>
-      <tbody>
-        {% for row in summary.top_open_maintenance_requests %}
-          <tr class="table-row-link" data-href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">
-            <td><a href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">#{{ row.id }} {{ row.title }}</a></td>
-            <td>
-              {% if row.priority in ["urgent", "high"] %}
-                <span class="status-badge status-red">{{ maintenance_priority_labels.get(row.priority, row.priority) }}</span>
-              {% elif row.priority == "normal" %}
-                <span class="status-badge status-amber">{{ maintenance_priority_labels.get(row.priority, row.priority) }}</span>
-              {% else %}
-                <span class="status-badge status-gray">{{ maintenance_priority_labels.get(row.priority, row.priority) }}</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if row.status == "resolved" %}
-                <span class="status-badge status-green">{{ maintenance_status_labels.get(row.status, row.status) }}</span>
-              {% elif row.status == "cancelled" %}
-                <span class="status-badge status-red">{{ maintenance_status_labels.get(row.status, row.status) }}</span>
-              {% elif row.status in ["in_progress", "waiting"] %}
-                <span class="status-badge status-amber">{{ maintenance_status_labels.get(row.status, row.status) }}</span>
-              {% else %}
-                <span class="status-badge status-blue">{{ maintenance_status_labels.get(row.status, row.status) }}</span>
-              {% endif %}
-            </td>
-            <td>{{ row.due_date or "—" }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="4" class="empty-state"><em>Ei kiireellisiä tai avoimia huoltoja.</em><div class="actions"><a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_new') }}">Luo pyyntö</a></div></td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="dashboard-status-line card">
+    {% if backup_status %}
+      {% set backup_bad = backup_status.state in ["failed", "stale", "missing"] %}
+      <a class="dashboard-status-item {{ 'is-bad' if backup_bad else 'is-good' }}" href="{{ url_for('backups_admin.backups_list') }}"><strong>Backup {{ "✗" if backup_bad else "✓" }}</strong>{% if backup_status.last_success_at %} {{ backup_status.last_success_at.strftime("%d.%m. %H:%M") }}{% else %} ei dataa{% endif %}</a>
+    {% endif %}
+    {% set pindora_bad = (not pindora_status.get("configured")) or (pindora_status.get("failed_calls_24h", 0) > 0) %}
+    <a class="dashboard-status-item {{ 'is-bad' if pindora_bad else 'is-good' }}" href="{{ url_for('admin.properties_list') }}"><strong>Pindora API {{ "✗" if pindora_bad else "✓" }}</strong>{% if pindora_status.get("last_call_at") %} {{ pindora_status.get("last_call_at").strftime("%d.%m. %H:%M") }}{% else %} ei kutsuja{% endif %}</a>
+    {% set ical_bad = (ical_status.get("feeds_active", 0) == 0) or (ical_status.get("conflicts_open", 0) > 0) %}
+    <a class="dashboard-status-item {{ 'is-bad' if ical_bad else 'is-good' }}" href="{{ url_for('admin.calendar_sync_conflicts') }}"><strong>iCal {{ "✗" if ical_bad else "✓" }}</strong>{% if ical_status.get("last_sync_at") %} synkronoitu {{ ical_status.get("last_sync_at").strftime("%d.%m. %H:%M") }}{% else %} ei synkronoitu{% endif %} · {{ ical_status.get("conflicts_open", 0) }} konfliktia</a>
+    {% if email_health %}
+      {% set email_bad = email_health.get("failed_count", 0) > 0 %}
+      <a class="dashboard-status-item {{ 'is-bad' if email_bad else 'is-warn' }}" href="{{ url_for('admin.email_templates_list') }}"><strong>Sähköpostit {{ email_health.get("window_label", "24 h") }}</strong> {{ email_health.get("sent_count", 0) }} lähetetty / {{ email_health.get("failed_count", 0) }} epäonnistunut</a>
+    {% endif %}
   </div>
 {% endblock %}
