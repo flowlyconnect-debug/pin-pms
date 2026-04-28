@@ -943,7 +943,7 @@ def test_dashboard_shows_correct_counts_for_admin_organization(client, admin_use
     assert b"Vaatii toimintaa" in response.data
     assert b"T\xc3\xa4n\xc3\xa4\xc3\xa4n saapuu" in response.data
     assert b"T\xc3\xa4n\xc3\xa4\xc3\xa4n l\xc3\xa4htee" in response.data
-    assert b"Aikaj\xc3\xa4rjestyksess\xc3\xa4" in response.data
+    assert b"Yksik\xc3\xb6iden tilanne t\xc3\xa4n\xc3\xa4\xc3\xa4n" in response.data
 
 
 def test_dashboard_occupancy_percent_matches_nightly_logic(client, admin_user):
@@ -1231,8 +1231,8 @@ def test_get_week_overview_returns_exactly_seven_days(app, admin_user):
             start_date=date(2026, 4, 27),
         )
     assert len(rows) == 7
-    assert rows[0]["date"] == "2026-04-27"
-    assert rows[-1]["date"] == "2026-05-03"
+    assert rows[0]["date_iso"] == "2026-04-27"
+    assert rows[-1]["date_iso"] == "2026-05-03"
 
 
 def test_get_week_overview_respects_tenant_isolation(app, admin_user):
@@ -1294,8 +1294,191 @@ def test_get_week_overview_respects_tenant_isolation(app, admin_user):
             organization_id=admin_user.organization_id,
             start_date=date(2026, 4, 27),
         )
-    peak_day = next(row for row in rows if row["date"] == "2026-04-28")
-    assert peak_day["reservation_count"] == 1
+    peak_day = next(row for row in rows if row["date_iso"] == "2026-04-28")
+    assert peak_day["reservations_count"] == 1
+
+
+def test_dashboard_unit_overview_classifies_states(client, admin_user):
+    from unittest.mock import patch
+
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    today = date(2026, 4, 29)
+    prop = Property(organization_id=admin_user.organization_id, name="Talo A", address=None)
+    db.session.add(prop)
+    db.session.flush()
+    free_unit = Unit(property_id=prop.id, name="U1", unit_type="double")
+    occupied_unit = Unit(property_id=prop.id, name="U2", unit_type="double")
+    arriving_unit = Unit(property_id=prop.id, name="U3", unit_type="double")
+    departing_unit = Unit(property_id=prop.id, name="U4", unit_type="double")
+    blocked_unit = Unit(property_id=prop.id, name="U5", unit_type="blocked")
+    db.session.add_all([free_unit, occupied_unit, arriving_unit, departing_unit, blocked_unit])
+    db.session.flush()
+    db.session.add_all(
+        [
+            Reservation(
+                unit_id=occupied_unit.id,
+                guest_id=admin_user.id,
+                guest_name="Matti Majoittuja",
+                start_date=today - timedelta(days=1),
+                end_date=today + timedelta(days=2),
+                status="confirmed",
+            ),
+            Reservation(
+                unit_id=arriving_unit.id,
+                guest_id=admin_user.id,
+                guest_name="Ari Saapuja",
+                start_date=today,
+                end_date=today + timedelta(days=1),
+                status="confirmed",
+            ),
+            Reservation(
+                unit_id=departing_unit.id,
+                guest_id=admin_user.id,
+                guest_name="Liisa Lähtijä",
+                start_date=today - timedelta(days=2),
+                end_date=today,
+                status="confirmed",
+            ),
+        ]
+    )
+    db.session.commit()
+
+    with patch("app.admin.services.date") as mock_date:
+        mock_date.today.return_value = today
+        response = client.get("/admin/dashboard")
+    html = response.data.decode("utf-8")
+    assert response.status_code == 200
+    assert 'data-state="free"' in html
+    assert 'data-state="occupied"' in html
+    assert 'data-state="arriving"' in html
+    assert 'data-state="departing"' in html
+    assert 'data-state="blocked"' in html
+
+
+def test_dashboard_unit_overview_tenant_isolation(client, admin_user):
+    from unittest.mock import patch
+
+    from app.extensions import db
+    from app.organizations.models import Organization
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+    from werkzeug.security import generate_password_hash
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    today = date(2026, 4, 29)
+    own_prop = Property(organization_id=admin_user.organization_id, name="Oma Talo", address=None)
+    db.session.add(own_prop)
+    db.session.flush()
+    own_unit = Unit(property_id=own_prop.id, name="OWN-1", unit_type="double")
+    db.session.add(own_unit)
+    db.session.flush()
+    db.session.add(
+        Reservation(
+            unit_id=own_unit.id,
+            guest_id=admin_user.id,
+            guest_name="Oma Vieras",
+            start_date=today,
+            end_date=today + timedelta(days=1),
+            status="confirmed",
+        )
+    )
+
+    other_org = Organization(name="Muu Org Unit")
+    db.session.add(other_org)
+    db.session.flush()
+    other_user = User(
+        email="unit-other@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=other_org.id,
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    other_prop = Property(organization_id=other_org.id, name="Muu Talo", address=None)
+    db.session.add(other_prop)
+    db.session.flush()
+    other_unit = Unit(property_id=other_prop.id, name="OTHER-1", unit_type="double")
+    db.session.add(other_unit)
+    db.session.flush()
+    db.session.add(
+        Reservation(
+            unit_id=other_unit.id,
+            guest_id=other_user.id,
+            guest_name="Muu Vieras",
+            start_date=today,
+            end_date=today + timedelta(days=1),
+            status="confirmed",
+        )
+    )
+    db.session.commit()
+
+    with patch("app.admin.services.date") as mock_date:
+        mock_date.today.return_value = today
+        response = client.get("/admin/dashboard")
+    html = response.data.decode("utf-8")
+    assert response.status_code == 200
+    assert "OWN-1" in html
+    assert "OTHER-1" not in html
+
+
+def test_dashboard_week_overview_returns_seven_days(app, admin_user):
+    from app.admin import services as admin_services
+
+    with app.app_context():
+        rows = admin_services.get_week_overview(
+            organization_id=admin_user.organization_id,
+            start_date=date(2026, 5, 5),
+        )
+    assert len(rows) == 7
+    assert [row["date_iso"] for row in rows] == [
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-10",
+        "2026-05-11",
+    ]
+
+
+def test_dashboard_kpi_row_shows_money_format(client, admin_user):
+    from unittest.mock import patch
+
+    from app.billing.models import Invoice
+    from app.extensions import db
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    today = date(2026, 4, 29)
+    db.session.add(
+        Invoice(
+            organization_id=admin_user.organization_id,
+            lease_id=None,
+            reservation_id=None,
+            guest_id=None,
+            invoice_number="BIL-KPI-MONEY",
+            amount=4250,
+            currency="EUR",
+            due_date=today,
+            paid_at=None,
+            status="open",
+            description=None,
+            metadata_json=None,
+            created_by_id=admin_user.id,
+            updated_by_id=None,
+        )
+    )
+    db.session.commit()
+    with patch("app.admin.services.date") as mock_date:
+        mock_date.today.return_value = today
+        response = client.get("/admin/dashboard")
+    assert response.status_code == 200
+    assert "4 250,00 €" in response.data.decode("utf-8")
 
 
 def test_dashboard_performance_under_200ms_for_large_org(app, admin_user):
@@ -3138,8 +3321,7 @@ def test_dashboard_includes_lease_invoice_maintenance_stats(client, admin_user):
     assert stats["open_maintenance_requests"] == 1
     assert stats["urgent_maintenance_requests"] == 1
     assert stats["leases_ending_next_7_days"] == 1
-    assert len(stats["top_overdue_invoices"]) == 1
-    assert len(stats["top_open_maintenance_requests"]) == 1
+    assert stats["open_invoices_amount_fi"] == "500,00 €"
 
     dashboard = client.get("/admin/dashboard")
     assert dashboard.status_code == 200
@@ -3377,7 +3559,7 @@ def test_dashboard_action_required_panel_shows_expected_rows(client, admin_user)
 
     assert response.status_code == 200
     html = response.data.decode("utf-8")
-    vaatii_split = html.split("Aikajärjestyksessä", 1)
+    vaatii_split = html.split("Yksiköiden tilanne tänään", 1)
     assert len(vaatii_split) == 2
     action_panel_html = vaatii_split[0]
     assert "Vaatii toimintaa" in action_panel_html
