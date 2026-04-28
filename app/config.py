@@ -189,6 +189,7 @@ class BaseConfig:
 
     # Rate limit values per project brief section 18.
     LOGIN_RATE_LIMIT = os.getenv("LOGIN_RATE_LIMIT", "5/minute")
+    MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
     API_RATE_LIMIT = os.getenv("API_RATE_LIMIT", "100/hour")
     PASSWORD_MIN_LENGTH = int(os.getenv("PASSWORD_MIN_LENGTH", "12"))
 
