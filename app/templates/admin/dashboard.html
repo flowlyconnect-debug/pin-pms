@@ -16,6 +16,15 @@
     "resolved": "Ratkaistu",
     "cancelled": "Peruttu",
   } %}
+  {% set revenue = summary.revenue or {} %}
+  {% set integrations = summary.integrations or {} %}
+  {% set ical_status = integrations.get("ical", {}) %}
+  {% set pindora_status = integrations.get("pindora", {}) %}
+  {% set backup_status = summary.backup_status %}
+  {% set email_health = summary.email_health %}
+  {% set trend = revenue.get("trend_pct") %}
+  {% set trend_up = trend is not none and trend > 0 %}
+  {% set trend_down = trend is not none and trend < 0 %}
 
   <div class="dashboard-header">
     <h1>Hallintapaneeli</h1>
@@ -36,6 +45,45 @@
 
   <section class="card dashboard-actions">
     <h2>Vaatii toimintaa</h2>
+    <div class="dashboard-status-line">
+      {% if backup_status %}
+        {% set backup_bad = backup_status.state in ["failed", "stale", "missing"] %}
+        <a class="dashboard-status-item {{ 'is-bad' if backup_bad else 'is-good' }}" href="{{ url_for('backups_admin.backups_list') }}">
+          <strong>Backup {{ "✗" if backup_bad else "✓" }}</strong>
+          {% if backup_status.last_success_at %}
+            {{ backup_status.last_success_at.strftime("%d.%m. %H:%M") }}
+          {% else %}
+            ei dataa
+          {% endif %}
+        </a>
+      {% endif %}
+      {% set pindora_bad = (not pindora_status.get("configured")) or (pindora_status.get("failed_calls_24h", 0) > 0) %}
+      <a class="dashboard-status-item {{ 'is-bad' if pindora_bad else 'is-good' }}" href="{{ url_for('admin.properties_list') }}">
+        <strong>Pindora API {{ "✗" if pindora_bad else "✓" }}</strong>
+        {% if pindora_status.get("last_call_at") %}
+          {{ pindora_status.get("last_call_at").strftime("%d.%m. %H:%M") }}
+        {% else %}
+          ei kutsuja
+        {% endif %}
+      </a>
+      {% set ical_bad = (ical_status.get("feeds_active", 0) == 0) or (ical_status.get("conflicts_open", 0) > 0) %}
+      <a class="dashboard-status-item {{ 'is-bad' if ical_bad else 'is-good' }}" href="{{ url_for('admin.calendar_sync_conflicts') }}">
+        <strong>iCal {{ "✗" if ical_bad else "✓" }}</strong>
+        {% if ical_status.get("last_sync_at") %}
+          synkronoitu {{ ical_status.get("last_sync_at").strftime("%d.%m. %H:%M") }}
+        {% else %}
+          ei synkronoitu
+        {% endif %}
+        · {{ ical_status.get("conflicts_open", 0) }} konfliktia
+      </a>
+      {% if email_health %}
+        {% set email_bad = email_health.get("failed_count", 0) > 0 %}
+        <a class="dashboard-status-item {{ 'is-bad' if email_bad else 'is-warn' }}" href="{{ url_for('admin.email_templates_list') }}">
+          <strong>Sähköpostit 24 h</strong>
+          {{ email_health.get("sent_count", 0) }} lähetetty / {{ email_health.get("failed_count", 0) }} epäonnistunut
+        </a>
+      {% endif %}
+    </div>
     <ul class="dashboard-action-list">
       {% for item in summary.action_required %}
         <li class="dashboard-action-item">
@@ -89,6 +137,26 @@
       </ul>
     </section>
   </div>
+
+  <section class="card dashboard-revenue">
+    <h2>Liikevaihto</h2>
+    <p class="dashboard-revenue-line">
+      Tämä kk:
+      <strong>{{ revenue.get("month_to_date", 0) }} €</strong>
+      {% if trend is not none %}
+        <span class="dashboard-trend {{ 'up' if trend_up else 'down' if trend_down else 'flat' }}">
+          {{ "▲" if trend_up else "▼" if trend_down else "■" }} {{ "%.0f"|format(trend|abs) }} % ed. kk
+        </span>
+      {% else %}
+        <span class="dashboard-trend flat">■ ei vertailua</span>
+      {% endif %}
+    </p>
+    <p class="dashboard-revenue-line">
+      Avoimet saatavat:
+      <strong>{{ revenue.get("open_receivables", 0) }} €</strong>
+      (joista myöhässä {{ revenue.get("overdue_amount", 0) }} €)
+    </p>
+  </section>
 
   <div class="dashboard-mini-summary card">
     Tänään yöpyy <strong>{{ summary.current_guests }}</strong> ·

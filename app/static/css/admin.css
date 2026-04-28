@@ -727,6 +727,44 @@ body.admin-sidebar-open {
   margin-bottom: 1rem;
 }
 
+.dashboard-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+}
+
+.dashboard-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.82rem;
+  text-decoration: none;
+  background: #fff;
+  color: var(--admin-text);
+}
+
+.dashboard-status-item.is-good {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.dashboard-status-item.is-warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.dashboard-status-item.is-bad {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 .dashboard-action-list,
 .dashboard-reservation-list {
   list-style: none;
@@ -768,6 +806,32 @@ body.admin-sidebar-open {
 
 .dashboard-mini-summary {
   margin-top: 1rem;
+}
+
+.dashboard-revenue {
+  margin-top: 1rem;
+}
+
+.dashboard-revenue-line {
+  margin: 0.45rem 0;
+  font-size: 0.95rem;
+}
+
+.dashboard-trend {
+  margin-left: 0.45rem;
+  font-weight: 700;
+}
+
+.dashboard-trend.up {
+  color: #166534;
+}
+
+.dashboard-trend.down {
+  color: #991b1b;
+}
+
+.dashboard-trend.flat {
+  color: #6b7280;
 }
 
 @media (max-width: 900px) {
