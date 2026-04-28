@@ -1,44 +1,30 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Admin dashboard · Pindora PMS{% endblock %}
+{% block title %}Hallintapaneeli · Pin PMS{% endblock %}
 
 {% block content %}
-  <h1>Admin dashboard</h1>
+  {% set maintenance_priority_labels = {
+    "urgent": "Kiireellinen",
+    "high": "Korkea",
+    "normal": "Normaali",
+    "low": "Matala",
+  } %}
+  {% set maintenance_status_labels = {
+    "new": "Uusi",
+    "in_progress": "Työn alla",
+    "waiting": "Odottaa",
+    "resolved": "Ratkaistu",
+    "cancelled": "Peruttu",
+  } %}
+  <h1>Hallintapaneeli</h1>
 
   <div class="admin-kpi-grid">
     <div class="admin-kpi-card">
       <div class="admin-kpi-top">
-        <div class="admin-kpi-icon" aria-hidden="true">🏨</div>
-        <div class="admin-kpi-body">
-          <span class="admin-kpi-label">Total properties</span>
-          <span class="admin-kpi-value">{{ summary.total_properties }}</span>
-        </div>
-      </div>
-    </div>
-    <div class="admin-kpi-card">
-      <div class="admin-kpi-top">
-        <div class="admin-kpi-icon" aria-hidden="true">🚪</div>
-        <div class="admin-kpi-body">
-          <span class="admin-kpi-label">Total units</span>
-          <span class="admin-kpi-value">{{ summary.total_units }}</span>
-        </div>
-      </div>
-    </div>
-    <div class="admin-kpi-card">
-      <div class="admin-kpi-top">
         <div class="admin-kpi-icon" aria-hidden="true">✅</div>
         <div class="admin-kpi-body">
-          <span class="admin-kpi-label">Active reservations</span>
+          <span class="admin-kpi-label">Aktiiviset varaukset</span>
           <span class="admin-kpi-value">{{ summary.active_reservations }}</span>
-        </div>
-      </div>
-    </div>
-    <div class="admin-kpi-card">
-      <div class="admin-kpi-top">
-        <div class="admin-kpi-icon" aria-hidden="true">✖</div>
-        <div class="admin-kpi-body">
-          <span class="admin-kpi-label">Cancelled reservations</span>
-          <span class="admin-kpi-value">{{ summary.cancelled_reservations }}</span>
         </div>
       </div>
     </div>
@@ -46,7 +32,7 @@
       <div class="admin-kpi-top">
         <div class="admin-kpi-icon" aria-hidden="true">📈</div>
         <div class="admin-kpi-body">
-          <span class="admin-kpi-label">Occupancy % (today)</span>
+          <span class="admin-kpi-label">Käyttöaste tänään</span>
           <span class="admin-kpi-value">{{ summary.occupancy_percent }}</span>
         </div>
       </div>
@@ -128,7 +114,7 @@
         <div class="admin-kpi-icon" aria-hidden="true">🚨</div>
         <div class="admin-kpi-body">
           <span class="admin-kpi-label">Kiireelliset huollot</span>
-          <span class="admin-kpi-value">{{ summary.Kiireellinen_maintenance_requests }}</span>
+          <span class="admin-kpi-value">{{ summary.urgent_maintenance_requests }}</span>
         </div>
       </div>
     </div>
@@ -175,23 +161,23 @@
           <tr class="table-row-link" data-href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">
             <td><a href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">#{{ row.id }} {{ row.title }}</a></td>
             <td>
-              {% if row.priority in ["Kiireellinen", "Korkea"] %}
-                <span class="status-badge status-red">{{ row.priority }}</span>
-              {% elif row.priority == "Normaali" %}
-                <span class="status-badge status-amber">{{ row.priority }}</span>
+              {% if row.priority in ["urgent", "high"] %}
+                <span class="status-badge status-red">{{ maintenance_priority_labels.get(row.priority, row.priority) }}</span>
+              {% elif row.priority == "normal" %}
+                <span class="status-badge status-amber">{{ maintenance_priority_labels.get(row.priority, row.priority) }}</span>
               {% else %}
-                <span class="status-badge status-gray">{{ row.priority }}</span>
+                <span class="status-badge status-gray">{{ maintenance_priority_labels.get(row.priority, row.priority) }}</span>
               {% endif %}
             </td>
             <td>
               {% if row.status == "resolved" %}
-                <span class="status-badge status-green">{{ row.status }}</span>
-              {% elif row.status == "peruttu" %}
-                <span class="status-badge status-red">{{ row.status }}</span>
+                <span class="status-badge status-green">{{ maintenance_status_labels.get(row.status, row.status) }}</span>
+              {% elif row.status == "cancelled" %}
+                <span class="status-badge status-red">{{ maintenance_status_labels.get(row.status, row.status) }}</span>
               {% elif row.status in ["in_progress", "waiting"] %}
-                <span class="status-badge status-amber">{{ row.status }}</span>
+                <span class="status-badge status-amber">{{ maintenance_status_labels.get(row.status, row.status) }}</span>
               {% else %}
-                <span class="status-badge status-blue">{{ row.status }}</span>
+                <span class="status-badge status-blue">{{ maintenance_status_labels.get(row.status, row.status) }}</span>
               {% endif %}
             </td>
             <td>{{ row.due_date or "—" }}</td>
@@ -203,24 +189,4 @@
     </table>
   </div>
 
-  <h2>Latest audit events</h2>
-  <div class="admin-table-panel">
-    <table>
-      <thead>
-        <tr><th>Aika</th><th>Toiminto</th><th>Tila</th><th>Kohde</th></tr>
-      </thead>
-      <tbody>
-        {% for row in summary.latest_audit_events %}
-          <tr>
-            <td>{{ row.created_at or "" }}</td>
-            <td>{{ row.action }}</td>
-            <td>{{ row.status or "" }}</td>
-            <td>{% if row.target_type %}{{ row.target_type }}{% if row.target_id is not none %} #{{ row.target_id }}{% endif %}{% else %}—{% endif %}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="4" class="empty-state"><em>Ei audit-tapahtumia vielä.</em></td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
 {% endblock %}
