@@ -2,6 +2,7 @@ import os
 import socket
 import sys
 from pathlib import Path
+from datetime import timedelta
 from urllib.parse import quote_plus
 
 from sqlalchemy.engine.url import make_url
@@ -16,6 +17,13 @@ _DB_ENV_KEYS = frozenset(
         "POSTGRES_DB",
     }
 )
+
+
+def _running_in_docker() -> bool:
+    """Best-effort detection for container runtime."""
+    if Path("/.dockerenv").exists():
+        return True
+    return os.getenv("RUNNING_IN_DOCKER", "").strip().lower() in {"1", "true", "yes"}
 
 
 def _env_for_database() -> dict[str, str]:
@@ -40,10 +48,19 @@ def _env_for_database() -> dict[str, str]:
     file_keys = {k for k, v in file_vals.items() if v is not None and str(v).strip() != ""}
     # Typical dev ``.env``: ``POSTGRES_*`` without ``DATABASE_URL``. A stale ``DATABASE_URL``
     # in the IDE/shell would otherwise win over ``load_dotenv()`` and break login.
-    if any(k.startswith("POSTGRES_") for k in file_keys) and "DATABASE_URL" not in file_keys:
+    if (
+        any(k.startswith("POSTGRES_") for k in file_keys)
+        and "DATABASE_URL" not in file_keys
+        and not (_running_in_docker() and merged.get("DATABASE_URL"))
+    ):
         merged.pop("DATABASE_URL", None)
+    keep_runtime_database_url = _running_in_docker() and bool(merged.get("DATABASE_URL"))
     for key, val in file_vals.items():
         if key not in _DB_ENV_KEYS or val is None:
+            continue
+        if key == "DATABASE_URL" and keep_runtime_database_url:
+            # In Docker Compose the runtime env intentionally points at "db:5432".
+            # Do not overwrite it with a host-focused value from the project .env.
             continue
         s = str(val).strip()
         if s:
@@ -68,6 +85,8 @@ def _loopback_if_compose_hostname_unresolvable(host: str, *, port: int = 5432) -
 
     h = (host or "").strip()
     if h != "db":
+        return h
+    if _running_in_docker():
         return h
     try:
         socket.getaddrinfo(h, port, type=socket.SOCK_STREAM)
@@ -170,10 +189,10 @@ def _resolved_database_url() -> str:
     explicit = _db_get("DATABASE_URL")
     if not explicit:
         raw = _default_database_url()
+        raw = _coerce_database_url_host(raw)
     else:
         raw = explicit.replace(":replace-with-strong-password@", ":postgres@")
         raw = _unmask_placeholder_database_url(raw)
-    raw = _coerce_database_url_host(raw)
     return _apply_postgres_port_env(raw)
 
 
@@ -186,6 +205,8 @@ class BaseConfig:
     # Session cookie hardening (safe defaults for all environments).
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_LIFETIME_MINUTES = int(os.getenv("SESSION_LIFETIME_MINUTES", "120"))
+    PERMANENT_SESSION_LIFETIME = timedelta(minutes=SESSION_LIFETIME_MINUTES)
 
     # Rate limit values per project brief section 18.
     LOGIN_RATE_LIMIT = os.getenv("LOGIN_RATE_LIMIT", "5/minute")

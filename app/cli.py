@@ -4,18 +4,21 @@ from flask import Flask
 from app.api.models import ApiKey
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
+from app.audit.services import vacuum_audit_logs
 from app.backups.models import BackupTrigger
 from app.billing import services as billing_service
 from app.backups.services import BackupError, create_backup, restore_backup
 from app.email.models import EmailTemplate, TemplateKey
-from app.email.services import ensure_seed_templates, send_template
+from app.email.services import ensure_seed_templates, send_template_sync
 from app.extensions import db
 from app.organizations.models import Organization
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reservations import services as reservation_service
 from app.reservations.models import Reservation
+from app.integrations.ical.service import IcalService
 from app.settings.services import ensure_seed_settings
+from app.auth import services as auth_services
 from app.users import services as user_services
 from app.users.models import User, UserRole
 
@@ -188,7 +191,7 @@ def register_cli_commands(app: Flask) -> None:
             "message": "This is a test message sent via 'flask send-test-email'.",
         }
 
-        ok = send_template(template, to=to, context=sample_context)
+        ok = send_template_sync(template, to=to, context=sample_context)
         if ok:
             click.echo(f"Sent template '{template}' to {to}.")
         else:
@@ -338,13 +341,15 @@ def register_cli_commands(app: Flask) -> None:
 
         click.echo("Restoring…")
         try:
-            safe_copy = restore_backup(filename=filename, actor_user_id=None)
+            safe_copy_filename, safe_copy_size = restore_backup(
+                filename=filename, actor_user_id=None
+            )
         except BackupError as err:
             raise click.ClickException(f"Restore failed: {err}")
 
         click.echo(
-            f"Restore complete. Pre-restore safe-copy saved as {safe_copy.filename} "
-            f"({safe_copy.size_human})."
+            f"Restore complete. Pre-restore safe-copy saved as {safe_copy_filename} "
+            f"({safe_copy_size})."
         )
 
     @app.cli.command("invoices-mark-overdue")
@@ -359,6 +364,19 @@ def register_cli_commands(app: Flask) -> None:
 
         n = billing_service.mark_overdue_invoices(organization_id=organization_id)
         click.echo(f"Marked {n} invoice(s) as overdue.")
+
+    @app.cli.command("ical-sync")
+    @click.option(
+        "--organization-id",
+        type=int,
+        default=None,
+        help="Limit import to one organization id (default: all organizations).",
+    )
+    def ical_sync(organization_id: int | None) -> None:
+        """Poll configured iCal feeds and import availability blocks."""
+
+        n = IcalService().sync_all_feeds(organization_id=organization_id)
+        click.echo(f"Imported {n} iCal block(s).")
 
     @app.cli.command("seed-email-templates")
     def seed_email_templates() -> None:
@@ -516,4 +534,31 @@ def register_cli_commands(app: Flask) -> None:
             f"{created_counts['properties']} property, "
             f"{created_counts['units']} unit(s), "
             f"{created_counts['reservations']} reservation(s)"
+        )
+
+    @app.cli.command("cleanup-expired-tokens")
+    def cleanup_expired_tokens() -> None:
+        """Delete expired password-reset / email-2FA / portal magic-link tokens."""
+        counts = auth_services.cleanup_expired_tokens()
+        total = sum(counts.values())
+        click.echo(f"Deleted {total} expired token row(s).")
+        click.echo(f"  password_reset_tokens: {counts['password_reset_tokens']}")
+        click.echo(f"  two_factor_email_codes: {counts['two_factor_email_codes']}")
+        click.echo(f"  portal_magic_link_tokens: {counts['portal_magic_link_tokens']}")
+
+    @app.cli.command("vacuum-audit-logs")
+    @click.option(
+        "--keep-days",
+        type=int,
+        required=True,
+        help="Keep only audit rows newer than N days.",
+    )
+    def vacuum_audit_logs_command(keep_days: int) -> None:
+        """Delete audit rows older than N days."""
+        try:
+            deleted = vacuum_audit_logs(keep_days=keep_days)
+        except ValueError as err:
+            raise click.ClickException(str(err)) from err
+        click.echo(
+            f"Deleted {deleted} audit row(s) older than {keep_days} day(s)."
         )

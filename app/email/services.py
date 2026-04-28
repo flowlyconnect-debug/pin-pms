@@ -25,36 +25,18 @@ Design choices
 from __future__ import annotations
 
 import logging
-import threading
 from typing import Any, Mapping, Optional
 
 import requests
 from flask import current_app
-from jinja2.sandbox import SandboxedEnvironment
 
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
-from app.email.models import EmailTemplate
+from app.email.models import EmailTemplate, OutgoingEmail, OutgoingEmailStatus
+from app.email.templates import EmailTemplateNotFound, render_template_for
+from app.extensions import db
 
 logger = logging.getLogger(__name__)
-
-# Sandboxed Jinja shared across calls. ``autoescape`` is False because the
-# text body is plain text; the HTML body is autoescaped per-call when present.
-_TEXT_ENV = SandboxedEnvironment(autoescape=False, trim_blocks=False, lstrip_blocks=False)
-_HTML_ENV = SandboxedEnvironment(autoescape=True, trim_blocks=False, lstrip_blocks=False)
-
-
-class EmailTemplateNotFound(LookupError):
-    """Raised when the caller requests a template key that does not exist.
-
-    This is a programmer error — every call site should reference one of the
-    keys in :class:`app.email.models.TemplateKey`.
-    """
-
-
-def _render(template_str: str, context: Mapping[str, Any], *, html: bool) -> str:
-    env = _HTML_ENV if html else _TEXT_ENV
-    return env.from_string(template_str).render(**context)
 
 
 def _build_from_header(app_config: Mapping[str, Any]) -> str:
@@ -72,107 +54,15 @@ def _build_from_header(app_config: Mapping[str, Any]) -> str:
     return f"{name} <{addr}>"
 
 
-def render_strings(
-    *,
-    subject: str,
-    body_text: str,
-    body_html: Optional[str],
-    context: Mapping[str, Any],
-) -> tuple[str, str, Optional[str]]:
-    """Render arbitrary template strings — used by the admin "preview" path.
-
-    Decoupling this from the DB lookup means the editor can preview unsaved
-    changes without round-tripping through the session.
-    """
-
-    merged: dict[str, Any] = {
-        "from_name": (
-            current_app.config.get("MAILGUN_FROM_NAME")
-            or current_app.config.get("MAIL_FROM_NAME")
-            or ""
-        )
-    }
-    merged.update(dict(context))
-
-    rendered_subject = _render(subject, merged, html=False).strip()
-    rendered_text = _render(body_text, merged, html=False)
-    rendered_html = _render(body_html, merged, html=True) if body_html else None
-    return rendered_subject, rendered_text, rendered_html
-
-
-def render_template(key: str, context: Mapping[str, Any]) -> tuple[str, str, Optional[str]]:
-    """Render the named DB template and return ``(subject, body_text, body_html)``.
-
-    Used by :func:`send_template`. Raises :class:`EmailTemplateNotFound` if no
-    row matches ``key``.
-    """
-
-    template: Optional[EmailTemplate] = EmailTemplate.query.filter_by(key=key).first()
-    if template is None:
-        raise EmailTemplateNotFound(f"Email template '{key}' is not seeded.")
-
-    return render_strings(
-        subject=template.subject,
-        body_text=template.body_text,
-        body_html=template.body_html,
-        context=context,
-    )
-
-
-def send_template(
-    key: str,
-    *,
-    to: str,
-    context: Optional[Mapping[str, Any]] = None,
-    async_: bool | None = None,
-) -> bool:
-    """Render ``key`` and send the result to ``to``. Returns success.
-
-    Parameters
-    ----------
-    async_ :
-        When True, the Mailgun HTTP call runs in a daemon background
-        thread so the request that triggered the email returns
-        immediately. This is the recommended path for user-facing flows
-        (login emails, password resets, notifications) where Mailgun's
-        latency would otherwise block the response. Defaults to True
-        outside of tests; tests force synchronous behaviour so they can
-        assert on the rendered output deterministically.
-
-        Set to False to force synchronous behaviour even in production
-        (e.g. CLI ``send-test-email`` wants to surface failures right
-        away).
-    """
-
+def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = None) -> bool:
+    """Queue an outbound email row and return immediately."""
     context = dict(context or {})
-
-    cfg = current_app.config
-    if async_ is None:
-        # Default: synchronous in tests / dev-log-only mode (so behaviour is
-        # observable), asynchronous in real deployments.
-        async_ = not cfg.get("TESTING") and not cfg.get("MAIL_DEV_LOG_ONLY")
-
-    if async_:
-        # Capture the application object before launching the thread so the
-        # daemon has a working app context independent of the request.
-        app = current_app._get_current_object()  # type: ignore[attr-defined]
-        thread = threading.Thread(
-            target=_send_template_in_thread,
-            args=(app, key, to, context),
-            daemon=True,
-            name=f"email-{key}",
-        )
-        thread.start()
-        return True
-
     try:
-        subject, body_text, body_html = render_template(key, context)
+        rendered = render_template_for(key, context)
     except EmailTemplateNotFound:
-        # Programmer error — re-raise so the bug is visible in tests/CI rather
-        # than silently swallowed.
         raise
     except Exception as err:  # noqa: BLE001 — we want to log every render failure
-        logger.exception("Failed to render email template %s", key)
+        logger.exception("Failed to render email template %s for queueing", key)
         audit_record(
             "email.failed",
             status=AuditStatus.FAILURE,
@@ -182,21 +72,67 @@ def send_template(
         )
         return False
 
+    queued = OutgoingEmail(
+        to=to,
+        template_key=key,
+        context_json=context,
+        subject_snapshot=rendered.subject,
+        status=OutgoingEmailStatus.PENDING,
+    )
+    try:
+        db.session.add(queued)
+        db.session.commit()
+        return True
+    except Exception as err:  # noqa: BLE001
+        db.session.rollback()
+        logger.exception("Failed to queue email template %s", key)
+        audit_record(
+            "email.failed",
+            status=AuditStatus.FAILURE,
+            target_type="email_template",
+            context={"key": key, "to": to, "stage": "queue", "error": str(err)},
+            commit=True,
+        )
+        return False
+
+
+def send_template_sync(
+    key: str,
+    *,
+    to: str,
+    context: Optional[Mapping[str, Any]] = None,
+) -> bool:
+    """Render and send ``key`` to ``to`` in the current thread."""
+    context = dict(context or {})
+    try:
+        rendered = render_template_for(key, context)
+    except EmailTemplateNotFound:
+        raise
+    except Exception as err:  # noqa: BLE001
+        logger.exception("Failed to render email template %s", key)
+        audit_record(
+            "email.failed",
+            status=AuditStatus.FAILURE,
+            target_type="email_template",
+            context={"key": key, "to": to, "stage": "render", "error": str(err)},
+            commit=True,
+        )
+        return False
+    return _send_rendered(key=key, to=to, rendered=rendered)
+
+
+def _send_rendered(*, key: str, to: str, rendered) -> bool:
     cfg = current_app.config
     log_only = (
-        bool(cfg.get("TESTING"))
-        or bool(cfg.get("MAIL_DEV_LOG_ONLY"))
+        bool(cfg.get("MAIL_DEV_LOG_ONLY"))
         or not (cfg.get("MAILGUN_API_KEY") or "").strip()
     )
 
     if log_only:
+        html_part = f"\n--- html ---\n{rendered.html}" if rendered.html else ""
         logger.info(
-            "[email:dev-log-only] key=%s to=%s subject=%s\n--- text ---\n%s%s",
-            key,
-            to,
-            subject,
-            body_text,
-            f"\n--- html ---\n{body_html}" if body_html else "",
+            f"[email:dev-log-only] key={key} to={to} subject={rendered.subject}\n"
+            f"--- text ---\n{rendered.text}{html_part}"
         )
         audit_record(
             "email.sent",
@@ -223,11 +159,11 @@ def send_template(
     payload = {
         "from": _build_from_header(cfg),
         "to": to,
-        "subject": subject,
-        "text": body_text,
+        "subject": rendered.subject,
+        "text": rendered.text,
     }
-    if body_html:
-        payload["html"] = body_html
+    if rendered.html:
+        payload["html"] = rendered.html
 
     try:
         resp = requests.post(
@@ -280,20 +216,6 @@ def send_template(
         commit=True,
     )
     return True
-
-
-def _send_template_in_thread(app, key: str, to: str, context: dict) -> None:
-    """Re-enter the app context inside the worker thread and run the send.
-
-    Errors are logged but never propagated — the calling request thread has
-    already returned to the user.
-    """
-
-    try:
-        with app.app_context():
-            send_template(key, to=to, context=context, async_=False)
-    except Exception:  # noqa: BLE001 — background thread must not crash the worker
-        logger.exception("Background email send failed for template %s", key)
 
 
 def ensure_seed_templates() -> None:
