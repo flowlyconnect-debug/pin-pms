@@ -90,9 +90,11 @@ def _pms_pagination() -> tuple[int, int]:
 @admin_bp.get("/dashboard")
 @require_admin_pms_access
 def admin_home():
+    selected_range = admin_service.normalize_dashboard_range(request.args.get("range"))
     summary = admin_service.get_dashboard_stats(
         organization_id=_pms_org_id(),
         viewer_is_superadmin=bool(current_user.is_superadmin),
+        range_key=selected_range,
     )
     return render_template("admin/dashboard.html", summary=summary)
 

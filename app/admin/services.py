@@ -18,6 +18,7 @@ from app.portal.models import AccessCode, PortalCheckInToken
 from app.properties.models import Property, Unit
 from app.reports import services as report_service
 from app.reservations.models import Reservation
+from app.extensions import db
 
 
 def _serialize_audit_event(row: AuditLog) -> dict:
@@ -47,6 +48,25 @@ def _safe_url_for(endpoint: str, **values) -> str:
         return "#"
 
 
+def normalize_dashboard_range(raw_value: str | None) -> str:
+    value = (raw_value or "").strip().lower()
+    if value in {"today", "7d", "30d"}:
+        return value
+    return "today"
+
+
+def _resolve_range_window(*, range_key: str, today: date) -> tuple[date, date, int]:
+    if range_key == "30d":
+        days = 30
+    elif range_key == "7d":
+        days = 7
+    else:
+        days = 1
+    start_date = today
+    end_date = today + timedelta(days=days - 1)
+    return start_date, end_date, days
+
+
 def _sum_invoice_amount(*, organization_id: int, statuses: tuple[str, ...]) -> Decimal:
     value = (
         Invoice.query.with_entities(func.coalesce(func.sum(Invoice.amount), 0))
@@ -74,10 +94,54 @@ def _sum_paid_between(*, organization_id: int, start_dt: datetime, end_dt: datet
     return Decimal(value or 0)
 
 
-def get_dashboard_stats(*, organization_id: int, viewer_is_superadmin: bool = False) -> dict:
+def get_week_overview(*, organization_id: int, start_date: date) -> list[dict]:
+    total_units = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+        .count()
+    )
+    week_end = start_date + timedelta(days=6)
+    rows = (
+        Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            Reservation.status == "confirmed",
+            Reservation.start_date <= week_end,
+            Reservation.end_date > start_date,
+        )
+        .with_entities(Reservation.start_date, Reservation.end_date)
+        .all()
+    )
+    by_day: list[dict] = []
+    for day_offset in range(7):
+        current_day = start_date + timedelta(days=day_offset)
+        reservations_count = 0
+        for row in rows:
+            if row.start_date <= current_day < row.end_date:
+                reservations_count += 1
+        occupancy_percent = round((reservations_count / total_units) * 100, 1) if total_units else 0.0
+        by_day.append(
+            {
+                "date": current_day.isoformat(),
+                "reservation_count": reservations_count,
+                "occupancy_percent": occupancy_percent,
+                "calendar_link": f"/admin/calendar?date={current_day.isoformat()}",
+            }
+        )
+    return by_day
+
+
+def get_dashboard_stats(
+    *,
+    organization_id: int,
+    viewer_is_superadmin: bool = False,
+    range_key: str = "today",
+) -> dict:
     """Aggregate operational KPIs for the admin dashboard (single-tenant scope)."""
-    cache: dict[tuple[int, bool], dict[str, Any]] = getattr(g, "_admin_dashboard_stats_cache", {})
-    cache_key = (organization_id, bool(viewer_is_superadmin))
+    normalized_range = normalize_dashboard_range(range_key)
+    cache: dict[tuple[int, bool, str], dict[str, Any]] = getattr(g, "_admin_dashboard_stats_cache", {})
+    cache_key = (organization_id, bool(viewer_is_superadmin), normalized_range)
     if cache_key in cache:
         return cache[cache_key]
 
@@ -87,15 +151,75 @@ def get_dashboard_stats(*, organization_id: int, viewer_is_superadmin: bool = Fa
         .filter(Property.organization_id == organization_id)
         .count()
     )
+    today = date.today()
+    range_start, range_end, range_days = _resolve_range_window(range_key=normalized_range, today=today)
+    range_start_dt = datetime.combine(range_start, datetime.min.time(), tzinfo=timezone.utc)
+    range_end_dt = datetime.combine(range_end + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+
+    reservation_metrics = (
+        db.session.query(
+            func.count().filter(Reservation.status == "confirmed").label("active_reservations"),
+            func.count().filter(Reservation.status == "cancelled").label("cancelled_reservations"),
+            func.count()
+            .filter(
+                Reservation.status == "confirmed",
+                Reservation.start_date == today,
+            )
+            .label("arrivals_today"),
+            func.count()
+            .filter(
+                Reservation.status == "confirmed",
+                Reservation.end_date == today,
+            )
+            .label("departures_today"),
+            func.count()
+            .filter(
+                Reservation.status == "confirmed",
+                Reservation.start_date <= today,
+                Reservation.end_date > today,
+            )
+            .label("current_guests"),
+            func.count()
+            .filter(
+                Reservation.status == "confirmed",
+                Reservation.start_date > today,
+            )
+            .label("upcoming_reservations"),
+            func.count()
+            .filter(
+                Reservation.status == "confirmed",
+                Reservation.start_date >= range_start,
+                Reservation.start_date <= range_end,
+            )
+            .label("arrivals_in_range"),
+            func.count()
+            .filter(
+                Reservation.status == "confirmed",
+                Reservation.end_date >= range_start,
+                Reservation.end_date <= range_end,
+            )
+            .label("departures_in_range"),
+        )
+        .select_from(Reservation)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+        .one()
+    )
+    active_reservations = int(reservation_metrics.active_reservations or 0)
+    cancelled_reservations = int(reservation_metrics.cancelled_reservations or 0)
+    arrivals_today = int(reservation_metrics.arrivals_today or 0)
+    departures_today = int(reservation_metrics.departures_today or 0)
+    current_guests = int(reservation_metrics.current_guests or 0)
+    upcoming_reservations = int(reservation_metrics.upcoming_reservations or 0)
+    arrivals_in_range = int(reservation_metrics.arrivals_in_range or 0)
+    departures_in_range = int(reservation_metrics.departures_in_range or 0)
+
     scoped_reservations = (
         Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
         .join(Property, Unit.property_id == Property.id)
         .filter(Property.organization_id == organization_id)
     )
-    active_reservations = scoped_reservations.filter(Reservation.status == "confirmed").count()
-    cancelled_reservations = scoped_reservations.filter(Reservation.status == "cancelled").count()
-
-    today = date.today()
     occupancy = report_service.occupancy_report(
         organization_id=organization_id,
         start_date=today,
@@ -104,41 +228,47 @@ def get_dashboard_stats(*, organization_id: int, viewer_is_superadmin: bool = Fa
     occupancy_percent = float(occupancy["occupancy_percentage"])
 
     confirmed = scoped_reservations.filter(Reservation.status == "confirmed")
-    arrivals_today = confirmed.filter(Reservation.start_date == today).count()
-    departures_today = confirmed.filter(Reservation.end_date == today).count()
-    current_guests = confirmed.filter(
-        Reservation.start_date <= today,
-        Reservation.end_date > today,
-    ).count()
-    upcoming_reservations = confirmed.filter(Reservation.start_date > today).count()
     active_leases = (
         Lease.query.filter_by(organization_id=organization_id)
         .filter(Lease.status == "active")
         .count()
     )
-    open_invoices = (
-        Invoice.query.filter_by(organization_id=organization_id)
-        .filter(Invoice.status.in_(("open", "overdue")))
-        .count()
-    )
-    overdue_invoices = (
-        Invoice.query.filter_by(organization_id=organization_id)
-        .filter(Invoice.status == "overdue")
-        .count()
-    )
-    open_maintenance_requests = (
-        MaintenanceRequest.query.filter_by(organization_id=organization_id)
-        .filter(MaintenanceRequest.status.in_(("new", "in_progress", "waiting")))
-        .count()
-    )
-    urgent_maintenance_requests = (
-        MaintenanceRequest.query.filter_by(organization_id=organization_id)
-        .filter(
-            MaintenanceRequest.priority == "urgent",
-            MaintenanceRequest.status.in_(("new", "in_progress", "waiting")),
+    invoice_metrics = (
+        db.session.query(
+            func.count().filter(Invoice.status.in_(("open", "overdue"))).label("open_invoices"),
+            func.count().filter(Invoice.status == "overdue").label("overdue_invoices"),
+            func.coalesce(func.sum(Invoice.amount).filter(Invoice.status.in_(("open", "overdue"))), 0).label(
+                "open_receivables"
+            ),
+            func.coalesce(func.sum(Invoice.amount).filter(Invoice.status == "overdue"), 0).label("overdue_amount"),
         )
-        .count()
+        .select_from(Invoice)
+        .filter(Invoice.organization_id == organization_id)
+        .one()
     )
+    open_invoices = int(invoice_metrics.open_invoices or 0)
+    overdue_invoices = int(invoice_metrics.overdue_invoices or 0)
+    open_receivables = Decimal(invoice_metrics.open_receivables or 0)
+    overdue_amount = Decimal(invoice_metrics.overdue_amount or 0)
+
+    maintenance_metrics = (
+        db.session.query(
+            func.count().filter(MaintenanceRequest.status.in_(("new", "in_progress", "waiting"))).label(
+                "open_maintenance_requests"
+            ),
+            func.count()
+            .filter(
+                MaintenanceRequest.priority == "urgent",
+                MaintenanceRequest.status.in_(("new", "in_progress", "waiting")),
+            )
+            .label("urgent_maintenance_requests"),
+        )
+        .select_from(MaintenanceRequest)
+        .filter(MaintenanceRequest.organization_id == organization_id)
+        .one()
+    )
+    open_maintenance_requests = int(maintenance_metrics.open_maintenance_requests or 0)
+    urgent_maintenance_requests = int(maintenance_metrics.urgent_maintenance_requests or 0)
     leases_ending_next_7_days = (
         Lease.query.filter_by(organization_id=organization_id)
         .filter(
@@ -312,56 +442,59 @@ def get_dashboard_stats(*, organization_id: int, viewer_is_superadmin: bool = Fa
     ]
     action_required.sort(key=lambda item: item["since"] or "")
 
-    arrivals_this_week = confirmed.filter(
-        Reservation.start_date >= today,
-        Reservation.start_date <= today + timedelta(days=6),
-    ).count()
-
-    month_start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
-    if today.month == 1:
-        previous_month_start = datetime(today.year - 1, 12, 1, tzinfo=timezone.utc)
-    else:
-        previous_month_start = datetime(today.year, today.month - 1, 1, tzinfo=timezone.utc)
-    mtd_revenue = _sum_paid_between(
+    range_total_revenue = _sum_paid_between(
         organization_id=organization_id,
-        start_dt=month_start,
-        end_dt=datetime.now(timezone.utc),
+        start_dt=range_start_dt,
+        end_dt=range_end_dt,
     )
-    previous_month_revenue = _sum_paid_between(
+    compare_start = range_start_dt - timedelta(days=range_days)
+    compare_end = range_start_dt
+    range_compare_revenue = _sum_paid_between(
         organization_id=organization_id,
-        start_dt=previous_month_start,
-        end_dt=month_start,
+        start_dt=compare_start,
+        end_dt=compare_end,
     )
     revenue_trend_pct: float | None = None
-    if previous_month_revenue != Decimal("0"):
-        revenue_trend_pct = float(((mtd_revenue - previous_month_revenue) / previous_month_revenue) * Decimal("100"))
-    open_receivables = _sum_invoice_amount(organization_id=organization_id, statuses=("open", "overdue"))
-    overdue_amount = _sum_invoice_amount(organization_id=organization_id, statuses=("overdue",))
+    if range_compare_revenue != Decimal("0"):
+        revenue_trend_pct = float(((range_total_revenue - range_compare_revenue) / range_compare_revenue) * Decimal("100"))
 
     now_utc = datetime.now(timezone.utc)
-    day_ago = now_utc - timedelta(hours=24)
-    backup_rows = Backup.query.order_by(Backup.created_at.desc(), Backup.id.desc()).limit(100).all()
-    latest_backup = backup_rows[0] if backup_rows else None
-    latest_success = next((row for row in backup_rows if row.status == BackupStatus.SUCCESS), None)
-    latest_failure = next((row for row in backup_rows if row.status == BackupStatus.FAILED), None)
+    backup_metrics = (
+        db.session.query(
+            db.session.query(Backup.status).order_by(Backup.created_at.desc(), Backup.id.desc()).limit(1).scalar_subquery().label(
+                "latest_status"
+            ),
+            func.max(Backup.created_at).filter(Backup.status == BackupStatus.SUCCESS).label("last_success_at"),
+            func.max(Backup.created_at).filter(Backup.status == BackupStatus.FAILED).label("last_failure_at"),
+        )
+        .select_from(Backup)
+        .one()
+    )
+    latest_status = backup_metrics.latest_status
+    latest_success_at = backup_metrics.last_success_at
+    latest_failure_at = backup_metrics.last_failure_at
     backup_state = "missing"
-    if latest_backup is not None:
-        if latest_backup.status == BackupStatus.FAILED:
+    if latest_status is not None:
+        if latest_status == BackupStatus.FAILED:
             backup_state = "failed"
-        elif latest_success is None:
+        elif latest_success_at is None:
             backup_state = "missing"
         else:
-            age = now_utc - latest_success.created_at
+            age = now_utc - latest_success_at
             backup_state = "ok" if age <= timedelta(hours=36) else "stale"
     backup_status = {
-        "last_success_at": latest_success.created_at if latest_success else None,
-        "last_failure_at": latest_failure.created_at if latest_failure else None,
+        "last_success_at": latest_success_at,
+        "last_failure_at": latest_failure_at,
         "state": backup_state,
         "scheduler_enabled": bool(current_app.config.get("BACKUP_SCHEDULER_ENABLED", False)),
     }
 
+    email_window_start = range_start_dt
     email_scope_is_org = hasattr(OutgoingEmail, "organization_id")
-    email_q = OutgoingEmail.query.filter(OutgoingEmail.created_at >= day_ago)
+    email_q = OutgoingEmail.query.filter(
+        OutgoingEmail.created_at >= email_window_start,
+        OutgoingEmail.created_at < range_end_dt,
+    )
     if email_scope_is_org:
         email_q = email_q.filter(getattr(OutgoingEmail, "organization_id") == organization_id)
     sent_count = email_q.filter(OutgoingEmail.status == OutgoingEmailStatus.SENT).count()
@@ -403,7 +536,7 @@ def get_dashboard_stats(*, organization_id: int, viewer_is_superadmin: bool = Fa
     pindora_failed_calls_24h = (
         AuditLog.query.filter_by(organization_id=organization_id, status="failure")
         .filter(AuditLog.action.in_(("lock.code_issued", "lock.code_revoked")))
-        .filter(AuditLog.created_at >= day_ago)
+        .filter(AuditLog.created_at >= now_utc - timedelta(hours=24))
         .count()
     )
 
@@ -428,6 +561,8 @@ def get_dashboard_stats(*, organization_id: int, viewer_is_superadmin: bool = Fa
     )
     latest_audit_events = [_serialize_audit_event(r) for r in latest_rows]
 
+    week_overview = get_week_overview(organization_id=organization_id, start_date=today)
+    range_label = {"today": "Tänään", "7d": "7 vrk", "30d": "30 vrk"}[normalized_range]
     result = {
         "total_properties": total_properties,
         "total_units": total_units,
@@ -450,18 +585,33 @@ def get_dashboard_stats(*, organization_id: int, viewer_is_superadmin: bool = Fa
         "today_arrivals": today_arrivals,
         "today_departures": today_departures,
         "action_required": action_required,
-        "arrivals_this_week": arrivals_this_week,
+        "arrivals_this_week": arrivals_in_range,
+        "departures_this_week": departures_in_range,
+        "arrivals_in_range": arrivals_in_range,
+        "departures_in_range": departures_in_range,
+        "range_key": normalized_range,
+        "range_label": range_label,
         "latest_audit_events": latest_audit_events,
+        "week_overview": week_overview,
         "revenue": {
-            "month_to_date": mtd_revenue,
-            "previous_month": previous_month_revenue,
+            "month_to_date": range_total_revenue,
+            "previous_month": range_compare_revenue,
+            "range_total": range_total_revenue,
+            "range_compare": range_compare_revenue,
             "trend_pct": revenue_trend_pct,
             "open_receivables": open_receivables,
             "overdue_amount": overdue_amount,
         },
         "integrations": integrations,
         "backup_status": backup_status if viewer_is_superadmin else None,
-        "email_health": (email_health if viewer_is_superadmin else None),
+        "email_health": (
+            {
+                **email_health,
+                "window_label": range_label,
+            }
+            if viewer_is_superadmin
+            else None
+        ),
         # Back-compat for templates/tests that used the older names:
         "occupancy_percentage": occupancy_percent,
         "latest_events": latest_rows,
