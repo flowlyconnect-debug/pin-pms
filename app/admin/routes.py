@@ -90,7 +90,10 @@ def _pms_pagination() -> tuple[int, int]:
 @admin_bp.get("/dashboard")
 @require_admin_pms_access
 def admin_home():
-    summary = admin_service.get_dashboard_stats(organization_id=_pms_org_id())
+    summary = admin_service.get_dashboard_stats(
+        organization_id=_pms_org_id(),
+        viewer_is_superadmin=bool(current_user.is_superadmin),
+    )
     return render_template("admin/dashboard.html", summary=summary)
 
 

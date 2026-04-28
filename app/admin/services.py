@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Any
 
-from flask import url_for
+from flask import current_app, g, url_for
+from sqlalchemy import func
 
 from app.audit.models import AuditLog
 from app.billing.models import Invoice, Lease
+from app.backups.models import Backup, BackupStatus
+from app.email.models import OutgoingEmail, OutgoingEmailStatus
 from app.integrations.ical.models import ImportedCalendarEvent
+from app.integrations.ical.models import ImportedCalendarFeed
 from app.maintenance.models import MaintenanceRequest
 from app.portal.models import AccessCode, PortalCheckInToken
 from app.properties.models import Property, Unit
@@ -41,8 +47,39 @@ def _safe_url_for(endpoint: str, **values) -> str:
         return "#"
 
 
-def get_dashboard_stats(*, organization_id: int) -> dict:
+def _sum_invoice_amount(*, organization_id: int, statuses: tuple[str, ...]) -> Decimal:
+    value = (
+        Invoice.query.with_entities(func.coalesce(func.sum(Invoice.amount), 0))
+        .filter(
+            Invoice.organization_id == organization_id,
+            Invoice.status.in_(statuses),
+        )
+        .scalar()
+    )
+    return Decimal(value or 0)
+
+
+def _sum_paid_between(*, organization_id: int, start_dt: datetime, end_dt: datetime) -> Decimal:
+    value = (
+        Invoice.query.with_entities(func.coalesce(func.sum(Invoice.amount), 0))
+        .filter(
+            Invoice.organization_id == organization_id,
+            Invoice.status == "paid",
+            Invoice.paid_at.isnot(None),
+            Invoice.paid_at >= start_dt,
+            Invoice.paid_at < end_dt,
+        )
+        .scalar()
+    )
+    return Decimal(value or 0)
+
+
+def get_dashboard_stats(*, organization_id: int, viewer_is_superadmin: bool = False) -> dict:
     """Aggregate operational KPIs for the admin dashboard (single-tenant scope)."""
+    cache: dict[tuple[int, bool], dict[str, Any]] = getattr(g, "_admin_dashboard_stats_cache", {})
+    cache_key = (organization_id, bool(viewer_is_superadmin))
+    if cache_key in cache:
+        return cache[cache_key]
 
     total_properties = Property.query.filter_by(organization_id=organization_id).count()
     total_units = (
@@ -280,6 +317,109 @@ def get_dashboard_stats(*, organization_id: int) -> dict:
         Reservation.start_date <= today + timedelta(days=6),
     ).count()
 
+    month_start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
+    if today.month == 1:
+        previous_month_start = datetime(today.year - 1, 12, 1, tzinfo=timezone.utc)
+    else:
+        previous_month_start = datetime(today.year, today.month - 1, 1, tzinfo=timezone.utc)
+    mtd_revenue = _sum_paid_between(
+        organization_id=organization_id,
+        start_dt=month_start,
+        end_dt=datetime.now(timezone.utc),
+    )
+    previous_month_revenue = _sum_paid_between(
+        organization_id=organization_id,
+        start_dt=previous_month_start,
+        end_dt=month_start,
+    )
+    revenue_trend_pct: float | None = None
+    if previous_month_revenue != Decimal("0"):
+        revenue_trend_pct = float(((mtd_revenue - previous_month_revenue) / previous_month_revenue) * Decimal("100"))
+    open_receivables = _sum_invoice_amount(organization_id=organization_id, statuses=("open", "overdue"))
+    overdue_amount = _sum_invoice_amount(organization_id=organization_id, statuses=("overdue",))
+
+    now_utc = datetime.now(timezone.utc)
+    day_ago = now_utc - timedelta(hours=24)
+    backup_rows = Backup.query.order_by(Backup.created_at.desc(), Backup.id.desc()).limit(100).all()
+    latest_backup = backup_rows[0] if backup_rows else None
+    latest_success = next((row for row in backup_rows if row.status == BackupStatus.SUCCESS), None)
+    latest_failure = next((row for row in backup_rows if row.status == BackupStatus.FAILED), None)
+    backup_state = "missing"
+    if latest_backup is not None:
+        if latest_backup.status == BackupStatus.FAILED:
+            backup_state = "failed"
+        elif latest_success is None:
+            backup_state = "missing"
+        else:
+            age = now_utc - latest_success.created_at
+            backup_state = "ok" if age <= timedelta(hours=36) else "stale"
+    backup_status = {
+        "last_success_at": latest_success.created_at if latest_success else None,
+        "last_failure_at": latest_failure.created_at if latest_failure else None,
+        "state": backup_state,
+        "scheduler_enabled": bool(current_app.config.get("BACKUP_SCHEDULER_ENABLED", False)),
+    }
+
+    email_scope_is_org = hasattr(OutgoingEmail, "organization_id")
+    email_q = OutgoingEmail.query.filter(OutgoingEmail.created_at >= day_ago)
+    if email_scope_is_org:
+        email_q = email_q.filter(getattr(OutgoingEmail, "organization_id") == organization_id)
+    sent_count = email_q.filter(OutgoingEmail.status == OutgoingEmailStatus.SENT).count()
+    failed_rows = (
+        email_q.filter(OutgoingEmail.status == OutgoingEmailStatus.FAILED)
+        .order_by(OutgoingEmail.created_at.desc(), OutgoingEmail.id.desc())
+        .all()
+    )
+    latest_failed_email = failed_rows[0] if failed_rows else None
+    email_health = {
+        "sent_count": sent_count,
+        "failed_count": len(failed_rows),
+        "last_failure_at": latest_failed_email.created_at if latest_failed_email else None,
+        "last_failure_template_key": latest_failed_email.template_key if latest_failed_email else None,
+        "is_org_scoped": email_scope_is_org,
+    }
+
+    last_ical_sync = (
+        ImportedCalendarFeed.query.filter_by(organization_id=organization_id, is_active=True)
+        .order_by(ImportedCalendarFeed.last_synced_at.desc(), ImportedCalendarFeed.id.desc())
+        .first()
+    )
+    ical_conflicts_open = (
+        ImportedCalendarEvent.query.filter_by(organization_id=organization_id)
+        .filter(ImportedCalendarEvent.summary.ilike("%conflict%"))
+        .count()
+    )
+    ical_feeds_active = ImportedCalendarFeed.query.filter_by(organization_id=organization_id, is_active=True).count()
+
+    pindora_configured = bool(current_app.config.get("PINDORA_LOCK_BASE_URL")) and bool(
+        current_app.config.get("PINDORA_LOCK_API_KEY")
+    )
+    pindora_success = (
+        AuditLog.query.filter_by(organization_id=organization_id, status="success")
+        .filter(AuditLog.action.in_(("lock.code_issued", "lock.code_revoked")))
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .first()
+    )
+    pindora_failed_calls_24h = (
+        AuditLog.query.filter_by(organization_id=organization_id, status="failure")
+        .filter(AuditLog.action.in_(("lock.code_issued", "lock.code_revoked")))
+        .filter(AuditLog.created_at >= day_ago)
+        .count()
+    )
+
+    integrations = {
+        "ical": {
+            "last_sync_at": last_ical_sync.last_synced_at if last_ical_sync else None,
+            "conflicts_open": ical_conflicts_open,
+            "feeds_active": ical_feeds_active,
+        },
+        "pindora": {
+            "configured": pindora_configured,
+            "last_call_at": pindora_success.created_at if pindora_success else None,
+            "failed_calls_24h": pindora_failed_calls_24h,
+        },
+    }
+
     latest_rows = (
         AuditLog.query.filter_by(organization_id=organization_id)
         .order_by(AuditLog.created_at.desc())
@@ -288,7 +428,7 @@ def get_dashboard_stats(*, organization_id: int) -> dict:
     )
     latest_audit_events = [_serialize_audit_event(r) for r in latest_rows]
 
-    return {
+    result = {
         "total_properties": total_properties,
         "total_units": total_units,
         "active_reservations": active_reservations,
@@ -312,10 +452,23 @@ def get_dashboard_stats(*, organization_id: int) -> dict:
         "action_required": action_required,
         "arrivals_this_week": arrivals_this_week,
         "latest_audit_events": latest_audit_events,
+        "revenue": {
+            "month_to_date": mtd_revenue,
+            "previous_month": previous_month_revenue,
+            "trend_pct": revenue_trend_pct,
+            "open_receivables": open_receivables,
+            "overdue_amount": overdue_amount,
+        },
+        "integrations": integrations,
+        "backup_status": backup_status if viewer_is_superadmin else None,
+        "email_health": (email_health if viewer_is_superadmin else None),
         # Back-compat for templates/tests that used the older names:
         "occupancy_percentage": occupancy_percent,
         "latest_events": latest_rows,
     }
+    cache[cache_key] = result
+    g._admin_dashboard_stats_cache = cache
+    return result
 
 
 def dashboard_summary(*, organization_id: int) -> dict:
