@@ -9,6 +9,7 @@ brief (section 6):
 Route handlers should return the values produced by :func:`json_ok` and
 :func:`json_error` — never a bare ``jsonify`` — so the shape stays consistent.
 """
+
 from typing import Any
 
 from flask import jsonify

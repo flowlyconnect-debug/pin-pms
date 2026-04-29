@@ -46,9 +46,7 @@ def health_db():
             return f"ERROR: {type(exc).__name__}: {exc}"
 
     try:
-        version = db.session.execute(
-            text("SELECT version_num FROM alembic_version")
-        ).scalar()
+        version = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
     except Exception as exc:  # noqa: BLE001
         version = f"ERROR: {type(exc).__name__}: {exc}"
 
@@ -87,3 +85,12 @@ def health_db():
             else False
         ),
     }, 200
+
+
+@core_bp.get("/status")
+def public_status():
+    from app.admin import services as admin_service
+
+    payload = admin_service.public_status_payload(window_days=90)
+    has_open_incident = any(i.status != "resolved" for i in payload["incidents"])
+    return render_template("status.html", payload=payload, has_open_incident=has_open_incident)

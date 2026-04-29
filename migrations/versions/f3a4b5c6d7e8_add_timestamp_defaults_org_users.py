@@ -9,9 +9,8 @@ database default; inserts that rely on the ORM omitting the column then fail
 on Alembic-managed databases. Align with newer tables that use ``now()``.
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "f3a4b5c6d7e8"
 down_revision = "a9b8c7d6e5f4"

@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+{% block title %}Owners{% endblock %}
+{% block content %}
+<h1>Owners</h1>
+<p><a href="{{ url_for('admin.owners_new') }}">Create owner</a></p>
+<table>
+  <thead><tr><th>Name</th><th>Email</th><th>Active</th><th>Assign property</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.name }}</td>
+      <td>{{ row.email }}</td>
+      <td>{{ "Yes" if row.is_active else "No" }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin.owners_assign_property', owner_id=row.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="property_id" required>
+            {% for p in properties %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+          <input name="ownership_pct" value="1.0" style="width:5rem;" required>
+          <input name="management_fee_pct" value="0.15" style="width:5rem;" required>
+          <input name="valid_from" type="date" required>
+          <input name="valid_to" type="date">
+          <button type="submit">Assign</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4"><em>No owners.</em></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

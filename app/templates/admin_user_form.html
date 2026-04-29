@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{% if is_new %}Create user{% else %}Edit {{ target_user.email }}{% endif %} · Pindora PMS{% endblock %}
+{% block title %}{% if is_new %}Create user{% else %}Edit {{ target_user.email }}{% endif %} · Pin PMS{% endblock %}
 
 {% block content %}
   <h1>{% if is_new %}Create user{% else %}Edit <code>{{ target_user.email }}</code>{% endif %}</h1>

@@ -1,0 +1,45 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Tenant Debug · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Tenant debug #{{ org_id }}</h1>
+  <p>
+    Plan: <strong>{{ data.subscription.plan }}</strong> · Status: <strong>{{ data.subscription.status }}</strong>
+    · Luotu: {{ data.organization.created_at }}
+  </p>
+  <p>
+    Käyttäjiä: <strong>{{ data.users_count }}</strong>
+    · Viimeisin kirjautuminen: <strong>{{ data.last_login_at or "—" }}</strong>
+    · Varauksia 30d: <strong>{{ data.reservations_30d_count }}</strong>
+  </p>
+  <p><a href="{{ sentry_url }}" target="_blank" rel="noopener">Open in Sentry</a></p>
+
+  <h2>Viimeiset audit-eventit</h2>
+  <ul>
+    {% for row in data.audit_events %}
+      <li>{{ row.created_at }} · {{ row.action }} · {{ row.status }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Viimeiset sähköpostit</h2>
+  <ul>
+    {% for row in data.emails %}
+      <li>{{ row.created_at }} · {{ row.to }} · {{ row.status }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Viimeiset backupit</h2>
+  <ul>
+    {% for row in data.backups %}
+      <li>{{ row.created_at }} · {{ row.filename }} · {{ row.status }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Password reset</h2>
+  <form method="post" action="{{ url_for('auth.forgot_password') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="email" name="email" placeholder="contact@example.com" required>
+    <button type="submit">Send password reset</button>
+  </form>
+{% endblock %}

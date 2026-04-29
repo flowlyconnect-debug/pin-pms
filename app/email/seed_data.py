@@ -7,6 +7,7 @@ The values here are seeded by the migration that creates the
 Editors with a superadmin role can override any of these from the admin UI;
 this file only defines the *defaults* that ship with the codebase.
 """
+
 from __future__ import annotations
 
 from typing import TypedDict
@@ -34,7 +35,7 @@ SEED_TEMPLATES: list[TemplateSeed] = [
         "body_html": (
             "<p>Hi <strong>{{ user_email }}</strong>,</p>"
             "<p>Your account at <strong>{{ organization_name }}</strong> has been created.</p>"
-            "<p><a href=\"{{ login_url }}\">Sign in</a></p>"
+            '<p><a href="{{ login_url }}">Sign in</a></p>'
             "<p>— {{ from_name }}</p>"
         ),
         "description": "Sent to a user when their account is provisioned.",
@@ -60,7 +61,7 @@ SEED_TEMPLATES: list[TemplateSeed] = [
             "<p>Hi <strong>{{ user_email }}</strong>,</p>"
             "<p>Use the link below to set a new password. The link expires in "
             "<strong>{{ expires_minutes }}</strong> minutes.</p>"
-            "<p><a href=\"{{ reset_url }}\">Reset password</a></p>"
+            '<p><a href="{{ reset_url }}">Reset password</a></p>'
             "<p>If you did not request this, you can ignore this email.</p>"
             "<p>— {{ from_name }}</p>"
         ),
@@ -85,7 +86,7 @@ SEED_TEMPLATES: list[TemplateSeed] = [
         ),
         "body_html": (
             "<p>Hi <strong>{{ user_email }}</strong>,</p>"
-            "<p>Your sign-in code is: <strong style=\"font-size:1.4rem\">{{ code }}</strong></p>"
+            '<p>Your sign-in code is: <strong style="font-size:1.4rem">{{ code }}</strong></p>'
             "<p>It expires in <strong>{{ expires_minutes }}</strong> minutes.</p>"
             "<p>If you did not try to sign in, change your password and contact your "
             "administrator immediately.</p>"
@@ -138,9 +139,9 @@ SEED_TEMPLATES: list[TemplateSeed] = [
             "— {{ from_name }}\n"
         ),
         "body_html": (
-            "<p style=\"color:#b91c1c\"><strong>The backup {{ backup_name }} failed</strong> "
+            '<p style="color:#b91c1c"><strong>The backup {{ backup_name }} failed</strong> '
             "at {{ failed_at }}.</p>"
-            "<pre style=\"background:#f5f5f5;padding:.75rem;border-radius:4px\">"
+            '<pre style="background:#f5f5f5;padding:.75rem;border-radius:4px">'
             "{{ error_message }}</pre>"
             "<p>Investigate immediately. The previous successful backup is still "
             "available, but new data is not yet protected.</p>"
@@ -157,14 +158,8 @@ SEED_TEMPLATES: list[TemplateSeed] = [
     {
         "key": "admin_notification",
         "subject": "{{ subject_line }}",
-        "body_text": (
-            "{{ message }}\n\n"
-            "— {{ from_name }}\n"
-        ),
-        "body_html": (
-            "<p>{{ message }}</p>"
-            "<p>— {{ from_name }}</p>"
-        ),
+        "body_text": ("{{ message }}\n\n" "— {{ from_name }}\n"),
+        "body_html": ("<p>{{ message }}</p>" "<p>— {{ from_name }}</p>"),
         "description": (
             "Generic admin alert used for ad-hoc operational notifications "
             "(e.g. restore completed, suspicious activity)."

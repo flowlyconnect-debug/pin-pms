@@ -1,21 +1,28 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Sähköpostipohjat · Pindora PMS{% endblock %}
+{% block title %}Sähköpostipohjat · Pin PMS{% endblock %}
 
 {% block content %}
   <h1>Sähköpostipohjat</h1>
-  <p class="meta">Muokkaaable templates. Tallennas are logged as <code>email_template.updated</code>.</p>
+  <p class="meta">Hallinnoi sovelluksen sähköpostipohjia.</p>
   <table>
     <thead>
-      <tr><th>Key</th><th>Subject</th><th>Kuvaus</th><th>Updated</th></tr>
+      <tr><th>Avain</th><th>Aihe</th><th>Kuvaus</th><th>Paivitetty</th><th>Toiminnot</th></tr>
     </thead>
     <tbody>
       {% for t in templates %}
         <tr>
-          <td><a href="{{ url_for('admin.email_template_edit', key=t.key) }}"><code>{{ t.key }}</code></a></td>
+          <td><code>{{ t.key }}</code></td>
           <td>{{ t.subject }}</td>
           <td class="meta">{{ t.description }}</td>
           <td class="meta">{{ t.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>
+            <a href="{{ url_for('admin.email_template_edit', key=t.key) }}">Muokkaa</a>
+            ·
+            <a href="{{ url_for('admin.email_template_preview', key=t.key) }}">Esikatsele</a>
+            ·
+            <a href="{{ url_for('admin.email_template_test_send', key=t.key) }}">Laheta testi</a>
+          </td>
         </tr>
       {% endfor %}
     </tbody>

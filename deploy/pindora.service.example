@@ -1,4 +1,4 @@
-# Pindora PMS — systemd unit example.
+# Pin PMS — systemd unit example.
 #
 # Place this file at /etc/systemd/system/pindora.service, then:
 #
@@ -14,7 +14,7 @@
 # values to match how the project was deployed on the host.
 
 [Unit]
-Description=Pindora PMS (Gunicorn)
+Description=Pin PMS (Gunicorn)
 After=network.target postgresql.service
 Wants=postgresql.service
 

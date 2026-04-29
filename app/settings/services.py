@@ -34,11 +34,12 @@ Reads are memoised on ``flask.g`` so a single request that reads
 inside :func:`set_value` so a write within the same request reflects
 immediately.
 """
+
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 from flask import g, has_request_context
 
@@ -253,9 +254,7 @@ def set_value(
 
     if row is None:
         if type_ is None:
-            raise SettingValueError(
-                f"Cannot create setting {key!r} without a type."
-            )
+            raise SettingValueError(f"Cannot create setting {key!r} without a type.")
         if type_ not in SettingType.ALL:
             raise SettingValueError(f"Unknown setting type: {type_!r}")
 
@@ -299,9 +298,7 @@ def set_value(
     else:
         try:
             decoded_old = (
-                _decode(previous_value, previous_type or row.type)
-                if not is_create
-                else None
+                _decode(previous_value, previous_type or row.type) if not is_create else None
             )
         except SettingValueError:
             decoded_old = previous_value

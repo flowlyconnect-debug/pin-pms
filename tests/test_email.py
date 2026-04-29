@@ -1,4 +1,5 @@
 """Spec section 16 — sähköpostipohjan renderöinti."""
+
 from __future__ import annotations
 
 

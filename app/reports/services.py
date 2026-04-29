@@ -40,9 +40,11 @@ def occupancy_report(*, organization_id: int, start_date: date, end_date: date) 
 
 
 def reservation_report(*, organization_id: int) -> dict:
-    scoped = Reservation.query.join(Unit, Reservation.unit_id == Unit.id).join(
-        Property, Unit.property_id == Property.id
-    ).filter(Property.organization_id == organization_id)
+    scoped = (
+        Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+    )
 
     total_reservations = scoped.count()
     confirmed_reservations = scoped.filter(Reservation.status == "confirmed").count()

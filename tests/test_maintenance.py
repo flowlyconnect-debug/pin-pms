@@ -1,4 +1,5 @@
 """Maintenance requests (work orders) — model, service, API, admin, audit."""
+
 from __future__ import annotations
 
 import pytest
@@ -77,7 +78,6 @@ def test_maintenance_request_model_persists(app, organization, admin_user):
 
 def test_maintenance_service_create_and_status_and_audit(app, organization, admin_user):
     from app.audit.models import AuditLog
-    from app.extensions import db
     from app.maintenance import services as maintenance_service
 
     _property_and_unit(organization_id=organization.id)
@@ -282,7 +282,7 @@ def test_maintenance_api_crud_and_resolve_cancel(app, organization, maintenance_
 def test_maintenance_api_unlinked_key_cannot_create(app, organization):
     from app.api.models import ApiKey
     from app.extensions import db
-    from app.properties.models import Property, Unit
+    from app.properties.models import Property
 
     _property_and_unit(organization_id=organization.id)
     prop = Property.query.filter_by(organization_id=organization.id).first()

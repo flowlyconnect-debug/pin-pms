@@ -1,4 +1,4 @@
-# Cursor-prompt: Pindora PMS – täytä asiakkaan init-template (Lista 1)
+# Cursor-prompt: Pin PMS – täytä asiakkaan init-template (Lista 1)
 
 > Kopioi alla oleva prompt sellaisenaan Cursoriin (Composer / Agent / Chat).
 > Suosittelen ajamaan tehtävät yksi osio kerrallaan, ei kerralla — näin

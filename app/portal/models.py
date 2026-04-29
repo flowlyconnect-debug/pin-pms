@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.core.security import generate_token, hash_token
 from app.extensions import db
@@ -204,4 +204,3 @@ class GuestCheckIn(db.Model):
         default=lambda: datetime.now(timezone.utc),
     )
     checked_out_at = db.Column(db.DateTime(timezone=True), nullable=True)
-

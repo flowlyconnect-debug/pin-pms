@@ -6,9 +6,8 @@ Create Date: 2026-04-28
 """
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "m6a7b8c9d0e1"
 down_revision = "k4d5e6f7g8h9"

@@ -80,11 +80,7 @@ def test_set_value_persists_updated_by_and_audits(superadmin):
     assert persisted is not None
     assert persisted.updated_by == superadmin.id
 
-    audit = (
-        AuditLog.query.filter_by(action="setting.updated")
-        .order_by(AuditLog.id.desc())
-        .first()
-    )
+    audit = AuditLog.query.filter_by(action="setting.updated").order_by(AuditLog.id.desc()).first()
     assert audit is not None
     assert audit.target_id == row.id
 

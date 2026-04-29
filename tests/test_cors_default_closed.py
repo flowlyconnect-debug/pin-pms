@@ -4,6 +4,7 @@ When ``CORS_ALLOWED_ORIGINS`` is empty (the default), no
 ``Access-Control-Allow-Origin`` header is emitted on cross-origin requests,
 i.e. browsers will block any third-party origin from reading API responses.
 """
+
 from __future__ import annotations
 
 

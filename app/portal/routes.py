@@ -257,7 +257,10 @@ def check_in(token: str):
     try:
         dob = date.fromisoformat(dob_raw)
     except ValueError:
-        return render_template("portal/checkin.html", error="Invalid birth date.", access_code=None), 400
+        return (
+            render_template("portal/checkin.html", error="Invalid birth date.", access_code=None),
+            400,
+        )
     try:
         _, access_code = portal_service.complete_checkin(
             token=token,
@@ -271,6 +274,8 @@ def check_in(token: str):
     except portal_service.PortalServiceError as exc:
         if exc.status == 404:
             abort(404)
-        return render_template("portal/checkin.html", error=exc.message, access_code=None), exc.status
+        return (
+            render_template("portal/checkin.html", error=exc.message, access_code=None),
+            exc.status,
+        )
     return render_template("portal/checkin.html", error=None, access_code=access_code)
-

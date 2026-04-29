@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
 import os
 import secrets
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta, timezone
 
 from flask import current_app
 
@@ -17,7 +17,13 @@ from app.email.services import EmailTemplateNotFound, send_template
 from app.extensions import db
 from app.integrations.pindora_lock.service import PindoraLockService
 from app.maintenance.models import MaintenanceRequest
-from app.portal.models import AccessCode, GuestCheckIn, LockDevice, PortalCheckInToken, PortalMagicLinkToken
+from app.portal.models import (
+    AccessCode,
+    GuestCheckIn,
+    LockDevice,
+    PortalCheckInToken,
+    PortalMagicLinkToken,
+)
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
@@ -91,7 +97,9 @@ def _scoped_reservation_query(*, organization_id: int, guest_id: int):
 
 def get_dashboard_stats(*, organization_id: int, guest_id: int) -> dict:
     today = date.today()
-    scoped_reservations = _scoped_reservation_query(organization_id=organization_id, guest_id=guest_id)
+    scoped_reservations = _scoped_reservation_query(
+        organization_id=organization_id, guest_id=guest_id
+    )
     active_reservations = scoped_reservations.filter(
         Reservation.status == "confirmed",
         Reservation.start_date <= today,
@@ -210,7 +218,9 @@ def get_maintenance_request(*, organization_id: int, guest_id: int, request_id: 
         guest_id=guest_id,
     ).first()
     if row is None:
-        raise PortalServiceError(code="not_found", message="Maintenance request not found.", status=404)
+        raise PortalServiceError(
+            code="not_found", message="Maintenance request not found.", status=404
+        )
     return {
         "id": row.id,
         "title": row.title,
@@ -444,7 +454,9 @@ def _fernet_from_config():
     key = (current_app.config.get("CHECKIN_FERNET_KEY") or "").strip()
     if key:
         return Fernet(key.encode("utf-8"))
-    fallback = base64.urlsafe_b64encode(hash_token(current_app.config.get("SECRET_KEY", "")).encode("utf-8")[:32])
+    fallback = base64.urlsafe_b64encode(
+        hash_token(current_app.config.get("SECRET_KEY", "")).encode("utf-8")[:32]
+    )
     return Fernet(fallback)
 
 
@@ -471,15 +483,21 @@ def complete_checkin(
         idempotency_key=idempotency_key,
     )
     if lock_code is None:
-        raise PortalServiceError(code="no_lock", message="No lock configured for this reservation.", status=400)
+        raise PortalServiceError(
+            code="no_lock", message="No lock configured for this reservation.", status=400
+        )
     _, plaintext_code = lock_code
     if current_app.config.get("TESTING"):
         uploads_dir = os.path.join(current_app.instance_path, "test_checkin_uploads")
     else:
-        uploads_dir = current_app.config.get("UPLOADS_DIR") or os.path.join(current_app.instance_path, "uploads")
+        uploads_dir = current_app.config.get("UPLOADS_DIR") or os.path.join(
+            current_app.instance_path, "uploads"
+        )
     checkin_dir = os.path.join(uploads_dir, "checkin_docs")
     os.makedirs(checkin_dir, exist_ok=True)
-    safe_name = "".join(ch for ch in id_document_name if ch.isalnum() or ch in {"-", "_", "."}) or "id.bin"
+    safe_name = (
+        "".join(ch for ch in id_document_name if ch.isalnum() or ch in {"-", "_", "."}) or "id.bin"
+    )
     file_name = f"reservation-{reservation.id}-{secrets.token_hex(8)}-{safe_name}"
     file_path = os.path.join(checkin_dir, file_name)
     fernet = _fernet_from_config()
@@ -528,7 +546,9 @@ def complete_checkin(
                 },
             )
         except EmailTemplateNotFound:
-            current_app.logger.warning("admin_notification template missing for check-in code email.")
+            current_app.logger.warning(
+                "admin_notification template missing for check-in code email."
+            )
         except Exception:  # noqa: BLE001
             current_app.logger.exception("Failed sending check-in access code email.")
     return reservation, plaintext_code
@@ -536,12 +556,10 @@ def complete_checkin(
 
 def auto_revoke_expired_access_codes(*, now: datetime | None = None) -> int:
     now_dt = now or datetime.now(timezone.utc)
-    rows = (
-        AccessCode.query.filter(
-            AccessCode.is_active.is_(True),
-            AccessCode.valid_until <= now_dt,
-        ).all()
-    )
+    rows = AccessCode.query.filter(
+        AccessCode.is_active.is_(True),
+        AccessCode.valid_until <= now_dt,
+    ).all()
     if not rows:
         return 0
     integration = PindoraLockService()
@@ -566,4 +584,3 @@ def auto_revoke_expired_access_codes(*, now: datetime | None = None) -> int:
         )
     db.session.commit()
     return count
-

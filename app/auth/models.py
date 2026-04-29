@@ -4,13 +4,13 @@ Project brief section 4: "salasanan resetointi sähköpostilla". Tokens
 are single-use, time-bounded, and stored only as SHA-256 digests so a
 DB leak does not expose pending reset links.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
 from app.core.security import generate_token, hash_token
 from app.extensions import db
-
 
 # How long a freshly-issued reset link stays valid. The brief does not
 # fix a number; 1h is the conventional default and is short enough to
@@ -41,7 +41,9 @@ class PasswordResetToken(db.Model):
     user = db.relationship("User", lazy="joined")
 
     @classmethod
-    def issue(cls, *, user_id: int, ttl: timedelta = PASSWORD_RESET_TTL) -> tuple["PasswordResetToken", str]:
+    def issue(
+        cls, *, user_id: int, ttl: timedelta = PASSWORD_RESET_TTL
+    ) -> tuple["PasswordResetToken", str]:
         """Create and persist a new token. Returns ``(row, raw_token)``.
 
         The raw token is only emitted here — the DB stores the hash.

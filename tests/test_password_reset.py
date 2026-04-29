@@ -1,4 +1,5 @@
 """Spec section 4 — salasanan resetointi sähköpostilla."""
+
 from __future__ import annotations
 
 
@@ -6,7 +7,6 @@ def test_forgot_password_emits_token_and_returns_neutral_response(client, regula
     """POST /forgot-password issues a reset token without leaking existence."""
 
     from app.auth.models import PasswordResetToken
-    from app.extensions import db
 
     response = client.post(
         "/forgot-password",
@@ -60,6 +60,7 @@ def test_reset_password_consumes_token_and_changes_password(client, regular_user
 
 def test_reset_password_rejects_used_token(client, regular_user):
     from datetime import datetime, timezone
+
     from app.auth.models import PasswordResetToken
     from app.extensions import db
 

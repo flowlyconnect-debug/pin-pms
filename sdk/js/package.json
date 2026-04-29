@@ -1,0 +1,13 @@
+{
+  "name": "@pindora/pms-sdk",
+  "version": "0.1.0",
+  "description": "Official Pindora PMS SDK",
+  "main": "dist/client.js",
+  "types": "dist/types.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

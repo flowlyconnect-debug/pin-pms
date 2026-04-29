@@ -4,18 +4,30 @@ All routes in this blueprint require an authenticated superadmin whose TOTP
 2FA session is verified. Reuses the decorator declared in :mod:`app.auth.routes`
 so the 2FA gate stays in a single place.
 """
+
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from functools import wraps
 
-from flask import abort, flash, jsonify, redirect, render_template, request, url_for, current_app
-from flask_login import current_user, login_required
+from flask import (
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+from flask_login import current_user, login_required, login_user
 
 from app.admin import admin_bp
 from app.admin import services as admin_service
 from app.admin.forms import (
     ApiKeyForm,
     EmailTemplateForm,
+    EmailTemplateTestSendForm,
     OrganizationForm,
     SettingForm,
     UserCreateForm,
@@ -28,24 +40,24 @@ from app.audit.models import ActorType, AuditLog, AuditStatus
 from app.auth.models import TwoFactorEmailCode
 from app.auth.routes import require_superadmin_2fa
 from app.billing import services as billing_service
-from app.maintenance import services as maintenance_service
-from app.email.models import EmailTemplate, TemplateKey
-from app.email.services import send_template_sync
-from app.email.templates import render_strings as render_email_strings
-from app.email.templates import validate_context as validate_email_context
+from app.email.models import EmailTemplate
+from app.email.services import EmailServiceError
 from app.extensions import db
 from app.guests import services as guest_service
 from app.integrations.ical.models import ImportedCalendarFeed
 from app.integrations.ical.service import IcalService, IcalServiceError
-from app.settings import services as settings_service
-from app.settings.models import Setting, SettingType
+from app.maintenance import services as maintenance_service
+from app.organizations.models import Organization
+from app.owners import services as owners_service
+from app.owners.models import PropertyOwner
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reports import services as report_service
 from app.reservations import services as reservation_service
-from app.organizations.models import Organization
+from app.settings import services as settings_service
+from app.settings.models import SettingType
+from app.status.models import StatusComponent, StatusIncident
 from app.users.models import User, UserRole
-
 
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
@@ -60,6 +72,16 @@ def require_admin_pms_access(view_func):
     @login_required
     def wrapped(*args, **kwargs):
         if not _is_admin_or_superadmin():
+            abort(403)
+        return view_func(*args, **kwargs)
+
+    return wrapped
+
+
+def check_impersonation_blocked(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if session.get("impersonator_user_id"):
             abort(403)
         return view_func(*args, **kwargs)
 
@@ -203,13 +225,27 @@ def guests_list():
         page=page,
         per_page=per_page,
     )
-    return render_template("admin/guests/list.html", rows=rows, total=total, page=page, per_page=per_page, search=search or "")
+    return render_template(
+        "admin/guests/list.html",
+        rows=rows,
+        total=total,
+        page=page,
+        per_page=per_page,
+        search=search or "",
+    )
 
 
 @admin_bp.route("/guests/new", methods=["GET", "POST"])
 @require_admin_pms_access
 def guests_new():
-    form = {"first_name": "", "last_name": "", "email": "", "phone": "", "notes": "", "preferences": ""}
+    form = {
+        "first_name": "",
+        "last_name": "",
+        "email": "",
+        "phone": "",
+        "notes": "",
+        "preferences": "",
+    }
     error: str | None = None
     if request.method == "POST":
         for key in form:
@@ -937,7 +973,12 @@ def leases_new():
         form["billing_cycle"] = (request.form.get("billing_cycle") or "").strip().lower()
         form["notes"] = (request.form.get("notes") or "").strip()
 
-        if not form["unit_id"] or not form["guest_id"] or not form["start_date"] or not form["rent_amount"]:
+        if (
+            not form["unit_id"]
+            or not form["guest_id"]
+            or not form["start_date"]
+            or not form["rent_amount"]
+        ):
             error = "Unit, guest, start date, and rent are required."
         else:
             try:
@@ -1459,7 +1500,9 @@ def maintenance_requests_edit(request_id: int):
     properties, units = _reservation_edit_form_context(organization_id=org_id)
     assignees = _org_users_for_assign(org_id)
     try:
-        row = maintenance_service.get_maintenance_request(organization_id=org_id, request_id=request_id)
+        row = maintenance_service.get_maintenance_request(
+            organization_id=org_id, request_id=request_id
+        )
     except maintenance_service.MaintenanceServiceError:
         abort(404)
     if row["status"] in {"resolved", "cancelled"}:
@@ -1632,12 +1675,7 @@ def audit():
     total = query.count()
 
     offset = (page - 1) * page_size
-    rows = (
-        query.order_by(AuditLog.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
-        .all()
-    )
+    rows = query.order_by(AuditLog.created_at.desc()).offset(offset).limit(page_size).all()
 
     has_next = offset + len(rows) < total
     has_prev = page > 1
@@ -1676,47 +1714,85 @@ def _load_template_or_404(key: str) -> EmailTemplate:
     return template
 
 
-@admin_bp.post("/email-templates/<key>/test-send")
+@admin_bp.get("/email-templates/<key>/preview")
+@require_superadmin_2fa
+def email_template_preview(key: str):
+    template = _load_template_or_404(key)
+    rendered = None
+    error = None
+    try:
+        rendered = admin_service.build_email_template_preview(template_key=template.key)
+        audit_record(
+            "email_template.previewed",
+            status=AuditStatus.SUCCESS,
+            target_type="email_template",
+            target_id=template.id,
+            context={"key": template.key},
+            commit=True,
+        )
+    except EmailServiceError as err:
+        error = err.public_message
+        audit_record(
+            "email_template.previewed",
+            status=AuditStatus.FAILURE,
+            target_type="email_template",
+            target_id=template.id,
+            context={"key": template.key, "error": err.public_message},
+            commit=True,
+        )
+    return render_template(
+        "admin_email_template_preview.html",
+        template=template,
+        rendered=rendered,
+        used_variables=template.available_variables or [],
+        error=error,
+    )
+
+
+@admin_bp.route("/email-templates/<key>/test-send", methods=["GET", "POST"])
 @require_superadmin_2fa
 def email_template_test_send(key: str):
-    """Send the chosen template to a recipient as a deliverability check.
-
-    Project brief section 7: "testilähetysmahdollisuus superadminille".
-    The recipient is supplied via form ``to``; defaults to the current
-    superadmin. The send goes out synchronously so any Mailgun error
-    surfaces in the flash message rather than disappearing into a
-    background thread.
-    """
-
     template = _load_template_or_404(key)
-    to = (request.form.get("to") or current_user.email or "").strip()
-    if not to or "@" not in to:
-        flash("Test email needs a valid 'to' address.")
-        return redirect(url_for("admin.email_template_edit", key=key))
+    form = EmailTemplateTestSendForm()
+    if request.method == "GET":
+        form.to.data = current_user.email
+    if form.validate_on_submit():
+        to = form.to.data.strip().lower()
+        if "@" not in to or "." not in to.split("@")[-1]:
+            flash("Anna kelvollinen vastaanottajan sahkopostiosoite.")
+            return render_template(
+                "admin_email_template_test_send.html", template=template, form=form
+            )
+        try:
+            admin_service.send_email_template_test(
+                template_key=template.key,
+                to=to,
+                actor_user=current_user,
+            )
+            audit_record(
+                "email_template.test_sent",
+                status=AuditStatus.SUCCESS,
+                target_type="email_template",
+                target_id=template.id,
+                context={"key": template.key, "to": to},
+                commit=True,
+            )
+            flash("Testiviesti lahetetty onnistuneesti.")
+            return redirect(url_for("admin.email_templates_list"))
+        except EmailServiceError as err:
+            audit_record(
+                "email_template.test_failed",
+                status=AuditStatus.FAILURE,
+                target_type="email_template",
+                target_id=template.id,
+                context={"key": template.key, "to": to, "error": err.public_message},
+                commit=True,
+            )
+            flash(f"Testiviestin lahetys epaonnistui: {err.public_message}")
+    elif request.method == "POST":
+        flash("Anna kelvollinen vastaanottajan sahkopostiosoite.")
 
-    preview_context = _preview_context()
-    missing = validate_email_context(template.key, preview_context)
-    if missing:
-        missing_list = ", ".join(missing)
-        flash(f"Template context is missing required variables: {missing_list}")
-        return redirect(url_for("admin.email_template_edit", key=key))
-
-    ok = send_template_sync(template.key, to=to, context=preview_context)
-    audit_record(
-        "email_template.test_sent",
-        status=AuditStatus.SUCCESS if ok else AuditStatus.FAILURE,
-        target_type="email_template",
-        target_id=template.id,
-        context={"key": template.key, "to": to},
-        commit=True,
-    )
-    if ok:
-        flash(f"Test email sent to {to}.")
-    else:
-        flash(
-            "Test email failed — check the application log for the underlying error."
-        )
-    return redirect(url_for("admin.email_template_edit", key=key))
+    return render_template("admin_email_template_test_send.html", template=template, form=form)
 
 
 @admin_bp.route("/email-templates/<key>", methods=["GET", "POST"])
@@ -1726,95 +1802,41 @@ def email_template_edit(key: str):
 
     template = _load_template_or_404(key)
     error: str | None = None
-    preview_subject: str | None = None
-    preview_text: str | None = None
-    preview_html: str | None = None
 
     form = EmailTemplateForm(obj=template)
     if request.method == "GET":
         form.subject.data = template.subject
-        form.body_text.data = template.body_text
-        form.body_html.data = template.body_html or ""
+        form.body_text.data = template.effective_text_content
+        form.body_html.data = template.effective_html_content or ""
     if request.method == "POST":
-        action = (request.form.get("action") or "save").strip().lower()
         if form.validate():
             normalized_html: str | None = (form.body_html.data or "").strip() or None
-            if action == "preview":
-                # Render the unsaved strings directly — no DB write — so editors
-                # can iterate without polluting history with half-finished saves.
-                try:
-                    preview_context = _preview_context()
-                    missing = validate_email_context(template.key, preview_context)
-                    if missing:
-                        missing_list = ", ".join(missing)
-                        error = f"Template context is missing required variables: {missing_list}"
-                    else:
-                        rendered = render_email_strings(
-                            subject=form.subject.data.strip(),
-                            body_text=form.body_text.data,
-                            body_html=normalized_html,
-                            context=preview_context,
-                        )
-                        preview_subject, preview_text, preview_html = (
-                            rendered.subject,
-                            rendered.text,
-                            rendered.html,
-                        )
-                except Exception as err:  # noqa: BLE001 — show the editor the syntax error
-                    error = f"Template render failed: {err}"
-            else:
-                template.subject = form.subject.data.strip()
-                template.body_text = form.body_text.data
-                template.body_html = normalized_html
-                template.updated_by_id = current_user.id
-                db.session.commit()
-                audit_record(
-                    "email_template.updated",
-                    status=AuditStatus.SUCCESS,
-                    target_type="email_template",
-                    target_id=template.id,
-                    context={"key": template.key},
-                    commit=True,
-                )
-                flash("Template saved.")
-                return redirect(url_for("admin.email_template_edit", key=key))
+            template.subject = form.subject.data.strip()
+            template.body_text = form.body_text.data
+            template.body_html = normalized_html
+            template.text_content = form.body_text.data
+            template.html_content = normalized_html
+            template.updated_by_id = current_user.id
+            db.session.commit()
+            audit_record(
+                "email_template.updated",
+                status=AuditStatus.SUCCESS,
+                target_type="email_template",
+                target_id=template.id,
+                context={"key": template.key},
+                commit=True,
+            )
+            flash("Pohja tallennettu.")
+            return redirect(url_for("admin.email_template_edit", key=key))
         else:
-            error = "Please correct the highlighted fields."
+            error = "Tarkista lomakkeen kentat."
 
     return render_template(
         "admin_email_template_edit.html",
         template=template,
         form=form,
         error=error,
-        preview_subject=preview_subject,
-        preview_text=preview_text,
-        preview_html=preview_html,
     )
-
-
-def _preview_context() -> dict[str, object]:
-    """Stub values for every variable the seed templates use.
-
-    Matches the sample context used by ``flask send-test-email`` so the editor
-    sees consistent placeholders regardless of which template they pick.
-    """
-
-    return {
-        "user_email": "preview@example.com",
-        "organization_name": "Preview Organization",
-        "login_url": "https://example.com/login",
-        "reset_url": "https://example.com/reset/abc123",
-        "expires_minutes": 30,
-        "code": "123 456",
-        "backup_name": "preview-backup",
-        "completed_at": "2026-04-25 10:00:00 UTC",
-        "size_human": "12.3 MB",
-        "location": "/var/backups/pindora/preview.sql.gz",
-        "failed_at": "2026-04-25 10:00:00 UTC",
-        "error_message": "pg_dump: connection refused (preview)",
-        "subject_line": "Preview admin notification",
-        "message": "This is a preview message.",
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -1837,6 +1859,7 @@ def settings_list():
 
 @admin_bp.route("/settings/new", methods=["GET", "POST"])
 @require_superadmin_2fa
+@check_impersonation_blocked
 def settings_new():
     """Create a new setting row (key + type are required and immutable later)."""
 
@@ -1876,6 +1899,7 @@ def settings_new():
 
 @admin_bp.route("/settings/<key>", methods=["GET", "POST"])
 @require_superadmin_2fa
+@check_impersonation_blocked
 def settings_edit(key: str):
     """Edit one setting -- value, description, is_secret. Key + type are stable."""
 
@@ -1953,6 +1977,7 @@ def _coerce_form_value(raw: str, type_: str):
         return raw.strip().lower() in {"true", "1", "yes", "on"}
     if type_ == SettingType.JSON:
         import json as _json
+
         return _json.loads(raw) if raw.strip() else None
     return raw
 
@@ -1981,6 +2006,58 @@ def _verify_fresh_2fa_code(code: str) -> bool:
 def users_list():
     rows = User.query.order_by(User.email.asc()).all()
     return render_template("admin_users.html", rows=rows, roles=list(UserRole))
+
+
+@admin_bp.post("/superadmin/impersonate/<int:user_id>")
+@require_superadmin_2fa
+def superadmin_impersonate(user_id: int):
+    if not current_user.is_superadmin:
+        abort(403)
+    reason = (request.form.get("reason") or "").strip()
+    if not reason:
+        flash("Impersonoinnin syy on pakollinen.")
+        return redirect(url_for("admin.users_list"))
+    target_user = User.query.get_or_404(user_id)
+    if target_user.id == current_user.id:
+        flash("Et voi impersonoida itseäsi.")
+        return redirect(url_for("admin.users_list"))
+    admin_service.start_impersonation(
+        actor_user=current_user,
+        target_user=target_user,
+        reason=reason,
+    )
+    session["impersonator_user_id"] = current_user.id
+    session["impersonation_started_at"] = datetime.now(timezone.utc).isoformat()
+    login_user(target_user)
+    flash(f"Esiinnyt nyt käyttäjänä {target_user.email}.")
+    return redirect(url_for("admin.admin_home"))
+
+
+@admin_bp.post("/exit-impersonation")
+@login_required
+def exit_impersonation():
+    impersonator_user_id = session.get("impersonator_user_id")
+    if not impersonator_user_id:
+        abort(400)
+    impersonator = User.query.get_or_404(int(impersonator_user_id))
+    started_raw = session.get("impersonation_started_at")
+    duration = 0
+    if started_raw:
+        try:
+            started_at = datetime.fromisoformat(started_raw)
+            duration = int((datetime.now(timezone.utc) - started_at).total_seconds())
+        except Exception:
+            duration = 0
+    admin_service.end_impersonation(
+        actor_user=current_user,
+        impersonator_user=impersonator,
+        duration_seconds=duration,
+    )
+    session.pop("impersonator_user_id", None)
+    session.pop("impersonation_started_at", None)
+    login_user(impersonator)
+    flash("Impersonointi lopetettu.")
+    return redirect(url_for("admin.users_list"))
 
 
 @admin_bp.route("/users/new", methods=["GET", "POST"])
@@ -2028,6 +2105,7 @@ def users_new():
 
 @admin_bp.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
 @require_superadmin_2fa
+@check_impersonation_blocked
 def users_edit(user_id: int):
     target_user = User.query.get_or_404(user_id)
     organizations = Organization.query.order_by(Organization.name.asc()).all()
@@ -2116,6 +2194,7 @@ def users_edit(user_id: int):
 
 @admin_bp.post("/users/<int:user_id>/toggle-active")
 @require_superadmin_2fa
+@check_impersonation_blocked
 def users_toggle_active(user_id: int):
     target_user = User.query.get_or_404(user_id)
     try:
@@ -2140,8 +2219,7 @@ def users_toggle_active(user_id: int):
         return redirect(url_for("admin.users_list"))
     db.session.refresh(target_user)
     flash(
-        f"User {target_user.email} is now "
-        f"{'active' if target_user.is_active else 'inactive'}."
+        f"User {target_user.email} is now " f"{'active' if target_user.is_active else 'inactive'}."
     )
     return redirect(url_for("admin.users_list"))
 
@@ -2237,6 +2315,77 @@ def organizations_edit(org_id: int):
 # ---------------------------------------------------------------------------
 
 
+@admin_bp.get("/owners")
+@require_superadmin_2fa
+def owners_list():
+    rows = (
+        PropertyOwner.query.filter_by(organization_id=current_user.organization_id)
+        .order_by(PropertyOwner.name.asc(), PropertyOwner.id.asc())
+        .all()
+    )
+    properties = (
+        Property.query.filter_by(organization_id=current_user.organization_id)
+        .order_by(Property.name.asc())
+        .all()
+    )
+    return render_template("admin/owners_list.html", rows=rows, properties=properties)
+
+
+@admin_bp.route("/owners/new", methods=["GET", "POST"])
+@require_superadmin_2fa
+def owners_new():
+    error: str | None = None
+    if request.method == "POST":
+        try:
+            row = owners_service.create_owner(
+                organization_id=current_user.organization_id,
+                name=(request.form.get("name") or "").strip(),
+                email=(request.form.get("email") or "").strip(),
+                phone=(request.form.get("phone") or "").strip() or None,
+                payout_iban=(request.form.get("payout_iban") or "").strip() or None,
+            )
+            password = (request.form.get("password") or "").strip()
+            if password:
+                owners_service.create_owner_user(
+                    owner_id=row.id,
+                    email=row.email,
+                    password=password,
+                )
+            db.session.commit()
+            flash("Owner created.")
+            return redirect(url_for("admin.owners_list"))
+        except Exception as exc:
+            db.session.rollback()
+            error = str(exc)
+    return render_template("admin/owners_new.html", error=error)
+
+
+@admin_bp.post("/owners/<int:owner_id>/assign-property")
+@require_superadmin_2fa
+def owners_assign_property(owner_id: int):
+    from datetime import date
+    from decimal import Decimal
+
+    try:
+        valid_from = date.fromisoformat((request.form.get("valid_from") or "").strip())
+        valid_to_raw = (request.form.get("valid_to") or "").strip()
+        owners_service.assign_property(
+            owner_id=owner_id,
+            organization_id=current_user.organization_id,
+            property_id=int(request.form.get("property_id")),
+            ownership_pct=Decimal((request.form.get("ownership_pct") or "1").strip()),
+            management_fee_pct=Decimal((request.form.get("management_fee_pct") or "0").strip()),
+            valid_from=valid_from,
+            valid_to=date.fromisoformat(valid_to_raw) if valid_to_raw else None,
+        )
+        db.session.commit()
+        flash("Property linked to owner.")
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Could not assign property: {exc}")
+    return redirect(url_for("admin.owners_list"))
+
+
 @admin_bp.get("/api-keys")
 @require_superadmin_2fa
 def api_keys_list():
@@ -2256,7 +2405,9 @@ def api_keys_new():
     error: str | None = None
 
     if form.validate_on_submit():
-        selected_user_id = form.user_id.data if form.user_id.data and form.user_id.data > 0 else None
+        selected_user_id = (
+            form.user_id.data if form.user_id.data and form.user_id.data > 0 else None
+        )
         expires_at = form.expires_at.data
         if selected_user_id is not None:
             selected_user = User.query.get(selected_user_id)
@@ -2264,12 +2415,15 @@ def api_keys_new():
                 error = "Selected user does not exist."
             elif selected_user.organization_id != form.organization_id.data:
                 error = "Selected user must belong to the selected organization."
+        selected_scopes = list(form.scopes.data or [])
+        if "admin:*" in selected_scopes and not current_user.is_superadmin:
+            error = "Only superadmin can create API keys with admin:* scope."
         if error is None:
             api_key, raw_key = ApiKey.issue(
                 name=form.name.data.strip(),
                 organization_id=form.organization_id.data,
                 user_id=selected_user_id,
-                scopes=(form.scopes.data or "").strip(),
+                scopes=",".join(selected_scopes),
                 expires_at=expires_at,
             )
             db.session.add(api_key)
@@ -2289,9 +2443,7 @@ def api_keys_new():
                 },
                 commit=True,
             )
-            flash(
-                "API key issued. The plaintext is shown once below -- copy it now."
-            )
+            flash("API key issued. The plaintext is shown once below -- copy it now.")
             return redirect(url_for("admin.api_keys_list", show_raw=raw_key))
     elif request.method == "POST":
         error = "Please correct the highlighted fields."
@@ -2322,8 +2474,7 @@ def api_keys_toggle_active(key_id: int):
         commit=True,
     )
     flash(
-        f"API key {api_key.key_prefix} is now "
-        f"{'active' if api_key.is_active else 'inactive'}."
+        f"API key {api_key.key_prefix} is now " f"{'active' if api_key.is_active else 'inactive'}."
     )
     return redirect(url_for("admin.api_keys_list"))
 
@@ -2360,3 +2511,54 @@ def api_keys_usage(key_id: int):
         .all()
     )
     return render_template("admin/api_key_usage.html", api_key=api_key, rows=rows)
+
+
+@admin_bp.get("/superadmin/tenants/<int:org_id>/debug")
+@require_superadmin_2fa
+def tenant_debug(org_id: int):
+    try:
+        payload = admin_service.build_tenant_debug_view(organization_id=org_id)
+    except ValueError:
+        abort(404)
+    sentry_url = f"https://sentry.io/issues/?query=organization_id%3A{org_id}"
+    return render_template(
+        "admin/superadmin_tenant_debug.html", data=payload, org_id=org_id, sentry_url=sentry_url
+    )
+
+
+@admin_bp.route("/superadmin/status", methods=["GET", "POST"])
+@require_superadmin_2fa
+def superadmin_status():
+    if request.method == "POST":
+        action = (request.form.get("action") or "").strip()
+        if action == "component_state":
+            comp = StatusComponent.query.filter_by(
+                key=(request.form.get("component_key") or "").strip()
+            ).first_or_404()
+            comp.current_state = (request.form.get("current_state") or "operational").strip()
+            comp.scheduled_maintenance = bool(request.form.get("scheduled_maintenance"))
+            db.session.commit()
+            flash("Komponentin tila paivitetty.")
+        elif action == "incident_create":
+            incident = StatusIncident(
+                title=(request.form.get("title") or "").strip() or "Untitled incident",
+                body=(request.form.get("body") or "").strip(),
+                severity=(request.form.get("severity") or "minor").strip(),
+                component_keys=[
+                    x.strip()
+                    for x in (request.form.get("component_keys") or "").split(",")
+                    if x.strip()
+                ],
+                status="open",
+            )
+            db.session.add(incident)
+            db.session.commit()
+            flash("Incident luotu.")
+        elif action == "incident_close":
+            incident = StatusIncident.query.get_or_404(int(request.form.get("incident_id")))
+            incident.status = "resolved"
+            incident.resolved_at = datetime.now(timezone.utc)
+            db.session.commit()
+            flash("Incident suljettu.")
+    payload = admin_service.public_status_payload(window_days=90)
+    return render_template("admin/superadmin_status.html", payload=payload)

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import func as sa_func, or_
+from sqlalchemy import func as sa_func
+from sqlalchemy import or_
 
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
@@ -40,7 +41,9 @@ def _normalize_email(raw: str | None) -> str | None:
     return value or None
 
 
-def _assert_unique_email(*, organization_id: int, email: str | None, exclude_guest_id: int | None = None) -> None:
+def _assert_unique_email(
+    *, organization_id: int, email: str | None, exclude_guest_id: int | None = None
+) -> None:
     if not email:
         return
     query = Guest.query.filter(
@@ -57,7 +60,9 @@ def _assert_unique_email(*, organization_id: int, email: str | None, exclude_gue
         )
 
 
-def list_guests(*, organization_id: int, search: str | None = None, page: int = 1, per_page: int = 20) -> tuple[list[dict], int]:
+def list_guests(
+    *, organization_id: int, search: str | None = None, page: int = 1, per_page: int = 20
+) -> tuple[list[dict], int]:
     query = Guest.query.filter(Guest.organization_id == organization_id)
     search_value = (search or "").strip()
     if search_value:
@@ -91,7 +96,9 @@ def create_guest(organization_id: int, data: dict, actor_user) -> dict:
     first_name = (data.get("first_name") or "").strip()
     last_name = (data.get("last_name") or "").strip()
     if not first_name or not last_name:
-        raise GuestServiceError(code="validation_error", message="First name and last name are required.", status=400)
+        raise GuestServiceError(
+            code="validation_error", message="First name and last name are required.", status=400
+        )
     email = _normalize_email(data.get("email"))
     _assert_unique_email(organization_id=organization_id, email=email)
     row = Guest(
@@ -126,7 +133,9 @@ def update_guest(guest_id: int, organization_id: int, data: dict, actor_user) ->
     first_name = (data.get("first_name") or "").strip()
     last_name = (data.get("last_name") or "").strip()
     if not first_name or not last_name:
-        raise GuestServiceError(code="validation_error", message="First name and last name are required.", status=400)
+        raise GuestServiceError(
+            code="validation_error", message="First name and last name are required.", status=400
+        )
     email = _normalize_email(data.get("email"))
     _assert_unique_email(organization_id=organization_id, email=email, exclude_guest_id=row.id)
     row.first_name = first_name

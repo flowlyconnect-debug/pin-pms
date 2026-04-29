@@ -39,9 +39,7 @@ def _serialize_unit(row: Unit) -> dict:
 
 def list_properties(*, organization_id: int) -> list[dict]:
     rows = (
-        Property.query.filter_by(organization_id=organization_id)
-        .order_by(Property.id.asc())
-        .all()
+        Property.query.filter_by(organization_id=organization_id).order_by(Property.id.asc()).all()
     )
     return [_serialize_property(row) for row in rows]
 
@@ -54,12 +52,7 @@ def list_properties_paginated(
 ) -> tuple[list[dict], int]:
     query = Property.query.filter_by(organization_id=organization_id)
     total = query.count()
-    rows = (
-        query.order_by(Property.id.asc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-        .all()
-    )
+    rows = query.order_by(Property.id.asc()).offset((page - 1) * per_page).limit(per_page).all()
     return [_serialize_property(row) for row in rows], total
 
 

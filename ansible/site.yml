@@ -1,0 +1,61 @@
+---
+- name: Provision Pindora PMS host
+  hosts: app
+  become: true
+  vars:
+    app_dir: /opt/pindora-pms
+    service_name: pindora
+    domain_name: example.com
+    admin_email: ops@example.com
+  tasks:
+    - name: Install system packages
+      apt:
+        name:
+          - python3
+          - python3-venv
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+          - git
+        state: present
+        update_cache: true
+
+    - name: Ensure application directory exists
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Install systemd unit
+      copy:
+        src: ../deploy/pindora.service.example
+        dest: /etc/systemd/system/{{ service_name }}.service
+        mode: "0644"
+
+    - name: Install nginx config
+      copy:
+        src: ../deploy/nginx.conf.example
+        dest: /etc/nginx/sites-available/{{ service_name }}.conf
+        mode: "0644"
+
+    - name: Enable nginx site
+      file:
+        src: /etc/nginx/sites-available/{{ service_name }}.conf
+        dest: /etc/nginx/sites-enabled/{{ service_name }}.conf
+        state: link
+
+    - name: Obtain or renew LetsEncrypt certificate
+      command: certbot --nginx -d {{ domain_name }} --non-interactive --agree-tos -m {{ admin_email }}
+      changed_when: false
+
+    - name: Reload daemon and restart services
+      systemd:
+        daemon_reload: true
+        name: "{{ item }}"
+        state: restarted
+        enabled: true
+      loop:
+        - "{{ service_name }}"
+        - nginx

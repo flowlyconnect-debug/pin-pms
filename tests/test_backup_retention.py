@@ -1,9 +1,9 @@
 """Spec section 8 — varmuuskopioiden retention-prune."""
+
 from __future__ import annotations
 
 import os
 import time
-from pathlib import Path
 
 
 def test_prune_removes_old_files(app, tmp_path):

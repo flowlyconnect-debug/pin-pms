@@ -56,7 +56,9 @@ def test_send_email_2fa_code_creates_hashed_token_and_audit(superadmin, monkeypa
     assert sent_payload["to"] == superadmin.email
     assert sent_payload["context"]["code"] == "123456"
 
-    audit = AuditLog.query.filter_by(action="2fa.email_code_sent").order_by(AuditLog.id.desc()).first()
+    audit = (
+        AuditLog.query.filter_by(action="2fa.email_code_sent").order_by(AuditLog.id.desc()).first()
+    )
     assert audit is not None
     assert audit.target_id == superadmin.id
 

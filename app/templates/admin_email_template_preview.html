@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Esikatselu {{ template.key }} · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Esikatselu: <code>{{ template.key }}</code></h1>
+  <p class="meta">{{ template.description }}</p>
+  {% if error %}
+    <div class="error">{{ error }}{% if rendered is none and used_variables %} Puuttuvat muuttujat: {{ used_variables|join(', ') }}{% endif %}</div>
+  {% endif %}
+
+  {% if rendered %}
+    <div class="card">
+      <p><strong>Aihe:</strong> {{ rendered.subject }}</p>
+      <p><strong>Tekstiversio:</strong></p>
+      <pre>{{ rendered.text }}</pre>
+      <p><strong>HTML-sisalto:</strong></p>
+      <iframe
+        title="HTML-esikatselu"
+        sandbox=""
+        style="width:100%; min-height:260px; border:1px solid #ddd; border-radius:6px; background:#fff;"
+        srcdoc="{{ rendered.html or '' }}"
+      ></iframe>
+      <p><strong>Kaytetyt muuttujat:</strong>
+        {% for v in used_variables %}
+          <code>{{ '{{' }} {{ v }} {{ '}}' }}</code>
+        {% endfor %}
+      </p>
+    </div>
+  {% endif %}
+
+  <div class="actions">
+    <a href="{{ url_for('admin.email_template_edit', key=template.key) }}">Takaisin muokkaukseen</a>
+  </div>
+{% endblock %}

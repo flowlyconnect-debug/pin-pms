@@ -1,4 +1,5 @@
 """User provisioning and lifecycle — used by CLI, admin UI, and seeds."""
+
 from __future__ import annotations
 
 import logging
@@ -285,11 +286,7 @@ def change_password(
         target_type="user",
         target_id=user.id,
         context={
-            "via": (
-                "admin"
-                if (actor_type or ActorType.SYSTEM) == ActorType.USER
-                else "service"
-            )
+            "via": ("admin" if (actor_type or ActorType.SYSTEM) == ActorType.USER else "service")
         },
     )
     if commit:

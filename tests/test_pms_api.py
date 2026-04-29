@@ -4,6 +4,22 @@ from datetime import date
 
 from werkzeug.security import generate_password_hash
 
+DEFAULT_TEST_API_SCOPES = ",".join(
+    [
+        "reservations:read",
+        "reservations:write",
+        "invoices:read",
+        "invoices:write",
+        "guests:read",
+        "guests:write",
+        "properties:read",
+        "properties:write",
+        "maintenance:read",
+        "maintenance:write",
+        "reports:read",
+    ]
+)
+
 
 def _auth_headers(raw_key: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {raw_key}"}
@@ -33,7 +49,7 @@ def _create_org_user_and_key(*, org_name: str, email: str):
         name=f"{org_name} key",
         organization_id=org.id,
         user_id=user.id,
-        scopes="",
+        scopes=DEFAULT_TEST_API_SCOPES,
     )
     db.session.add(key)
     db.session.commit()

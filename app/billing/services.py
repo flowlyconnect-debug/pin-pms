@@ -1,4 +1,5 @@
 """Tenant-scoped lease and invoice business logic."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -235,12 +236,7 @@ def list_leases_paginated(
 ) -> tuple[list[dict], int]:
     q = Lease.query.filter_by(organization_id=organization_id)
     total = q.count()
-    rows = (
-        q.order_by(Lease.id.desc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-        .all()
-    )
+    rows = q.order_by(Lease.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
     return [_serialize_lease(r) for r in rows], total
 
 
@@ -954,11 +950,7 @@ def cancel_invoice(
 
 
 def list_leases_for_org(*, organization_id: int) -> list[dict]:
-    rows = (
-        Lease.query.filter_by(organization_id=organization_id)
-        .order_by(Lease.id.desc())
-        .all()
-    )
+    rows = Lease.query.filter_by(organization_id=organization_id).order_by(Lease.id.desc()).all()
     return [_serialize_lease(r) for r in rows]
 
 

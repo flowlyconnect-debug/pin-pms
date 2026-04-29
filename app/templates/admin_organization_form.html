@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{% if is_new %}Uusi organisaatio{% else %}Muokkaa {{ target_org.name }}{% endif %} · Pindora PMS{% endblock %}
+{% block title %}{% if is_new %}Uusi organisaatio{% else %}Muokkaa {{ target_org.name }}{% endif %} · Pin PMS{% endblock %}
 
 {% block content %}
   <h1>{% if is_new %}Luo organization{% else %}Muokkaa <code>{{ target_org.name }}</code>{% endif %}</h1>

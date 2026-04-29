@@ -1,4 +1,5 @@
 """Spec section 16 — käyttäjän luonti."""
+
 from __future__ import annotations
 
 

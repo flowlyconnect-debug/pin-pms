@@ -4,8 +4,8 @@ The actual handlers are wired up in :mod:`app.__init__` because they need
 the Flask app instance. This module owns the human-readable copy table so
 all status codes have a single source of truth.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 # Human-facing copy for each error code. Keep messages short and avoid
 # exposing internal details; if Werkzeug gives us a more specific

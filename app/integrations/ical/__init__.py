@@ -1,2 +1,1 @@
 """iCal integration package."""
-

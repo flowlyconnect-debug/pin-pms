@@ -7,7 +7,14 @@ def _login(client, *, email: str, password: str):
     return client.post("/login", data={"email": email, "password": password})
 
 
-def _seed_guest(*, db, organization_id: int, first_name: str = "Jane", last_name: str = "Doe", email: str | None = "jane@example.com"):
+def _seed_guest(
+    *,
+    db,
+    organization_id: int,
+    first_name: str = "Jane",
+    last_name: str = "Doe",
+    email: str | None = "jane@example.com",
+):
     from app.guests.models import Guest
 
     row = Guest(
@@ -25,7 +32,13 @@ def test_admin_can_list_guests(client, admin_user):
     from app.extensions import db
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    _seed_guest(db=db, organization_id=admin_user.organization_id, first_name="Aino", last_name="Guest", email="aino@test.local")
+    _seed_guest(
+        db=db,
+        organization_id=admin_user.organization_id,
+        first_name="Aino",
+        last_name="Guest",
+        email="aino@test.local",
+    )
 
     response = client.get("/admin/guests")
     assert response.status_code == 200
@@ -49,7 +62,9 @@ def test_admin_can_create_guest(client, admin_user):
         follow_redirects=True,
     )
     assert response.status_code == 200
-    row = Guest.query.filter_by(organization_id=admin_user.organization_id, email="matti@test.local").first()
+    row = Guest.query.filter_by(
+        organization_id=admin_user.organization_id, email="matti@test.local"
+    ).first()
     assert row is not None
 
 
@@ -58,7 +73,13 @@ def test_admin_can_edit_guest(client, admin_user):
     from app.guests.models import Guest
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    row = _seed_guest(db=db, organization_id=admin_user.organization_id, first_name="Old", last_name="Name", email="old@test.local")
+    row = _seed_guest(
+        db=db,
+        organization_id=admin_user.organization_id,
+        first_name="Old",
+        last_name="Name",
+        email="old@test.local",
+    )
     response = client.post(
         f"/admin/guests/{row.id}/edit",
         data={
@@ -87,11 +108,23 @@ def test_other_organization_guest_not_visible(client, admin_user):
     from app.organizations.models import Organization
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    own = _seed_guest(db=db, organization_id=admin_user.organization_id, first_name="Own", last_name="Guest", email="own@test.local")
+    own = _seed_guest(
+        db=db,
+        organization_id=admin_user.organization_id,
+        first_name="Own",
+        last_name="Guest",
+        email="own@test.local",
+    )
     other_org = Organization(name="Other Guest Org")
     db.session.add(other_org)
     db.session.commit()
-    _seed_guest(db=db, organization_id=other_org.id, first_name="Foreign", last_name="Guest", email="foreign@test.local")
+    _seed_guest(
+        db=db,
+        organization_id=other_org.id,
+        first_name="Foreign",
+        last_name="Guest",
+        email="foreign@test.local",
+    )
 
     page = client.get("/admin/guests")
     assert f"/admin/guests/{own.id}".encode() in page.data
@@ -102,7 +135,13 @@ def test_same_email_blocked_in_same_organization(client, admin_user):
     from app.extensions import db
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    _seed_guest(db=db, organization_id=admin_user.organization_id, first_name="A", last_name="One", email="dup@test.local")
+    _seed_guest(
+        db=db,
+        organization_id=admin_user.organization_id,
+        first_name="A",
+        last_name="One",
+        email="dup@test.local",
+    )
 
     response = client.post(
         "/admin/guests/new",
@@ -118,11 +157,23 @@ def test_same_email_allowed_in_different_organizations(client, admin_user):
     from app.organizations.models import Organization
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    _seed_guest(db=db, organization_id=admin_user.organization_id, first_name="A", last_name="One", email="same@test.local")
+    _seed_guest(
+        db=db,
+        organization_id=admin_user.organization_id,
+        first_name="A",
+        last_name="One",
+        email="same@test.local",
+    )
     other_org = Organization(name="Other Email Org")
     db.session.add(other_org)
     db.session.commit()
-    _seed_guest(db=db, organization_id=other_org.id, first_name="B", last_name="Two", email="same@test.local")
+    _seed_guest(
+        db=db,
+        organization_id=other_org.id,
+        first_name="B",
+        last_name="Two",
+        email="same@test.local",
+    )
 
 
 def test_reservation_can_link_guest_and_detail_shows_history(client, admin_user):
@@ -131,7 +182,13 @@ def test_reservation_can_link_guest_and_detail_shows_history(client, admin_user)
     from app.reservations.models import Reservation
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    guest = _seed_guest(db=db, organization_id=admin_user.organization_id, first_name="Link", last_name="Guest", email="link@test.local")
+    guest = _seed_guest(
+        db=db,
+        organization_id=admin_user.organization_id,
+        first_name="Link",
+        last_name="Guest",
+        email="link@test.local",
+    )
     prop = Property(organization_id=admin_user.organization_id, name="Guest Hotel", address=None)
     db.session.add(prop)
     db.session.flush()
@@ -170,7 +227,14 @@ def test_guest_audit_logs_created(client, admin_user):
     guest_id = int(create.headers["Location"].rstrip("/").split("/")[-1])
     update = client.post(
         f"/admin/guests/{guest_id}/edit",
-        data={"first_name": "Audit2", "last_name": "Guest", "email": "audit2@test.local", "phone": "", "notes": "", "preferences": ""},
+        data={
+            "first_name": "Audit2",
+            "last_name": "Guest",
+            "email": "audit2@test.local",
+            "phone": "",
+            "notes": "",
+            "preferences": "",
+        },
         follow_redirects=False,
     )
     assert update.status_code == 302
@@ -184,8 +248,16 @@ def test_calendar_title_uses_guest_full_name_when_linked(client, admin_user):
     from app.reservations.models import Reservation
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    guest = _seed_guest(db=db, organization_id=admin_user.organization_id, first_name="Full", last_name="Name", email="full@test.local")
-    prop = Property(organization_id=admin_user.organization_id, name="Cal Guest Hotel", address=None)
+    guest = _seed_guest(
+        db=db,
+        organization_id=admin_user.organization_id,
+        first_name="Full",
+        last_name="Name",
+        email="full@test.local",
+    )
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Cal Guest Hotel", address=None
+    )
     db.session.add(prop)
     db.session.flush()
     unit = Unit(property_id=prop.id, name="303", unit_type="suite")

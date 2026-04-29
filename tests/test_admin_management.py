@@ -1,4 +1,5 @@
 """Spec section 3 — superadmin can manage users / orgs / API keys via UI."""
+
 from __future__ import annotations
 
 import pyotp
@@ -74,5 +75,6 @@ def test_superadmin_can_disable_api_key(client, superadmin, api_key):
     assert response.status_code == 302
 
     from app.api.models import ApiKey
+
     refreshed = ApiKey.query.get(api_key.id)
     assert refreshed.is_active is False

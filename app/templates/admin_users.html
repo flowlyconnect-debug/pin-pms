@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Käyttäjät · Pindora PMS{% endblock %}
+{% block title %}Käyttäjät · Pin PMS{% endblock %}
 
 {% block content %}
   <h1>Käyttäjät</h1>
@@ -30,6 +30,13 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit">{{ "Deactivate" if u.is_active else "Activate" }}</button>
             </form>
+            {% if current_user.is_superadmin and current_user.id != u.id %}
+              <form method="post" action="{{ url_for('admin.superadmin_impersonate', user_id=u.id) }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="reason" placeholder="Syy" required>
+                <button type="submit">Impersonoi</button>
+              </form>
+            {% endif %}
           </td>
         </tr>
       {% else %}

@@ -1,4 +1,5 @@
 """Lease and Invoice models for tenant-scoped PMS billing."""
+
 from __future__ import annotations
 
 from app.extensions import db

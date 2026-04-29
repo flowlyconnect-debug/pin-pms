@@ -1,4 +1,5 @@
 """Tenant-scoped maintenance request business logic."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,7 +46,9 @@ def _scoped_property(*, organization_id: int, property_id: int) -> Property | No
     return Property.query.filter_by(id=property_id, organization_id=organization_id).first()
 
 
-def _scoped_unit_on_property(*, organization_id: int, property_id: int, unit_id: int) -> Unit | None:
+def _scoped_unit_on_property(
+    *, organization_id: int, property_id: int, unit_id: int
+) -> Unit | None:
     return (
         Unit.query.join(Property, Unit.property_id == Property.id)
         .filter(
@@ -88,7 +91,6 @@ def _serialize(row: MaintenanceRequest) -> dict[str, Any]:
     prop = row.property
     unit = row.unit
     guest = row.guest
-    res = row.reservation
     assignee = row.assigned_to
     creator = row.created_by
     return {
@@ -137,10 +139,7 @@ def list_maintenance_requests_paginated(
         q = q.filter(MaintenanceRequest.unit_id == unit_id)
     total = q.count()
     rows = (
-        q.order_by(MaintenanceRequest.id.desc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-        .all()
+        q.order_by(MaintenanceRequest.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
     )
     return [_serialize(r) for r in rows], total
 
@@ -202,7 +201,10 @@ def create_maintenance_request(
                 status=400,
             )
 
-    if guest_id is not None and _scoped_guest(organization_id=organization_id, guest_id=guest_id) is None:
+    if (
+        guest_id is not None
+        and _scoped_guest(organization_id=organization_id, guest_id=guest_id) is None
+    ):
         raise MaintenanceServiceError(
             code="validation_error",
             message="Guest not found in this organization.",
@@ -210,7 +212,10 @@ def create_maintenance_request(
         )
 
     if reservation_id is not None:
-        if _scoped_reservation(organization_id=organization_id, reservation_id=reservation_id) is None:
+        if (
+            _scoped_reservation(organization_id=organization_id, reservation_id=reservation_id)
+            is None
+        ):
             raise MaintenanceServiceError(
                 code="validation_error",
                 message="Reservation not found in this organization.",

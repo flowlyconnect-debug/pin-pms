@@ -1,4 +1,7 @@
-# Pindora PMS
+# Pin PMS
+
+[![CI](https://github.com/example/pindora-pms/actions/workflows/ci.yml/badge.svg)](https://github.com/example/pindora-pms/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/example/pindora-pms/branch/main/graph/badge.svg)](https://codecov.io/gh/example/pindora-pms)
 
 Production-ready Flask backend for a multi-tenant Property Management System
 (PMS), including API auth, admin UI, audit logging, email templates/Mailgun,
@@ -69,6 +72,9 @@ only (no secrets). Key variables:
 - Pindora lock integration: `PINDORA_LOCK_BASE_URL`,
   `PINDORA_LOCK_API_KEY`, `PINDORA_LOCK_WEBHOOK_SECRET`,
   `PINDORA_LOCK_TIMEOUT_SECONDS`
+- Generic webhook signing + idempotency:
+  `WEBHOOK_INBOUND_HMAC_SECRET`, `WEBHOOK_OUTBOUND_HMAC_SECRET`,
+  `IDEMPOTENCY_KEY_TTL_SECONDS`
 - Check-in document encryption (optional): `CHECKIN_FERNET_KEY`
 - iCal calendar sync: `ICAL_FEED_SECRET`, `ICAL_HTTP_TIMEOUT_SECONDS`,
   `ICAL_SYNC_ENABLED`, `ICAL_SYNC_INTERVAL_MINUTES`
@@ -140,6 +146,15 @@ admin actions are allowed.
 ```bash
 pytest -q
 ```
+
+Coverage gate is enforced via `pytest.ini` (`--cov-fail-under=80`).
+
+## Code quality tooling
+
+- Type checking: `mypy app/` (gradual strict rollout tracked in `docs/typing_progress.md`)
+- Linting: `ruff check app/ tests/`
+- Formatting: `black --check app/ tests/`
+- Optional hooks: `pre-commit install`
 
 Docker:
 
@@ -241,14 +256,21 @@ Set:
 
 - `MAILGUN_API_KEY`
 - `MAILGUN_DOMAIN`
+- `MAILGUN_FROM_EMAIL`
+- `MAILGUN_FROM_NAME`
 - `MAILGUN_BASE_URL` (`https://api.mailgun.net/v3` or EU endpoint)
-- from identity (`MAIL_FROM` / `MAIL_FROM_NAME`; aliases present in `.env.example`)
 
 Verify:
 
 ```bash
 flask send-test-email --to you@example.com --template admin_notification
 ```
+
+Admin-paneelin testilahetys:
+
+- Avaa `Sahkopostipohjat` (`/admin/email-templates`)
+- Valitse pohja ja paina `Laheta testi`
+- Syota vastaanottajan sahkoposti ja laheta lomake
 
 ## Admin UI usage
 
@@ -264,7 +286,7 @@ Main admin pages:
 - `/admin/users` (superadmin only)
 - `/admin/organizations` (superadmin only)
 - `/admin/api-keys` (superadmin only)
-- `/admin/email-templates` (superadmin only) — includes test-send button
+- `/admin/email-templates` (superadmin only) — Muokkaa, Esikatsele, Laheta testi
 - `/admin/backups` (superadmin only) — list / create / download / restore
 - `/admin/settings` (superadmin only)
 

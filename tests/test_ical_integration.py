@@ -46,7 +46,9 @@ def test_ical_client_fetches_calendar(monkeypatch):
         return FakeResponse()
 
     monkeypatch.setattr("app.integrations.ical.client.requests.get", fake_get)
-    payload = IcalClient(timeout_seconds=7).fetch_calendar(source_url="https://example.test/unit.ics")
+    payload = IcalClient(timeout_seconds=7).fetch_calendar(
+        source_url="https://example.test/unit.ics"
+    )
     assert payload.startswith(b"BEGIN:VCALENDAR")
     assert calls["url"] == "https://example.test/unit.ics"
     assert calls["timeout"] == 7
@@ -135,4 +137,3 @@ def test_admin_calendar_sync_page_and_import_conflict(client, admin_user):
         follow_redirects=False,
     )
     assert posted.status_code == 302
-

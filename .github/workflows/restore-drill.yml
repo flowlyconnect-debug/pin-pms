@@ -1,0 +1,44 @@
+name: Restore Drill
+
+on:
+  schedule:
+    - cron: "0 4 1 * *"
+  workflow_dispatch:
+
+jobs:
+  restore-drill:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      BACKUP_BUCKET: ${{ secrets.BACKUP_BUCKET }}
+      TEST_DATABASE_URL: ${{ secrets.RESTORE_TEST_DATABASE_URL }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Download latest backup from S3
+        run: |
+          aws s3 ls "s3://${BACKUP_BUCKET}/" --recursive | sort | tail -n 1 | awk '{print $4}' > latest.txt
+          aws s3 cp "s3://${BACKUP_BUCKET}/$(cat latest.txt)" latest.sql.gz
+      - name: Restore into empty test DB
+        run: |
+          gunzip -c latest.sql.gz | psql "${TEST_DATABASE_URL}"
+      - name: Upgrade schema and run smoke tests
+        run: |
+          flask db upgrade
+          pytest -q tests/test_health.py tests/test_observability.py
+      - name: Report success to Slack
+        if: ${{ success() }}
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+            -d '{"text":"✅ Pindora restore drill succeeded"}' \
+            "${SLACK_WEBHOOK_URL}"
+      - name: Report failure to Slack
+        if: ${{ failure() }}
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+            -d '{"text":"❌ Pindora restore drill failed"}' \
+            "${SLACK_WEBHOOK_URL}"

@@ -5,6 +5,7 @@ sites do not duplicate the role-string comparison logic. The existing
 2FA / superadmin guards live in :mod:`app.auth.routes`; the helpers here
 are small functions that any module can import without pulling Flask in.
 """
+
 from __future__ import annotations
 
 from functools import wraps
@@ -13,7 +14,6 @@ from flask import abort
 from flask_login import current_user, login_required
 
 from app.users.models import UserRole
-
 
 # ---------------------------------------------------------------------------
 # Pure helpers — no Flask context required.

@@ -19,3 +19,9 @@ icalendar
 boto3
 moto[s3]
 apispec
+structlog
+opentelemetry-distro
+opentelemetry-instrumentation-flask
+opentelemetry-instrumentation-sqlalchemy
+opentelemetry-exporter-otlp
+sentry-sdk[flask]

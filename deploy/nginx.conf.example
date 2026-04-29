@@ -1,4 +1,4 @@
-# Pindora PMS — Nginx reverse proxy example.
+# Pin PMS — Nginx reverse proxy example.
 #
 # Drop this file into /etc/nginx/sites-available/pindora.conf, replace
 # every "example.com" with your real hostname, point the cert paths at

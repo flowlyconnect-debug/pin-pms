@@ -8,6 +8,7 @@ Three layers of access control are exercised here:
 * Per-view manual ``abort(403)`` for routes that are explicitly
   superadmin-only (``/2fa/setup``).
 """
+
 from __future__ import annotations
 
 

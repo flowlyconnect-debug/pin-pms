@@ -1,4 +1,4 @@
-# Cursor-prompt: Pindora PMS – ammattitason PMS:n täydennys (Lista 2)
+# Cursor-prompt: Pin PMS – ammattitason PMS:n täydennys (Lista 2)
 
 > **Varoitus realismista:** Lista 2 on käytännössä useiden henkilötyö-
 > kuukausien kokoinen kehitysprojekti, ei viikon tehtävä. Älä yritä antaa
@@ -84,7 +84,7 @@ yhdellä kertaa.**
 Lue ensin: app/billing/models.py, app/billing/services.py,
 app/api/routes.py (invoices-endpointit), README.md (billing-osio).
 
-Tehtävä: lisää Stripe-pohjainen kortinkäsittely Pindora PMS:ään.
+Tehtävä: lisää Stripe-pohjainen kortinkäsittely Pin PMS:ään.
 
 Toteuta:
 
@@ -232,7 +232,7 @@ Suositus aloittaa Netvisorista koska se on rajapintapohjainen.
 ## Vaihe M2 — Smart lock + online check-in
 
 **Tavoite:** vieras saa varauksesta automaattisesti ovikoodin,
-joka toimii vain hänen olonsa ajan. Tämä on Pindora PMS:n
+joka toimii vain hänen olonsa ajan. Tämä on Pin PMS:n
 erottautumistekijä — koska olet "Pindora", lukkointegraatio on
 lähes nimi-velvollisuus.
 

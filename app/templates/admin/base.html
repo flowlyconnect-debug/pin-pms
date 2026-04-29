@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Ylläpito · Pindora PMS{% endblock %}</title>
+    <title>{% block title %}Ylläpito · Pin PMS{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
     {% block head_extra %}{% endblock %}
   </head>
@@ -36,6 +36,7 @@
           <a href="{{ url_for('admin.email_templates_list') }}" class="admin-nav-link{% if ep.startswith('admin.email_template') %} is-active{% endif %}"{% if ep.startswith('admin.email_template') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">✉️</span><span class="admin-nav-text">Sähköpostipohjat</span></a>
           <a href="{{ url_for('backups_admin.backups_list') }}" class="admin-nav-link{% if ep.startswith('backups_admin.backups_') %} is-active{% endif %}"{% if ep.startswith('backups_admin.backups_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">💾</span><span class="admin-nav-text">Varmuuskopiot</span></a>
           <a href="{{ url_for('admin.settings_list') }}" class="admin-nav-link{% if ep.startswith('admin.settings_') %} is-active{% endif %}"{% if ep.startswith('admin.settings_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">⚙️</span><span class="admin-nav-text">Asetukset</span></a>
+          <a href="{{ url_for('admin.superadmin_status') }}" class="admin-nav-link{% if ep == 'admin.superadmin_status' %} is-active{% endif %}"{% if ep == 'admin.superadmin_status' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🟢</span><span class="admin-nav-text">Status admin</span></a>
         </nav>
         <div class="admin-sidebar-foot">
           <a class="admin-logout" href="{{ url_for('auth.logout') }}"><span class="admin-nav-ico" aria-hidden="true">🚪</span><span class="admin-nav-text">Kirjaudu ulos</span></a>
@@ -49,6 +50,15 @@
           <span class="admin-topbar-title">Pin PMS</span>
         </header>
         <main class="admin-main">
+          {% if impersonation_active %}
+            <div style="background:#fde68a;color:#111827;padding:.6rem .8rem;border:1px solid #f59e0b;border-radius:8px;margin-bottom:.75rem;">
+              Esiinnyt käyttäjänä {{ current_user.email }}.
+              <form method="post" action="{{ url_for('admin.exit_impersonation') }}" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit">Palaa omaksi itseksesi</button>
+              </form>
+            </div>
+          {% endif %}
           {% with messages = get_flashed_messages() %}
             {% if messages %}
               <div class="flash-wrap">

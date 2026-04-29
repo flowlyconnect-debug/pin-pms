@@ -6,6 +6,7 @@ generation so call sites do not import ``werkzeug`` / ``hashlib`` /
 out the underlying primitives (e.g. switching from Werkzeug's PBKDF2 to
 Argon2) without touching the call sites.
 """
+
 from __future__ import annotations
 
 import hashlib

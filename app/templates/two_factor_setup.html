@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Ota 2FA käyttöön — Pindora PMS</title>
+    <title>Ota 2FA käyttöön — Pin PMS</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
   </head>
   <body class="pms-login-page">
     <a class="pms-login-skip" href="#pms-login-main">Siirry 2FA-asetuksiin</a>
 
     <header class="pms-login-nav">
-      <a class="pms-login-brand" href="{{ url_for('core.index') }}" aria-label="Pindora PMS etusivu">
+      <a class="pms-login-brand" href="{{ url_for('core.index') }}" aria-label="Pin PMS etusivu">
         <span class="pms-login-brand-mark" aria-hidden="true"></span>
-        <span>Pindora PMS</span>
+        <span>Pin PMS</span>
       </a>
       <nav class="pms-login-nav-links" aria-label="Sivu">
         <a href="{{ url_for('auth.login') }}">Kirjaudu</a>

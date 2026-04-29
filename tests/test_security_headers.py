@@ -4,6 +4,7 @@ Every HTML and API response must carry CSP, X-Frame-Options,
 X-Content-Type-Options, Referrer-Policy and Permissions-Policy. HSTS only
 fires for HTTPS requests (or behind a TLS-terminating proxy).
 """
+
 from __future__ import annotations
 
 

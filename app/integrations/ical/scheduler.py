@@ -47,4 +47,3 @@ def _shutdown_scheduler(scheduler) -> None:  # pragma: no cover
         scheduler.shutdown(wait=False)
     except Exception:  # noqa: BLE001
         logger.exception("iCal scheduler shutdown failed")
-

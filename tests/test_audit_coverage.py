@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import gzip
 import io
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pyotp
 
@@ -200,9 +200,8 @@ class _FakeRestoreBackupPopen:
 
 def test_backup_created_and_restored_audit(app, monkeypatch, tmp_path):
     from app.audit.models import AuditLog
-    from app.backups.models import Backup, BackupStatus, BackupTrigger
+    from app.backups.models import BackupStatus, BackupTrigger
     from app.backups.services import create_backup, restore_backup
-    from app.extensions import db
 
     backup_dir = Path(tmp_path)
     app.config["BACKUP_DIR"] = str(backup_dir)
@@ -222,7 +221,9 @@ def test_backup_created_and_restored_audit(app, monkeypatch, tmp_path):
         lambda **kwargs: SimpleNamespace(filename="safe-copy.sql.gz"),
     )
     monkeypatch.setattr("app.backups.services.subprocess.Popen", _FakeRestoreBackupPopen)
-    monkeypatch.setattr("app.backups.services._notify_superadmins_of_restore", lambda **kwargs: None)
+    monkeypatch.setattr(
+        "app.backups.services._notify_superadmins_of_restore", lambda **kwargs: None
+    )
 
     _ = restore_backup(filename=restore_file.name, actor_user_id=None)
     assert AuditLog.query.filter_by(action="backup.restored").first() is not None

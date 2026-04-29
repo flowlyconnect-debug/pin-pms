@@ -47,4 +47,3 @@ def parse_ical_events(payload: bytes) -> list[dict]:
             }
         )
     return out
-

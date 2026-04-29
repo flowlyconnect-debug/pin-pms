@@ -26,6 +26,7 @@ If the operator picked a strong password containing URL-special characters
 ``.env``. ``POSTGRES_USER`` / ``POSTGRES_PASSWORD`` are raw plaintext that
 docker-compose passes through unchanged, so they always parse cleanly.
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,6 +36,22 @@ import psycopg2
 import pyotp
 import pytest
 from werkzeug.security import generate_password_hash
+
+DEFAULT_TEST_API_SCOPES = ",".join(
+    [
+        "reservations:read",
+        "reservations:write",
+        "invoices:read",
+        "invoices:write",
+        "guests:read",
+        "guests:write",
+        "properties:read",
+        "properties:write",
+        "maintenance:read",
+        "maintenance:write",
+        "reports:read",
+    ]
+)
 
 
 def _default_postgres_host() -> str:
@@ -99,9 +116,7 @@ def _conn_params() -> dict[str, object]:
         "port": port,
         "user": os.environ["POSTGRES_USER"] if "POSTGRES_USER" in os.environ else "postgres",
         "password": (
-            os.environ["POSTGRES_PASSWORD"]
-            if "POSTGRES_PASSWORD" in os.environ
-            else "postgres"
+            os.environ["POSTGRES_PASSWORD"] if "POSTGRES_PASSWORD" in os.environ else "postgres"
         ),
     }
 
@@ -124,9 +139,7 @@ def _build_test_database_url() -> str:
     p = _conn_params()
     user = _percent_encode(str(p["user"]))
     password = _percent_encode(str(p["password"]))
-    return (
-        f"postgresql+psycopg2://{user}:{password}@{p['host']}:{p['port']}/pindora_test"
-    )
+    return f"postgresql+psycopg2://{user}:{password}@{p['host']}:{p['port']}/pindora_test"
 
 
 # Set TEST_DATABASE_URL at module-import time so :class:`TestConfig` (whose
@@ -254,7 +267,6 @@ def db_isolation(app):
     db.session.remove()
 
 
-
 @pytest.fixture
 def organization(app):
     from app.extensions import db
@@ -343,7 +355,7 @@ def api_key(regular_user):
         name="Test key",
         organization_id=regular_user.organization_id,
         user_id=regular_user.id,
-        scopes="",
+        scopes=DEFAULT_TEST_API_SCOPES,
     )
     db.session.add(key)
     db.session.commit()

@@ -10,12 +10,12 @@ Verifies the restore path:
 The actual ``psql`` and ``pg_dump`` calls are stubbed so the test does not
 require a live PostgreSQL instance.
 """
+
 from __future__ import annotations
 
 import gzip
 import io
 from pathlib import Path
-from types import SimpleNamespace
 
 
 class _FakePopen:
@@ -42,7 +42,6 @@ def test_restore_creates_pre_restore_safe_copy_and_audits(app, monkeypatch, tmp_
     from app.audit.models import AuditLog
     from app.backups.models import Backup, BackupTrigger
     from app.backups.services import restore_backup
-    from app.extensions import db
 
     backup_dir = Path(tmp_path)
     app.config["BACKUP_DIR"] = str(backup_dir)
@@ -68,11 +67,7 @@ def test_restore_creates_pre_restore_safe_copy_and_audits(app, monkeypatch, tmp_
     assert safe_copy.trigger == BackupTrigger.PRE_RESTORE
 
     # The audit log entry exists and points at the loaded file.
-    audit = (
-        AuditLog.query.filter_by(action="backup.restored")
-        .order_by(AuditLog.id.desc())
-        .first()
-    )
+    audit = AuditLog.query.filter_by(action="backup.restored").order_by(AuditLog.id.desc()).first()
     assert audit is not None
     ctx = audit.context or {}
     assert ctx.get("restored_from") == restore_file.name

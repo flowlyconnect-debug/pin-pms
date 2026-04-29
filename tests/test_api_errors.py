@@ -3,6 +3,7 @@
 Every error from ``/api/v1/*`` follows the same envelope:
 ``{"success": false, "data": null, "error": {"code": "...", "message": "..."}}``
 """
+
 from __future__ import annotations
 
 

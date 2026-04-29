@@ -25,11 +25,12 @@ def test_portal_guest_login_works(client, regular_user):
 
 
 def test_portal_guest_cannot_access_another_guest_reservation(client, regular_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _portal_login(client, email=regular_user.email, password=regular_user.password_plain)
 
@@ -64,10 +65,11 @@ def test_portal_guest_cannot_access_another_guest_reservation(client, regular_us
 
 
 def test_portal_guest_can_view_own_invoices_only(client, regular_user):
+    from werkzeug.security import generate_password_hash
+
     from app.billing.models import Invoice
     from app.extensions import db
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _portal_login(client, email=regular_user.email, password=regular_user.password_plain)
 
@@ -169,16 +171,19 @@ def test_portal_guest_can_create_maintenance_request(client, regular_user):
 
 
 def test_portal_isolation_enforced_between_guests(client, regular_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.maintenance.models import MaintenanceRequest
     from app.organizations.models import Organization
     from app.properties.models import Property
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _portal_login(client, email=regular_user.email, password=regular_user.password_plain)
 
-    own_org_prop = Property(organization_id=regular_user.organization_id, name="Own Org Prop", address=None)
+    own_org_prop = Property(
+        organization_id=regular_user.organization_id, name="Own Org Prop", address=None
+    )
     db.session.add(own_org_prop)
     db.session.flush()
     other_same_org = User(
@@ -246,4 +251,3 @@ def test_portal_isolation_enforced_between_guests(client, regular_user):
     assert page.status_code == 200
     assert b"Other same org" not in page.data
     assert b"Other org request" not in page.data
-

@@ -1,4 +1,5 @@
 """Spec section 16 — superadmin 2FA -vaatimus."""
+
 from __future__ import annotations
 
 

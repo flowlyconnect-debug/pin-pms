@@ -58,4 +58,3 @@ class ImportedCalendarEvent(TimestampMixin, db.Model):
 
     unit = db.relationship("Unit", lazy="joined")
     feed = db.relationship("ImportedCalendarFeed", lazy="joined")
-

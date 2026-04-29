@@ -65,6 +65,9 @@ def validate_context(key: str, context: dict) -> list[str]:
     required = available_variables_for(key)
     missing: list[str] = []
     for var in required:
+        # ``from_name`` is injected by render_strings() from config.
+        if var == "from_name":
+            continue
         if var not in context or context[var] is None:
             missing.append(var)
     return missing
@@ -90,7 +93,7 @@ def render_template_for(key: str, context: dict) -> RenderedEmail:
     template = _lookup_template(key)
     return render_strings(
         subject=template.subject,
-        body_text=template.body_text,
-        body_html=template.body_html,
+        body_text=template.effective_text_content,
+        body_html=template.effective_html_content,
         context=context,
     )

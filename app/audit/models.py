@@ -9,6 +9,7 @@ Actions follow a dotted namespace (``domain.subject.outcome``) so they are
 easy to filter on — e.g. ``auth.login.success`` vs ``auth.login.failure``,
 ``apikey.created``, ``user.created``.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

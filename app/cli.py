@@ -5,20 +5,21 @@ from app.api.models import ApiKey
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
 from app.audit.services import vacuum_audit_logs
+from app.auth import services as auth_services
 from app.backups.models import BackupTrigger
-from app.billing import services as billing_service
 from app.backups.services import BackupError, create_backup, restore_backup
+from app.billing import services as billing_service
 from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import ensure_seed_templates, send_template_sync
 from app.extensions import db
+from app.integrations.ical.service import IcalService
 from app.organizations.models import Organization
+from app.owners.models import OwnerPayout, OwnerPayoutStatus, PropertyOwner
+from app.owners.services import generate_monthly_payout, send_payout_email
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reservations import services as reservation_service
-from app.reservations.models import Reservation
-from app.integrations.ical.service import IcalService
 from app.settings.services import ensure_seed_settings
-from app.auth import services as auth_services
 from app.users import services as user_services
 from app.users.models import User, UserRole
 
@@ -50,9 +51,7 @@ def register_cli_commands(app: Flask) -> None:
             )
         except user_services.UserServiceError as err:
             raise click.ClickException(str(err)) from err
-        click.echo(
-            f"Created superadmin '{user.email}' in organization '{user.organization.name}'."
-        )
+        click.echo(f"Created superadmin '{user.email}' in organization '{user.organization.name}'.")
         click.echo(
             "On first login the user will be required to set up TOTP 2FA before "
             "any superadmin action is permitted."
@@ -99,7 +98,9 @@ def register_cli_commands(app: Flask) -> None:
         )
 
     @app.cli.command("create-api-key")
-    @click.option("--name", prompt=True, help="Human-readable key name, e.g. 'Production integration'")
+    @click.option(
+        "--name", prompt=True, help="Human-readable key name, e.g. 'Production integration'"
+    )
     @click.option("--user-email", prompt=True, help="Email of the user that owns the key")
     @click.option(
         "--scopes",
@@ -226,9 +227,7 @@ def register_cli_commands(app: Flask) -> None:
         # already-deactivated key — that is more likely a typo than the
         # operator's intent, and silently issuing a new key in that case
         # would obscure history.
-        candidates = (
-            ApiKey.query.filter_by(key_prefix=normalized_prefix, is_active=True).all()
-        )
+        candidates = ApiKey.query.filter_by(key_prefix=normalized_prefix, is_active=True).all()
         if not candidates:
             raise click.ClickException(
                 f"No active API key found with prefix {normalized_prefix!r}."
@@ -276,9 +275,7 @@ def register_cli_commands(app: Flask) -> None:
         db.session.commit()
 
         click.echo("")
-        click.echo(
-            f"API key rotated for organization {new_api_key.organization.name!r}."
-        )
+        click.echo(f"API key rotated for organization {new_api_key.organization.name!r}.")
         click.echo(f"  Old prefix: {old.key_prefix} (now inactive, kept for audit)")
         click.echo(f"  New name:   {new_api_key.name}")
         click.echo(f"  New prefix: {new_api_key.key_prefix}")
@@ -300,9 +297,9 @@ def register_cli_commands(app: Flask) -> None:
         try:
             backup = create_backup(trigger=BackupTrigger.MANUAL)
         except BackupError as err:
-            raise click.ClickException(f"Backup failed: {err}")
+            raise click.ClickException(f"Backup failed: {err}") from err
 
-        click.echo(f"Backup complete:")
+        click.echo("Backup complete:")
         click.echo(f"  Filename: {backup.filename}")
         click.echo(f"  Location: {backup.location}")
         click.echo(f"  Size:     {backup.size_human}")
@@ -345,7 +342,7 @@ def register_cli_commands(app: Flask) -> None:
                 filename=filename, actor_user_id=None
             )
         except BackupError as err:
-            raise click.ClickException(f"Restore failed: {err}")
+            raise click.ClickException(f"Restore failed: {err}") from err
 
         click.echo(
             f"Restore complete. Pre-restore safe-copy saved as {safe_copy_filename} "
@@ -494,9 +491,7 @@ def register_cli_commands(app: Flask) -> None:
             ("Demo Unit 201", 12, 15),
         ]
 
-        existing_rows = reservation_service.list_reservations(
-            organization_id=organization.id
-        )
+        existing_rows = reservation_service.list_reservations(organization_id=organization.id)
         existing_keyset = {
             (
                 row["unit_id"],
@@ -559,6 +554,32 @@ def register_cli_commands(app: Flask) -> None:
             deleted = vacuum_audit_logs(keep_days=keep_days)
         except ValueError as err:
             raise click.ClickException(str(err)) from err
-        click.echo(
-            f"Deleted {deleted} audit row(s) older than {keep_days} day(s)."
+        click.echo(f"Deleted {deleted} audit row(s) older than {keep_days} day(s).")
+
+    @app.cli.command("owners-generate-payouts")
+    @click.option("--month", "period_month", required=True, help="Month in format YYYY-MM.")
+    def owners_generate_payouts(period_month: str) -> None:
+        owners = PropertyOwner.query.filter_by(is_active=True).all()
+        generated = 0
+        for owner in owners:
+            generate_monthly_payout(owner_id=owner.id, period_month=period_month)
+            generated += 1
+        click.echo(f"Generated {generated} owner payout(s) for {period_month}.")
+
+    @app.cli.command("owners-send-payout-emails")
+    @click.option("--month", "period_month", required=True, help="Month in format YYYY-MM.")
+    def owners_send_payout_emails(period_month: str) -> None:
+        rows = (
+            OwnerPayout.query.join(PropertyOwner, OwnerPayout.owner_id == PropertyOwner.id)
+            .filter(
+                OwnerPayout.period_month == period_month,
+                OwnerPayout.status == OwnerPayoutStatus.DRAFT,
+                PropertyOwner.is_active.is_(True),
+            )
+            .all()
         )
+        sent = 0
+        for row in rows:
+            if send_payout_email(payout=row):
+                sent += 1
+        click.echo(f"Sent {sent} owner payout email(s) for {period_month}.")

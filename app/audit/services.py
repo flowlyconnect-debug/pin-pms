@@ -18,6 +18,7 @@ Design notes
   the error is logged and swallowed so the audited operation is not lost
   because of an observability hiccup.
 """
+
 from __future__ import annotations
 
 import logging
@@ -148,9 +149,7 @@ def record(
             actor_type=actor_type or resolved_type,
             actor_id=actor_id if actor_id is not None else resolved_id,
             actor_email=actor_email or resolved_email,
-            organization_id=(
-                organization_id if organization_id is not None else resolved_org
-            ),
+            organization_id=(organization_id if organization_id is not None else resolved_org),
             target_type=target_type,
             target_id=target_id,
             ip_address=ip,
@@ -181,9 +180,7 @@ def vacuum_audit_logs(*, keep_days: int) -> int:
         raise ValueError("keep_days must be a positive integer.")
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    deleted = AuditLog.query.filter(AuditLog.created_at < cutoff).delete(
-        synchronize_session=False
-    )
+    deleted = AuditLog.query.filter(AuditLog.created_at < cutoff).delete(synchronize_session=False)
     db.session.commit()
 
     record(

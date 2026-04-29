@@ -22,9 +22,11 @@ Design choices
   returns success without hitting Mailgun. Production deployments must keep
   ``MAIL_DEV_LOG_ONLY=0`` and provide a real API key.
 """
+
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
 import requests
@@ -32,28 +34,126 @@ from flask import current_app
 
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
+from app.core.telemetry import trace_http_call, traced
 from app.email.models import EmailTemplate, OutgoingEmail, OutgoingEmailStatus
-from app.email.templates import EmailTemplateNotFound, render_template_for
+from app.email.templates import (
+    EmailTemplateNotFound,
+    RenderedEmail,
+    render_template_for,
+    validate_context,
+)
 from app.extensions import db
 
 logger = logging.getLogger(__name__)
 
 
+class EmailServiceError(Exception):
+    """Handled email-service error with safe, user-facing message."""
+
+    def __init__(self, public_message: str, *, internal_detail: str | None = None):
+        super().__init__(public_message)
+        self.public_message = public_message
+        self.internal_detail = internal_detail
+
+
+@dataclass(frozen=True)
+class EmailServiceResult:
+    success: bool
+    message: str
+
+
 def _build_from_header(app_config: Mapping[str, Any]) -> str:
     # Prefer brief-style names, fall back to legacy MAIL_FROM* aliases.
-    name = (
-        app_config.get("MAILGUN_FROM_NAME")
-        or app_config.get("MAIL_FROM_NAME")
-        or "Pindora PMS"
-    )
+    name = app_config.get("MAILGUN_FROM_NAME") or app_config.get("MAIL_FROM_NAME") or "Pin PMS"
     addr = (
-        app_config.get("MAILGUN_FROM_EMAIL")
-        or app_config.get("MAIL_FROM")
-        or "noreply@example.com"
+        app_config.get("MAILGUN_FROM_EMAIL") or app_config.get("MAIL_FROM") or "noreply@example.com"
     )
     return f"{name} <{addr}>"
 
 
+def _safe_preview_context() -> dict[str, object]:
+    return {
+        "user_email": "demo@example.com",
+        "organization_name": "Demo Organisaatio",
+        "login_url": "https://example.com/login",
+        "reset_url": "https://example.com/reset/demo-token",
+        "expires_minutes": 30,
+        "code": "123 456",
+        "backup_name": "demo-backup",
+        "completed_at": "2026-04-25 10:00:00 UTC",
+        "size_human": "12.3 MB",
+        "location": "/var/backups/pindora/demo.sql.gz",
+        "failed_at": "2026-04-25 10:00:00 UTC",
+        "error_message": "demo error",
+        "subject_line": "Demo ilmoitus",
+        "message": "Tama on turvallinen esikatseluviesti.",
+        "from_name": "Pin PMS",
+        "reservation_id": 1001,
+        "unit_name": "A-101",
+        "start_date": "2026-05-01",
+        "end_date": "2026-05-05",
+        "invoice_number": "INV-1001",
+        "amount": "100.00",
+        "currency": "EUR",
+        "due_date": "2026-05-10",
+        "description": "Testilaskun kuvaus",
+    }
+
+
+def _is_valid_email(value: str) -> bool:
+    addr = (value or "").strip()
+    if not addr or " " in addr:
+        return False
+    if "@" not in addr:
+        return False
+    local, _, domain = addr.partition("@")
+    return bool(local and domain and "." in domain)
+
+
+def render_template(template_key: str, context: Mapping[str, Any]) -> RenderedEmail:
+    missing = validate_context(template_key, dict(context))
+    if missing:
+        raise EmailServiceError(
+            "Pohjan renderointi epaonnistui: puuttuvia muuttujia.",
+            internal_detail=", ".join(missing),
+        )
+    try:
+        return render_template_for(template_key, dict(context))
+    except EmailTemplateNotFound as err:
+        raise EmailServiceError("Sahkopostipohjaa ei loytynyt.", internal_detail=str(err)) from err
+    except Exception as err:  # noqa: BLE001
+        raise EmailServiceError(
+            "Pohjan renderointi epaonnistui.",
+            internal_detail=type(err).__name__,
+        ) from err
+
+
+def send_email(to: str, subject: str, html: str | None, text: str) -> EmailServiceResult:
+    if not _is_valid_email(to):
+        raise EmailServiceError("Vastaanottajan sahkoposti on virheellinen.")
+    rendered = RenderedEmail(subject=subject, html=html, text=text)
+    ok = _send_rendered(key="custom", to=to, rendered=rendered)
+    if not ok:
+        raise EmailServiceError("Sahkopostin lahetys epaonnistui.")
+    return EmailServiceResult(success=True, message="Sahkoposti lahetetty.")
+
+
+def send_template_email(
+    template_key: str, to: str, context: Mapping[str, Any]
+) -> EmailServiceResult:
+    rendered = render_template(template_key, context)
+    return send_email(to=to, subject=rendered.subject, html=rendered.html, text=rendered.text)
+
+
+def send_test_template_email(template_key: str, to: str, actor_user) -> EmailServiceResult:
+    context = _safe_preview_context()
+    actor_email = getattr(actor_user, "email", None)
+    if actor_email:
+        context["user_email"] = actor_email
+    return send_template_email(template_key, to, context)
+
+
+@traced("email.send_template")
 def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = None) -> bool:
     """Queue an outbound email row and return immediately."""
     context = dict(context or {})
@@ -96,6 +196,7 @@ def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = N
         return False
 
 
+@traced("email.send_template_sync")
 def send_template_sync(
     key: str,
     *,
@@ -105,28 +206,25 @@ def send_template_sync(
     """Render and send ``key`` to ``to`` in the current thread."""
     context = dict(context or {})
     try:
-        rendered = render_template_for(key, context)
+        send_template_email(key, to, context)
+        return True
     except EmailTemplateNotFound:
         raise
-    except Exception as err:  # noqa: BLE001
-        logger.exception("Failed to render email template %s", key)
+    except EmailServiceError as err:
+        logger.warning("Template sync send failed for %s: %s", key, err.public_message)
         audit_record(
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": to, "stage": "render", "error": str(err)},
+            context={"key": key, "to": to, "stage": "service", "error": err.public_message},
             commit=True,
         )
         return False
-    return _send_rendered(key=key, to=to, rendered=rendered)
 
 
 def _send_rendered(*, key: str, to: str, rendered) -> bool:
     cfg = current_app.config
-    log_only = (
-        bool(cfg.get("MAIL_DEV_LOG_ONLY"))
-        or not (cfg.get("MAILGUN_API_KEY") or "").strip()
-    )
+    log_only = bool(cfg.get("MAIL_DEV_LOG_ONLY")) or not (cfg.get("MAILGUN_API_KEY") or "").strip()
 
     if log_only:
         html_part = f"\n--- html ---\n{rendered.html}" if rendered.html else ""
@@ -166,7 +264,9 @@ def _send_rendered(*, key: str, to: str, rendered) -> bool:
         payload["html"] = rendered.html
 
     try:
-        resp = requests.post(
+        resp = trace_http_call(
+            "mailgun.send_message",
+            requests.post,
             f"{base_url}/{domain}/messages",
             auth=("api", cfg["MAILGUN_API_KEY"]),
             data=payload,
@@ -242,6 +342,8 @@ def ensure_seed_templates() -> None:
                 subject=t["subject"],
                 body_text=t["body_text"],
                 body_html=t["body_html"],
+                text_content=t["body_text"],
+                html_content=t["body_html"],
                 description=t["description"],
                 available_variables=t["available_variables"],
             )

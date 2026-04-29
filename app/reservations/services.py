@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
-import logging
 from typing import Any, Mapping
 
 from flask import Response
@@ -14,14 +14,14 @@ from sqlalchemy.orm import noload
 
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
+from app.billing.models import Invoice, Lease
 from app.email.models import TemplateKey
 from app.email.services import send_template
 from app.extensions import db
 from app.guests.models import Guest
-from app.billing.models import Invoice, Lease
 from app.maintenance.models import MaintenanceRequest
-from app.properties.models import Property, Unit
 from app.portal import services as portal_services
+from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
 
@@ -172,9 +172,7 @@ def get_calendar_events(
 
     query = _scoped_reservation_query(organization_id=organization_id)
     if property_id is not None:
-        prop = Property.query.filter_by(
-            id=property_id, organization_id=organization_id
-        ).first()
+        prop = Property.query.filter_by(id=property_id, organization_id=organization_id).first()
         if prop is None:
             raise ReservationServiceError(
                 code="validation_error",
@@ -230,8 +228,10 @@ def get_calendar_events(
         return trimmed
 
     events: list[dict] = []
+
     def _single_day_end(value: date) -> str:
         return (value + timedelta(days=1)).isoformat()
+
     for row in rows:
         guest = row.guest
         unit = row.unit
@@ -291,7 +291,9 @@ def get_calendar_events(
                     "extendedProps": {
                         "guest_name": row.guest.full_name if row.guest is not None else "",
                         "guest_id": row.guest_id,
-                        "property_name": row.unit.property.name if row.unit and row.unit.property else "",
+                        "property_name": (
+                            row.unit.property.name if row.unit and row.unit.property else ""
+                        ),
                         "unit_name": row.unit.name if row.unit is not None else "",
                         "status": row.status,
                         "unit_id": row.unit_id,
@@ -331,7 +333,9 @@ def get_calendar_events(
                     "extendedProps": {
                         "guest_name": row.guest.full_name if row.guest is not None else "",
                         "guest_id": row.guest_id,
-                        "property_name": row.unit.property.name if row.unit and row.unit.property else "",
+                        "property_name": (
+                            row.unit.property.name if row.unit and row.unit.property else ""
+                        ),
                         "unit_name": row.unit.name if row.unit is not None else "",
                         "status": row.status,
                         "unit_id": row.unit_id,
@@ -398,7 +402,9 @@ def get_calendar_events(
         if end_date is not None:
             maintenance_query = maintenance_query.filter(MaintenanceRequest.due_date < end_date)
         if property_id is not None:
-            maintenance_query = maintenance_query.filter(MaintenanceRequest.property_id == property_id)
+            maintenance_query = maintenance_query.filter(
+                MaintenanceRequest.property_id == property_id
+            )
         if unit_id is not None:
             maintenance_query = maintenance_query.filter(MaintenanceRequest.unit_id == unit_id)
         maintenance_rows = maintenance_query.order_by(
@@ -431,7 +437,11 @@ def get_calendar_events(
 
 
 def list_reservations(*, organization_id: int) -> list[dict]:
-    rows = _scoped_reservation_query(organization_id=organization_id).order_by(Reservation.id.asc()).all()
+    rows = (
+        _scoped_reservation_query(organization_id=organization_id)
+        .order_by(Reservation.id.asc())
+        .all()
+    )
     return [_serialize_reservation(row) for row in rows]
 
 
@@ -443,19 +453,16 @@ def list_reservations_paginated(
 ) -> tuple[list[dict], int]:
     query = _scoped_reservation_query(organization_id=organization_id)
     total = query.count()
-    rows = (
-        query.order_by(Reservation.id.asc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-        .all()
-    )
+    rows = query.order_by(Reservation.id.asc()).offset((page - 1) * per_page).limit(per_page).all()
     return [_serialize_reservation(row) for row in rows], total
 
 
 def get_reservation(*, organization_id: int, reservation_id: int) -> dict:
-    row = _scoped_reservation_query(organization_id=organization_id).filter(
-        Reservation.id == reservation_id
-    ).first()
+    row = (
+        _scoped_reservation_query(organization_id=organization_id)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
     if row is None:
         raise ReservationServiceError(
             code="not_found",
@@ -492,9 +499,11 @@ def _reservation_display_dict(*, row: Reservation) -> dict:
 def get_reservation_detail(*, organization_id: int, reservation_id: int) -> dict:
     """Rich reservation payload for the admin detail page (tenant-scoped)."""
 
-    row = _scoped_reservation_query(organization_id=organization_id).filter(
-        Reservation.id == reservation_id
-    ).first()
+    row = (
+        _scoped_reservation_query(organization_id=organization_id)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
     if row is None:
         raise ReservationServiceError(
             code="not_found",
@@ -507,9 +516,11 @@ def get_reservation_detail(*, organization_id: int, reservation_id: int) -> dict
 def get_reservation_for_edit(*, organization_id: int, reservation_id: int) -> dict:
     """Return reservation fields needed for the admin edit form (tenant-scoped)."""
 
-    row = _scoped_reservation_query(organization_id=organization_id).filter(
-        Reservation.id == reservation_id
-    ).first()
+    row = (
+        _scoped_reservation_query(organization_id=organization_id)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
     if row is None:
         raise ReservationServiceError(
             code="not_found",
@@ -528,9 +539,11 @@ def update_reservation(
 ) -> dict:
     """Update a reservation from validated form-like input; tenant- and overlap-safe."""
 
-    row = _scoped_reservation_query(organization_id=organization_id).filter(
-        Reservation.id == reservation_id
-    ).first()
+    row = (
+        _scoped_reservation_query(organization_id=organization_id)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
     if row is None:
         raise ReservationServiceError(
             code="not_found",
@@ -610,16 +623,13 @@ def update_reservation(
     currency = _parse_currency(data.get("currency"))
 
     if status == "confirmed":
-        overlapping = (
-            Reservation.query.filter(
-                Reservation.unit_id == unit.id,
-                Reservation.id != reservation_id,
-                Reservation.status != "cancelled",
-                Reservation.start_date < end_date,
-                Reservation.end_date > start_date,
-            )
-            .first()
-        )
+        overlapping = Reservation.query.filter(
+            Reservation.unit_id == unit.id,
+            Reservation.id != reservation_id,
+            Reservation.status != "cancelled",
+            Reservation.start_date < end_date,
+            Reservation.end_date > start_date,
+        ).first()
         if overlapping is not None:
             raise ReservationServiceError(
                 code="validation_error",
@@ -736,7 +746,9 @@ def create_reservation(
                     status=404,
                 )
         else:
-            resolved_guest_name = resolved_guest_name or _display_guest_name(guest=guest, guest_name="")
+            resolved_guest_name = resolved_guest_name or _display_guest_name(
+                guest=guest, guest_name=""
+            )
     if not resolved_guest_name:
         raise ReservationServiceError(
             code="validation_error",
@@ -753,15 +765,12 @@ def create_reservation(
             status=400,
         )
 
-    overlapping = (
-        Reservation.query.filter(
-            Reservation.unit_id == unit.id,
-            Reservation.status != "cancelled",
-            Reservation.start_date < end_date,
-            Reservation.end_date > start_date,
-        )
-        .first()
-    )
+    overlapping = Reservation.query.filter(
+        Reservation.unit_id == unit.id,
+        Reservation.status != "cancelled",
+        Reservation.start_date < end_date,
+        Reservation.end_date > start_date,
+    ).first()
     if overlapping is not None:
         raise ReservationServiceError(
             code="validation_error",
@@ -905,16 +914,13 @@ def move_reservation(
     }
 
     if row.status == "confirmed":
-        overlapping = (
-            Reservation.query.filter(
-                Reservation.unit_id == unit.id,
-                Reservation.id != reservation_id,
-                Reservation.status != "cancelled",
-                Reservation.start_date < end_date,
-                Reservation.end_date > start_date,
-            )
-            .first()
-        )
+        overlapping = Reservation.query.filter(
+            Reservation.unit_id == unit.id,
+            Reservation.id != reservation_id,
+            Reservation.status != "cancelled",
+            Reservation.start_date < end_date,
+            Reservation.end_date > start_date,
+        ).first()
         if overlapping is not None:
             raise ReservationServiceError(
                 code="reservation_overlap",
@@ -1007,16 +1013,13 @@ def resize_reservation(
         )
 
     if row.status == "confirmed":
-        overlapping = (
-            Reservation.query.filter(
-                Reservation.unit_id == row.unit_id,
-                Reservation.id != reservation_id,
-                Reservation.status != "cancelled",
-                Reservation.start_date < end_date,
-                Reservation.end_date > start_date,
-            )
-            .first()
-        )
+        overlapping = Reservation.query.filter(
+            Reservation.unit_id == row.unit_id,
+            Reservation.id != reservation_id,
+            Reservation.status != "cancelled",
+            Reservation.start_date < end_date,
+            Reservation.end_date > start_date,
+        ).first()
         if overlapping is not None:
             raise ReservationServiceError(
                 code="reservation_overlap",
@@ -1067,9 +1070,11 @@ def cancel_reservation(
 ) -> dict:
     """Mark reservation cancelled (tenant-safe). Idempotent if already cancelled."""
 
-    row = _scoped_reservation_query(organization_id=organization_id).filter(
-        Reservation.id == reservation_id
-    ).first()
+    row = (
+        _scoped_reservation_query(organization_id=organization_id)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
     if row is None:
         raise ReservationServiceError(
             code="not_found",
@@ -1132,9 +1137,11 @@ def mark_reservation_paid(
             status=403,
         )
 
-    row = _scoped_reservation_query(organization_id=organization_id).filter(
-        Reservation.id == reservation_id
-    ).first()
+    row = (
+        _scoped_reservation_query(organization_id=organization_id)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
     if row is None:
         raise ReservationServiceError(
             code="not_found",
@@ -1202,7 +1209,7 @@ def _build_invoice_pdf_bytes(*, row: Reservation, organization_id: int) -> bytes
         guest_email = str(row.guest.email)
 
     pdf.setTitle(f"Invoice {invoice_number}")
-    write_line("Pindora PMS Invoice", size=16, step=26)
+    write_line("Pin PMS Invoice", size=16, step=26)
     write_line(f"Invoice number: {invoice_number}")
     write_line(f"Invoice date: {invoice_date}")
     write_line(f"Due date: {due_date}")
@@ -1238,9 +1245,11 @@ def generate_invoice(
             status=403,
         )
 
-    row = _scoped_reservation_query(organization_id=organization_id).filter(
-        Reservation.id == reservation_id
-    ).first()
+    row = (
+        _scoped_reservation_query(organization_id=organization_id)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
     if row is None:
         raise ReservationServiceError(
             code="not_found",

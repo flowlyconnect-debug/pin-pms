@@ -1,0 +1,8 @@
+{% extends "owner/base.html" %}
+{% block title %}Owner Profile{% endblock %}
+{% block content %}
+<h1>Profile</h1>
+<p>Email: {{ row.email }}</p>
+<p>Owner ID: {{ row.owner_id }}</p>
+<p>Last login: {{ row.last_login_at or "-" }}</p>
+{% endblock %}

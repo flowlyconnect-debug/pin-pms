@@ -19,6 +19,7 @@ Each row holds:
                                promise to provide. The admin UI displays this
                                so editors know which placeholders are safe.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -34,6 +35,8 @@ class EmailTemplate(db.Model):
     subject = db.Column(db.String(255), nullable=False)
     body_text = db.Column(db.Text, nullable=False)
     body_html = db.Column(db.Text, nullable=True)
+    text_content = db.Column(db.Text, nullable=False, default="")
+    html_content = db.Column(db.Text, nullable=True)
     description = db.Column(db.String(255), nullable=False, default="")
     available_variables = db.Column(db.JSON, nullable=False, default=list)
     updated_at = db.Column(
@@ -50,6 +53,14 @@ class EmailTemplate(db.Model):
 
     def __repr__(self) -> str:  # pragma: no cover - cosmetic only
         return f"<EmailTemplate {self.key}>"
+
+    @property
+    def effective_text_content(self) -> str:
+        return self.text_content or self.body_text
+
+    @property
+    def effective_html_content(self) -> str | None:
+        return self.html_content if self.html_content is not None else self.body_html
 
 
 # ---------------------------------------------------------------------------

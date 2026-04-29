@@ -8,17 +8,58 @@ from flask import current_app, g, url_for
 from sqlalchemy import case, func
 
 from app.audit.models import AuditLog
-from app.billing.models import Invoice, Lease
 from app.backups.models import Backup, BackupStatus
+from app.billing.models import Invoice, Lease
 from app.email.models import OutgoingEmail, OutgoingEmailStatus
-from app.integrations.ical.models import ImportedCalendarEvent
-from app.integrations.ical.models import ImportedCalendarFeed
+from app.email.services import render_template as render_email_template
+from app.email.services import send_test_template_email
+from app.extensions import db
+from app.integrations.ical.models import ImportedCalendarEvent, ImportedCalendarFeed
 from app.maintenance.models import MaintenanceRequest
+from app.organizations.models import Organization
 from app.portal.models import AccessCode, PortalCheckInToken
 from app.properties.models import Property, Unit
 from app.reports import services as report_service
 from app.reservations.models import Reservation
-from app.extensions import db
+from app.status.models import StatusCheck, StatusComponent, StatusIncident
+from app.users.models import User
+
+
+def email_preview_context() -> dict[str, object]:
+    return {
+        "user_email": "demo@example.com",
+        "organization_name": "Demo Organisaatio",
+        "login_url": "https://example.com/login",
+        "reset_url": "https://example.com/reset/demo-token",
+        "expires_minutes": 30,
+        "code": "123 456",
+        "backup_name": "demo-backup",
+        "completed_at": "2026-04-25 10:00:00 UTC",
+        "size_human": "12.3 MB",
+        "location": "/var/backups/pindora/demo.sql.gz",
+        "failed_at": "2026-04-25 10:00:00 UTC",
+        "error_message": "demo error",
+        "subject_line": "Demo ilmoitus",
+        "message": "Tama on turvallinen esikatseluviesti.",
+        "from_name": "Pin PMS",
+        "reservation_id": 1001,
+        "unit_name": "A-101",
+        "start_date": "2026-05-01",
+        "end_date": "2026-05-05",
+        "invoice_number": "INV-1001",
+        "amount": "100.00",
+        "currency": "EUR",
+        "due_date": "2026-05-10",
+        "description": "Testilaskun kuvaus",
+    }
+
+
+def build_email_template_preview(*, template_key: str):
+    return render_email_template(template_key, email_preview_context())
+
+
+def send_email_template_test(*, template_key: str, to: str, actor_user):
+    return send_test_template_email(template_key, to, actor_user)
 
 
 def _serialize_audit_event(row: AuditLog) -> dict:
@@ -100,15 +141,14 @@ def get_unit_status_overview(*, organization_id: int, on_date: date) -> list[dic
     blocked_expr = (
         Unit.is_active.is_(False)
         if has_unit_active
-        else func.lower(func.coalesce(Unit.unit_type, "")).in_(("blocked", "out_of_service", "inactive"))
-    )
-    relevant_reservation = (
-        (Reservation.status == "confirmed")
-        & (
-            (Reservation.start_date == on_date)
-            | (Reservation.end_date == on_date)
-            | ((Reservation.start_date <= on_date) & (Reservation.end_date > on_date))
+        else func.lower(func.coalesce(Unit.unit_type, "")).in_(
+            ("blocked", "out_of_service", "inactive")
         )
+    )
+    relevant_reservation = (Reservation.status == "confirmed") & (
+        (Reservation.start_date == on_date)
+        | (Reservation.end_date == on_date)
+        | ((Reservation.start_date <= on_date) & (Reservation.end_date > on_date))
     )
     reservation_rank = case(
         (Reservation.start_date == on_date, 3),
@@ -130,7 +170,11 @@ def get_unit_status_overview(*, organization_id: int, on_date: date) -> list[dic
             func.row_number()
             .over(
                 partition_by=Unit.id,
-                order_by=(reservation_rank.desc(), Reservation.start_date.desc(), Reservation.id.desc()),
+                order_by=(
+                    reservation_rank.desc(),
+                    Reservation.start_date.desc(),
+                    Reservation.id.desc(),
+                ),
             )
             .label("rn"),
         )
@@ -143,7 +187,11 @@ def get_unit_status_overview(*, organization_id: int, on_date: date) -> list[dic
     rows = (
         db.session.query(ranked_rows)
         .filter(ranked_rows.c.rn == 1)
-        .order_by(ranked_rows.c.property_name.asc(), ranked_rows.c.unit_name.asc(), ranked_rows.c.unit_id.asc())
+        .order_by(
+            ranked_rows.c.property_name.asc(),
+            ranked_rows.c.unit_name.asc(),
+            ranked_rows.c.unit_id.asc(),
+        )
         .all()
     )
     result: list[dict] = []
@@ -172,7 +220,9 @@ def get_unit_status_overview(*, organization_id: int, on_date: date) -> list[dic
                 "unit_id": row.unit_id,
                 "unit_label": f"{(row.property_name or '').strip()} · {(row.unit_name or '').strip()}",
                 "state": state,
-                "guest_name": guest_name if state in {"occupied", "arriving", "departing"} else None,
+                "guest_name": (
+                    guest_name if state in {"occupied", "arriving", "departing"} else None
+                ),
                 "until_date": until_date.isoformat() if until_date else None,
                 "reservation_id": row.reservation_id,
                 "link": link,
@@ -207,7 +257,9 @@ def get_week_overview(*, organization_id: int, start_date: date) -> list[dict]:
         for row in rows:
             if row.start_date <= current_day < row.end_date:
                 reservations_count += 1
-        occupancy_percent = round((reservations_count / total_units) * 100, 1) if total_units else 0.0
+        occupancy_percent = (
+            round((reservations_count / total_units) * 100, 1) if total_units else 0.0
+        )
         by_day.append(
             {
                 "date_iso": current_day.isoformat(),
@@ -230,7 +282,9 @@ def get_dashboard_stats(
 ) -> dict:
     """Aggregate operational KPIs for the admin dashboard (single-tenant scope)."""
     normalized_range = normalize_dashboard_range(range_key)
-    cache: dict[tuple[int, bool, str], dict[str, Any]] = getattr(g, "_admin_dashboard_stats_cache", {})
+    cache: dict[tuple[int, bool, str], dict[str, Any]] = getattr(
+        g, "_admin_dashboard_stats_cache", {}
+    )
     cache_key = (organization_id, bool(viewer_is_superadmin), normalized_range)
     if cache_key in cache:
         return cache[cache_key]
@@ -242,9 +296,13 @@ def get_dashboard_stats(
         .count()
     )
     today = date.today()
-    range_start, range_end, range_days = _resolve_range_window(range_key=normalized_range, today=today)
+    range_start, range_end, range_days = _resolve_range_window(
+        range_key=normalized_range, today=today
+    )
     range_start_dt = datetime.combine(range_start, datetime.min.time(), tzinfo=timezone.utc)
-    range_end_dt = datetime.combine(range_end + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+    range_end_dt = datetime.combine(
+        range_end + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc
+    )
 
     reservation_metrics = (
         db.session.query(
@@ -327,10 +385,12 @@ def get_dashboard_stats(
         db.session.query(
             func.count().filter(Invoice.status.in_(("open", "overdue"))).label("open_invoices"),
             func.count().filter(Invoice.status == "overdue").label("overdue_invoices"),
-            func.coalesce(func.sum(Invoice.amount).filter(Invoice.status.in_(("open", "overdue"))), 0).label(
-                "open_receivables"
+            func.coalesce(
+                func.sum(Invoice.amount).filter(Invoice.status.in_(("open", "overdue"))), 0
+            ).label("open_receivables"),
+            func.coalesce(func.sum(Invoice.amount).filter(Invoice.status == "overdue"), 0).label(
+                "overdue_amount"
             ),
-            func.coalesce(func.sum(Invoice.amount).filter(Invoice.status == "overdue"), 0).label("overdue_amount"),
         )
         .select_from(Invoice)
         .filter(Invoice.organization_id == organization_id)
@@ -343,9 +403,9 @@ def get_dashboard_stats(
 
     maintenance_metrics = (
         db.session.query(
-            func.count().filter(MaintenanceRequest.status.in_(("new", "in_progress", "waiting"))).label(
-                "open_maintenance_requests"
-            ),
+            func.count()
+            .filter(MaintenanceRequest.status.in_(("new", "in_progress", "waiting")))
+            .label("open_maintenance_requests"),
             func.count()
             .filter(
                 MaintenanceRequest.priority == "urgent",
@@ -404,7 +464,12 @@ def get_dashboard_stats(
         guest_name = (row.guest_name or "").strip()
         if not guest_name and row.guest:
             guest_name = " ".join(
-                part for part in [(row.guest.first_name or "").strip(), (row.guest.last_name or "").strip()] if part
+                part
+                for part in [
+                    (row.guest.first_name or "").strip(),
+                    (row.guest.last_name or "").strip(),
+                ]
+                if part
             ).strip()
         return {
             "reservation_id": row.id,
@@ -434,7 +499,9 @@ def get_dashboard_stats(
         .all()
     )
     expired_checkin_rows = (
-        PortalCheckInToken.query.join(Reservation, PortalCheckInToken.reservation_id == Reservation.id)
+        PortalCheckInToken.query.join(
+            Reservation, PortalCheckInToken.reservation_id == Reservation.id
+        )
         .join(Unit, Reservation.unit_id == Unit.id)
         .join(Property, Unit.property_id == Property.id)
         .filter(
@@ -451,43 +518,50 @@ def get_dashboard_stats(
         .order_by(ImportedCalendarEvent.created_at.asc(), ImportedCalendarEvent.id.asc())
         .all()
     )
-    action_required = [
-        {
-            "kind": "invoice_overdue",
-            "label": f"Myöhässä oleva lasku {row.invoice_number or f'#{row.id}'}",
-            "link": _safe_url_for("admin.invoices_detail", invoice_id=row.id),
-            "severity": "danger",
-            "since": row.due_date.isoformat() if row.due_date else None,
-        }
-        for row in overdue_invoice_rows
-    ] + [
-        {
-            "kind": "maintenance_new",
-            "label": f"Uusi huoltopyyntö #{row.id}: {row.title}",
-            "link": _safe_url_for("admin.maintenance_requests_detail", request_id=row.id),
-            "severity": "warning",
-            "since": row.created_at.isoformat() if row.created_at else None,
-        }
-        for row in new_maintenance_rows
-    ] + [
-        {
-            "kind": "checkin_expired",
-            "label": f"Vanhentunut sisäänkirjautumislinkki varaukselle #{row.reservation_id}",
-            "link": _safe_url_for("admin.reservations_detail", reservation_id=row.reservation_id),
-            "severity": "warning",
-            "since": row.expires_at.isoformat() if row.expires_at else None,
-        }
-        for row in expired_checkin_rows
-    ] + [
-        {
-            "kind": "ical_conflict",
-            "label": f"iCal-konflikti: {(row.summary or f'Tapahtuma #{row.id}')}",
-            "link": _safe_url_for("admin.calendar_sync_conflicts"),
-            "severity": "danger",
-            "since": row.created_at.isoformat() if row.created_at else None,
-        }
-        for row in ical_conflict_rows
-    ]
+    action_required = (
+        [
+            {
+                "kind": "invoice_overdue",
+                "label": f"Myöhässä oleva lasku {row.invoice_number or f'#{row.id}'}",
+                "link": _safe_url_for("admin.invoices_detail", invoice_id=row.id),
+                "severity": "danger",
+                "since": row.due_date.isoformat() if row.due_date else None,
+            }
+            for row in overdue_invoice_rows
+        ]
+        + [
+            {
+                "kind": "maintenance_new",
+                "label": f"Uusi huoltopyyntö #{row.id}: {row.title}",
+                "link": _safe_url_for("admin.maintenance_requests_detail", request_id=row.id),
+                "severity": "warning",
+                "since": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in new_maintenance_rows
+        ]
+        + [
+            {
+                "kind": "checkin_expired",
+                "label": f"Vanhentunut sisäänkirjautumislinkki varaukselle #{row.reservation_id}",
+                "link": _safe_url_for(
+                    "admin.reservations_detail", reservation_id=row.reservation_id
+                ),
+                "severity": "warning",
+                "since": row.expires_at.isoformat() if row.expires_at else None,
+            }
+            for row in expired_checkin_rows
+        ]
+        + [
+            {
+                "kind": "ical_conflict",
+                "label": f"iCal-konflikti: {(row.summary or f'Tapahtuma #{row.id}')}",
+                "link": _safe_url_for("admin.calendar_sync_conflicts"),
+                "severity": "danger",
+                "since": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in ical_conflict_rows
+        ]
+    )
     action_required.sort(key=lambda item: item["since"] or "")
 
     range_total_revenue = _sum_paid_between(
@@ -511,15 +585,23 @@ def get_dashboard_stats(
     )
     revenue_trend_pct: float | None = None
     if range_compare_revenue != Decimal("0"):
-        revenue_trend_pct = float(((range_total_revenue - range_compare_revenue) / range_compare_revenue) * Decimal("100"))
+        revenue_trend_pct = float(
+            ((range_total_revenue - range_compare_revenue) / range_compare_revenue) * Decimal("100")
+        )
 
     backup_metrics = (
         db.session.query(
-            db.session.query(Backup.status).order_by(Backup.created_at.desc(), Backup.id.desc()).limit(1).scalar_subquery().label(
-                "latest_status"
-            ),
-            func.max(Backup.created_at).filter(Backup.status == BackupStatus.SUCCESS).label("last_success_at"),
-            func.max(Backup.created_at).filter(Backup.status == BackupStatus.FAILED).label("last_failure_at"),
+            db.session.query(Backup.status)
+            .order_by(Backup.created_at.desc(), Backup.id.desc())
+            .limit(1)
+            .scalar_subquery()
+            .label("latest_status"),
+            func.max(Backup.created_at)
+            .filter(Backup.status == BackupStatus.SUCCESS)
+            .label("last_success_at"),
+            func.max(Backup.created_at)
+            .filter(Backup.status == BackupStatus.FAILED)
+            .label("last_failure_at"),
         )
         .select_from(Backup)
         .one()
@@ -550,7 +632,7 @@ def get_dashboard_stats(
         OutgoingEmail.created_at < range_end_dt,
     )
     if email_scope_is_org:
-        email_q = email_q.filter(getattr(OutgoingEmail, "organization_id") == organization_id)
+        email_q = email_q.filter(OutgoingEmail.organization_id == organization_id)
     sent_count = email_q.filter(OutgoingEmail.status == OutgoingEmailStatus.SENT).count()
     failed_rows = (
         email_q.filter(OutgoingEmail.status == OutgoingEmailStatus.FAILED)
@@ -562,7 +644,9 @@ def get_dashboard_stats(
         "sent_count": sent_count,
         "failed_count": len(failed_rows),
         "last_failure_at": latest_failed_email.created_at if latest_failed_email else None,
-        "last_failure_template_key": latest_failed_email.template_key if latest_failed_email else None,
+        "last_failure_template_key": (
+            latest_failed_email.template_key if latest_failed_email else None
+        ),
         "is_org_scoped": email_scope_is_org,
     }
 
@@ -576,7 +660,9 @@ def get_dashboard_stats(
         .filter(ImportedCalendarEvent.summary.ilike("%conflict%"))
         .count()
     )
-    ical_feeds_active = ImportedCalendarFeed.query.filter_by(organization_id=organization_id, is_active=True).count()
+    ical_feeds_active = ImportedCalendarFeed.query.filter_by(
+        organization_id=organization_id, is_active=True
+    ).count()
 
     pindora_configured = bool(current_app.config.get("PINDORA_LOCK_BASE_URL")) and bool(
         current_app.config.get("PINDORA_LOCK_API_KEY")
@@ -694,3 +780,136 @@ update_user_role = _users_services.update_user_role
 deactivate_user = _users_services.deactivate_user
 reactivate_user = _users_services.reactivate_user
 change_password = _users_services.change_password
+
+
+def start_impersonation(*, actor_user: User, target_user: User, reason: str) -> None:
+    if not actor_user.is_superadmin:
+        raise ValueError("Only superadmin can impersonate users.")
+    normalized_reason = (reason or "").strip()
+    if not normalized_reason:
+        raise ValueError("Reason is required.")
+    if not target_user.is_active:
+        raise ValueError("Target user is not active.")
+    from app.audit import record as audit_record
+
+    audit_record(
+        "support.impersonate.started",
+        status="success",
+        organization_id=target_user.organization_id,
+        target_type="user",
+        target_id=target_user.id,
+        context={
+            "target_user_id": target_user.id,
+            "reason": normalized_reason,
+            "impersonator_user_id": actor_user.id,
+        },
+        commit=True,
+    )
+
+
+def end_impersonation(*, actor_user: User, impersonator_user: User, duration_seconds: int) -> None:
+    from app.audit import record as audit_record
+
+    audit_record(
+        "support.impersonate.ended",
+        status="success",
+        organization_id=actor_user.organization_id,
+        target_type="user",
+        target_id=actor_user.id,
+        context={
+            "target_user_id": actor_user.id,
+            "impersonator_user_id": impersonator_user.id,
+            "duration_seconds": max(0, int(duration_seconds or 0)),
+        },
+        commit=True,
+    )
+
+
+def build_tenant_debug_view(*, organization_id: int) -> dict[str, Any]:
+    org = Organization.query.get(organization_id)
+    if org is None:
+        raise ValueError("Organization not found.")
+    users = User.query.filter_by(organization_id=organization_id).all()
+    user_ids = [u.id for u in users]
+    last_login = (
+        AuditLog.query.filter(
+            AuditLog.action == "login",
+            AuditLog.status == "success",
+            AuditLog.actor_id.in_(user_ids),
+        )
+        .order_by(AuditLog.created_at.desc())
+        .first()
+        if user_ids
+        else None
+    )
+    now = datetime.now(timezone.utc)
+    month_ago = now - timedelta(days=30)
+    reservations_count = (
+        Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id, Reservation.created_at >= month_ago)
+        .count()
+    )
+    audits = (
+        AuditLog.query.filter_by(organization_id=organization_id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    emails = (
+        OutgoingEmail.query.filter(OutgoingEmail.created_at >= month_ago)
+        .order_by(OutgoingEmail.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    backups = Backup.query.order_by(Backup.created_at.desc()).limit(5).all()
+    return {
+        "organization": org,
+        "users_count": len(users),
+        "last_login_at": last_login.created_at if last_login else None,
+        "reservations_30d_count": reservations_count,
+        "audit_events": audits,
+        "emails": emails,
+        "backups": backups,
+        "subscription": {"plan": "L3-C", "status": "active"},
+        "usage_metrics": {
+            "api_keys": 0,
+            "properties": Property.query.filter_by(organization_id=organization_id).count(),
+            "units": Unit.query.join(Property, Unit.property_id == Property.id)
+            .filter(Property.organization_id == organization_id)
+            .count(),
+        },
+    }
+
+
+def status_uptime_percent(*, component_key: str, window_days: int = 30) -> float:
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=window_days)
+    rows = StatusCheck.query.filter(
+        StatusCheck.component_key == component_key,
+        StatusCheck.checked_at >= start,
+        StatusCheck.checked_at <= now,
+    ).all()
+    if not rows:
+        return 100.0
+    ok_count = sum(1 for row in rows if row.ok)
+    return round((ok_count / len(rows)) * 100.0, 2)
+
+
+def public_status_payload(*, window_days: int = 90) -> dict[str, Any]:
+    components = StatusComponent.query.order_by(StatusComponent.name.asc()).all()
+    incidents = StatusIncident.query.order_by(StatusIncident.started_at.desc()).limit(5).all()
+    return {
+        "components": [
+            {
+                "key": c.key,
+                "name": c.name,
+                "current_state": c.current_state,
+                "uptime_percent": status_uptime_percent(
+                    component_key=c.key, window_days=window_days
+                ),
+            }
+            for c in components
+        ],
+        "incidents": incidents,
+    }

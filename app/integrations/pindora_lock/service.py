@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.core.telemetry import traced
 from app.integrations.pindora_lock import adapter
 from app.integrations.pindora_lock.client import PindoraLockClient
 
@@ -8,6 +9,7 @@ class PindoraLockService:
     def __init__(self, client: PindoraLockClient | None = None):
         self.client = client or PindoraLockClient.from_config()
 
+    @traced("pindora_lock.provision_access_code")
     def provision_access_code(
         self,
         *,
@@ -24,6 +26,7 @@ class PindoraLockService:
         )
         return adapter.normalize_code_create(payload)
 
+    @traced("pindora_lock.revoke_access_code")
     def revoke_access_code(self, *, provider_device_id: str, provider_code_id: str) -> None:
         self.client.revoke_access_code(
             provider_device_id=provider_device_id,

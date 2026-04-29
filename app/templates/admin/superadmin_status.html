@@ -1,0 +1,56 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Status Admin · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Status Admin</h1>
+
+  <h2>Komponentit</h2>
+  {% for c in payload.components %}
+    <form method="post" style="margin-bottom:.5rem;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="component_state">
+      <input type="hidden" name="component_key" value="{{ c.key }}">
+      <strong>{{ c.name }}</strong> ({{ c.uptime_percent }}%)
+      <select name="current_state">
+        {% for s in ["operational","degraded","outage","maintenance"] %}
+          <option value="{{ s }}" {% if c.current_state == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <label><input type="checkbox" name="scheduled_maintenance"> scheduled_maintenance</label>
+      <button type="submit">Tallenna</button>
+    </form>
+  {% endfor %}
+
+  <h2>Luo incident</h2>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="incident_create">
+    <input type="text" name="title" placeholder="Otsikko" required>
+    <input type="text" name="component_keys" placeholder="api,email">
+    <select name="severity">
+      <option value="minor">minor</option>
+      <option value="major">major</option>
+      <option value="critical">critical</option>
+    </select>
+    <textarea name="body" placeholder="Kuvaus"></textarea>
+    <button type="submit">Luo</button>
+  </form>
+
+  <h2>Incidentit</h2>
+  <ul>
+    {% for i in payload.incidents %}
+      <li>
+        {{ i.started_at }} · {{ i.title }} · {{ i.status }}
+        {% if i.status != "resolved" %}
+          <form method="post" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="incident_close">
+            <input type="hidden" name="incident_id" value="{{ i.id }}">
+            <button type="submit">Sulje</button>
+          </form>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}

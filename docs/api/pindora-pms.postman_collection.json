@@ -1,0 +1,33 @@
+{
+  "info": {
+    "name": "Pindora PMS API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "BASE_URL", "value": "http://127.0.0.1:5000" },
+    { "key": "API_KEY", "value": "pms_replace_me" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{BASE_URL}}/api/v1/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": { "exec": ["pm.test('status 200', function () { pm.response.to.have.status(200); });"] }
+        }
+      ]
+    },
+    {
+      "name": "Reservations List",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{API_KEY}}" }],
+        "url": "{{BASE_URL}}/api/v1/reservations?page=1&per_page=20"
+      }
+    }
+  ]
+}

@@ -5,25 +5,34 @@ Minimum surface required by the project brief (section 6):
 * ``GET /api/v1/health`` — unauthenticated liveness check.
 * ``GET /api/v1/me``     — returns the context of the API key making the call.
 """
+
 from __future__ import annotations
 
-from flask import Response, g, request
+from flask import Response, current_app, g, request
 
 from app.api import api_bp
-from app.api.auth import require_api_key
+from app.api.auth import require_api_key, scope_required
 from app.api.schemas import json_error, json_ok
 from app.billing import services as billing_service
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
 from app.properties import services as property_service
 from app.reservations import services as reservation_service
+from app.status.service import readiness_status
 
 
 @api_bp.get("/health")
 def api_health():
-    """Liveness probe. Intentionally open — does not expose any tenant data."""
+    """Liveness probe: process is serving requests."""
 
     return json_ok({"status": "ok"})
+
+
+@api_bp.get("/health/ready")
+def api_health_ready():
+    payload = readiness_status(current_app)
+    status = 200 if payload["ok"] else 503
+    return json_ok(payload, status=status)
 
 
 @api_bp.get("/me")
@@ -48,9 +57,7 @@ def api_me():
             "prefix": api_key.key_prefix,
             "scopes": api_key.scope_list,
             "expires_at": api_key.expires_at.isoformat() if api_key.expires_at else None,
-            "last_used_at": (
-                api_key.last_used_at.isoformat() if api_key.last_used_at else None
-            ),
+            "last_used_at": (api_key.last_used_at.isoformat() if api_key.last_used_at else None),
         },
         "organization": {
             "id": api_key.organization_id,
@@ -103,10 +110,15 @@ def _pagination_params() -> tuple[int, int] | tuple[None, None]:
 
 @api_bp.get("/properties")
 @require_api_key
+@scope_required("properties:read")
 def list_properties():
     page, per_page = _pagination_params()
     if page is None or per_page is None:
-        return json_error("validation_error", "Query params 'page' and 'per_page' must be positive integers.", status=400)
+        return json_error(
+            "validation_error",
+            "Query params 'page' and 'per_page' must be positive integers.",
+            status=400,
+        )
 
     data, total = property_service.list_properties_paginated(
         organization_id=_org_id(),
@@ -121,6 +133,7 @@ def list_properties():
 
 @api_bp.post("/properties")
 @require_api_key
+@scope_required("properties:write")
 def create_property():
     payload = _payload()
     try:
@@ -137,6 +150,7 @@ def create_property():
 
 @api_bp.get("/properties/<int:property_id>")
 @require_api_key
+@scope_required("properties:read")
 def get_property(property_id: int):
     try:
         data = property_service.get_property(
@@ -150,6 +164,7 @@ def get_property(property_id: int):
 
 @api_bp.get("/properties/<int:property_id>/units")
 @require_api_key
+@scope_required("properties:read")
 def list_units(property_id: int):
     try:
         data = property_service.list_units(
@@ -163,6 +178,7 @@ def list_units(property_id: int):
 
 @api_bp.post("/properties/<int:property_id>/units")
 @require_api_key
+@scope_required("properties:write")
 def create_unit(property_id: int):
     payload = _payload()
     try:
@@ -193,10 +209,15 @@ def export_unit_calendar_ics(unit_id: int):
 
 @api_bp.get("/reservations")
 @require_api_key
+@scope_required("reservations:read")
 def list_reservations():
     page, per_page = _pagination_params()
     if page is None or per_page is None:
-        return json_error("validation_error", "Query params 'page' and 'per_page' must be positive integers.", status=400)
+        return json_error(
+            "validation_error",
+            "Query params 'page' and 'per_page' must be positive integers.",
+            status=400,
+        )
 
     data, total = reservation_service.list_reservations_paginated(
         organization_id=_org_id(),
@@ -211,13 +232,16 @@ def list_reservations():
 
 @api_bp.post("/reservations")
 @require_api_key
+@scope_required("reservations:write")
 def create_reservation():
     payload = _payload()
     try:
         unit_id = int(payload.get("unit_id", 0))
         guest_id = int(payload.get("guest_id", 0))
     except (TypeError, ValueError):
-        return json_error("validation_error", "Fields 'unit_id' and 'guest_id' must be integers.", status=400)
+        return json_error(
+            "validation_error", "Fields 'unit_id' and 'guest_id' must be integers.", status=400
+        )
 
     try:
         data = reservation_service.create_reservation(
@@ -235,6 +259,7 @@ def create_reservation():
 
 @api_bp.get("/reservations/<int:reservation_id>")
 @require_api_key
+@scope_required("reservations:read")
 def get_reservation(reservation_id: int):
     try:
         data = reservation_service.get_reservation(
@@ -248,6 +273,7 @@ def get_reservation(reservation_id: int):
 
 @api_bp.patch("/reservations/<int:reservation_id>/cancel")
 @require_api_key
+@scope_required("reservations:write")
 def cancel_reservation(reservation_id: int):
     try:
         data = reservation_service.cancel_reservation(
@@ -262,6 +288,7 @@ def cancel_reservation(reservation_id: int):
 
 @api_bp.get("/leases")
 @require_api_key
+@scope_required("invoices:read")
 def list_leases():
     page, per_page = _pagination_params()
     if page is None or per_page is None:
@@ -280,6 +307,7 @@ def list_leases():
 
 @api_bp.post("/leases")
 @require_api_key
+@scope_required("invoices:write")
 def create_lease_api():
     actor = _billing_actor_user_id()
     if actor is None:
@@ -314,6 +342,7 @@ def create_lease_api():
 
 @api_bp.get("/leases/<int:lease_id>")
 @require_api_key
+@scope_required("invoices:read")
 def get_lease_api(lease_id: int):
     try:
         data = billing_service.get_lease_for_org(
@@ -327,6 +356,7 @@ def get_lease_api(lease_id: int):
 
 @api_bp.patch("/leases/<int:lease_id>")
 @require_api_key
+@scope_required("invoices:write")
 def patch_lease_api(lease_id: int):
     actor = _billing_actor_user_id()
     if actor is None:
@@ -337,7 +367,9 @@ def patch_lease_api(lease_id: int):
         )
     body = _payload()
     if not body:
-        return json_error("validation_error", "JSON body with at least one field is required.", status=400)
+        return json_error(
+            "validation_error", "JSON body with at least one field is required.", status=400
+        )
     allowed = {
         "unit_id",
         "guest_id",
@@ -379,6 +411,7 @@ def patch_lease_api(lease_id: int):
 
 @api_bp.get("/invoices")
 @require_api_key
+@scope_required("invoices:read")
 def list_invoices():
     page, per_page = _pagination_params()
     if page is None or per_page is None:
@@ -397,6 +430,7 @@ def list_invoices():
 
 @api_bp.post("/invoices")
 @require_api_key
+@scope_required("invoices:write")
 def create_invoice_api():
     actor = _billing_actor_user_id()
     if actor is None:
@@ -445,6 +479,7 @@ def create_invoice_api():
 
 @api_bp.get("/invoices/<int:invoice_id>")
 @require_api_key
+@scope_required("invoices:read")
 def get_invoice_api(invoice_id: int):
     try:
         data = billing_service.get_invoice_for_org(
@@ -458,6 +493,7 @@ def get_invoice_api(invoice_id: int):
 
 @api_bp.post("/invoices/<int:invoice_id>/mark-paid")
 @require_api_key
+@scope_required("invoices:write")
 def mark_invoice_paid_api(invoice_id: int):
     actor = _billing_actor_user_id()
     try:
@@ -473,6 +509,7 @@ def mark_invoice_paid_api(invoice_id: int):
 
 @api_bp.post("/invoices/<int:invoice_id>/cancel")
 @require_api_key
+@scope_required("invoices:write")
 def cancel_invoice_api(invoice_id: int):
     actor = _billing_actor_user_id()
     try:
@@ -491,6 +528,7 @@ def cancel_invoice_api(invoice_id: int):
 
 @api_bp.get("/maintenance-requests")
 @require_api_key
+@scope_required("maintenance:read")
 def list_maintenance_requests_api():
     page, per_page = _pagination_params()
     if page is None or per_page is None:
@@ -516,12 +554,15 @@ def list_maintenance_requests_api():
             unit_id=unit_id,
         )
     except ValueError:
-        return json_error("validation_error", "property_id and unit_id must be integers.", status=400)
+        return json_error(
+            "validation_error", "property_id and unit_id must be integers.", status=400
+        )
     return json_ok(data, meta={"page": page, "per_page": per_page, "total": total})
 
 
 @api_bp.post("/maintenance-requests")
 @require_api_key
+@scope_required("maintenance:write")
 def create_maintenance_request_api():
     actor = _billing_actor_user_id()
     if actor is None:
@@ -543,10 +584,14 @@ def create_maintenance_request_api():
             guest_id=int(guest_raw) if guest_raw not in (None, "") else None,
             reservation_id=int(res_raw) if res_raw not in (None, "") else None,
             title=str(payload.get("title", "")),
-            description=str(payload.get("description")) if payload.get("description") is not None else None,
+            description=(
+                str(payload.get("description")) if payload.get("description") is not None else None
+            ),
             priority=str(payload.get("priority", "normal")),
             status=str(payload.get("status", "new")),
-            due_date_raw=str(payload.get("due_date")) if payload.get("due_date") is not None else None,
+            due_date_raw=(
+                str(payload.get("due_date")) if payload.get("due_date") is not None else None
+            ),
             assigned_to_id=int(assign_raw) if assign_raw not in (None, "") else None,
             actor_user_id=actor,
         )
@@ -559,6 +604,7 @@ def create_maintenance_request_api():
 
 @api_bp.get("/maintenance-requests/<int:request_id>")
 @require_api_key
+@scope_required("maintenance:read")
 def get_maintenance_request_api(request_id: int):
     try:
         data = maintenance_service.get_maintenance_request(
@@ -572,6 +618,7 @@ def get_maintenance_request_api(request_id: int):
 
 @api_bp.patch("/maintenance-requests/<int:request_id>")
 @require_api_key
+@scope_required("maintenance:write")
 def patch_maintenance_request_api(request_id: int):
     actor = _billing_actor_user_id()
     if actor is None:
@@ -582,7 +629,9 @@ def patch_maintenance_request_api(request_id: int):
         )
     body = _payload()
     if not body:
-        return json_error("validation_error", "JSON body with at least one field is required.", status=400)
+        return json_error(
+            "validation_error", "JSON body with at least one field is required.", status=400
+        )
     allowed = {
         "title",
         "description",
@@ -610,6 +659,7 @@ def patch_maintenance_request_api(request_id: int):
 
 @api_bp.post("/maintenance-requests/<int:request_id>/resolve")
 @require_api_key
+@scope_required("maintenance:write")
 def resolve_maintenance_request_api(request_id: int):
     actor = _billing_actor_user_id()
     if actor is None:
@@ -631,6 +681,7 @@ def resolve_maintenance_request_api(request_id: int):
 
 @api_bp.post("/maintenance-requests/<int:request_id>/cancel")
 @require_api_key
+@scope_required("maintenance:write")
 def cancel_maintenance_request_api(request_id: int):
     actor = _billing_actor_user_id()
     if actor is None:

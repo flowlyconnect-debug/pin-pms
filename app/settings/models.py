@@ -20,12 +20,14 @@ Fields
 Direct queries against this table are intentionally discouraged: every
 read/write should go through :mod:`app.settings.services`.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.extensions import db
 from sqlalchemy.orm import synonym
+
+from app.extensions import db
 
 
 class SettingType:

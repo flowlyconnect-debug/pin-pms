@@ -1,23 +1,14 @@
-"""Logging configuration — project brief section 1 + section 10.
-
-Provides ``configure_logging(app)`` which sets up a structured stdout
-formatter so journald / Docker logs are easy to grep. Logs intentionally
-omit any field that could contain a password, token, or API key — see
-the :func:`SecretRedactingFilter` filter below.
-"""
 from __future__ import annotations
 
 import logging
 import re
-from logging import Formatter, LogRecord, StreamHandler
+from logging import LogRecord, StreamHandler
 from typing import Any, Mapping, Sequence
 
-from flask import Flask
+import structlog
+from flask import Flask, g, has_request_context, request
+from flask_login import current_user
 
-
-# Pattern matches inline secrets in log messages ("password=foo",
-# "Authorization: Bearer abc...", "api_key=...") so a stray ``logger.info``
-# cannot accidentally leak a credential into the log stream.
 _SECRET_PATTERNS = [
     re.compile(r"(password\s*[:=]\s*)([^\s,;]+)", re.IGNORECASE),
     re.compile(r"(api[_-]?key\s*[:=]\s*)([^\s,;]+)", re.IGNORECASE),
@@ -25,15 +16,21 @@ _SECRET_PATTERNS = [
     re.compile(r"(x-api-key\s*:\s*)([^\s,;]+)", re.IGNORECASE),
     re.compile(r"(secret\s*[:=]\s*)([^\s,;]+)", re.IGNORECASE),
 ]
+_SECRET_KEYS = {
+    "password",
+    "api_key",
+    "authorization",
+    "x_api_key",
+    "token",
+    "secret",
+}
 
 
 class SecretRedactingFilter(logging.Filter):
-    """Redact common credential patterns from formatted log records."""
-
-    def filter(self, record: LogRecord) -> bool:  # noqa: D401 — logging API
+    def filter(self, record: LogRecord) -> bool:
         try:
             message = record.getMessage()
-        except Exception:  # noqa: BLE001 — never break logging
+        except Exception:
             return True
         redacted = message
         for pattern in _SECRET_PATTERNS:
@@ -46,49 +43,116 @@ class SecretRedactingFilter(logging.Filter):
 
 
 def _redact_secret_context(payload: Any) -> Any:
-    """Recursively redact payloads where ``is_secret`` is true."""
-
     if isinstance(payload, Mapping):
         is_secret = bool(payload.get("is_secret"))
         out: dict[Any, Any] = {}
         for key, value in payload.items():
-            if is_secret and str(key).lower() in {"value", "raw_value", "setting_value"}:
+            key_lower = str(key).lower()
+            if key_lower in _SECRET_KEYS:
+                out[key] = "<redacted>"
+                continue
+            if is_secret and key_lower in {"value", "raw_value", "setting_value"}:
                 out[key] = "***"
                 continue
             out[key] = _redact_secret_context(value)
         return out
     if isinstance(payload, Sequence) and not isinstance(payload, (str, bytes, bytearray)):
         return [_redact_secret_context(item) for item in payload]
+    if isinstance(payload, str):
+        redacted = payload
+        for pattern in _SECRET_PATTERNS:
+            redacted = pattern.sub(r"\1<redacted>", redacted)
+        return redacted
     return payload
 
 
-def configure_logging(app: Flask) -> None:
-    """Attach a stdout handler with the redaction filter and a sane format."""
+def _attach_request_context(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+    if not has_request_context():
+        event_dict.setdefault("request_id", None)
+        event_dict.setdefault("user_id", None)
+        event_dict.setdefault("organization_id", None)
+        event_dict.setdefault("route", None)
+        return event_dict
+    event_dict.setdefault("request_id", getattr(g, "request_id", None))
+    user_id = None
+    organization_id = getattr(g, "organization_id", None)
+    try:
+        if getattr(current_user, "is_authenticated", False):
+            user_id = getattr(current_user, "id", None)
+            if organization_id is None:
+                organization_id = getattr(current_user, "organization_id", None)
+    except Exception:
+        pass
+    event_dict.setdefault("user_id", user_id)
+    event_dict.setdefault("organization_id", organization_id)
+    event_dict.setdefault("route", request.path)
+    return event_dict
 
+
+def _normalize_for_json(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+    event = event_dict.pop("event", "")
+    event_dict["message"] = str(event)
+    if "logger" not in event_dict and "logger_name" in event_dict:
+        event_dict["logger"] = event_dict.pop("logger_name")
+    event_dict["extra"] = _redact_secret_context(
+        {
+            key: value
+            for key, value in event_dict.items()
+            if key
+            not in {
+                "timestamp",
+                "level",
+                "logger",
+                "message",
+                "request_id",
+                "user_id",
+                "organization_id",
+                "route",
+            }
+        }
+    )
+    return _redact_secret_context(event_dict)
+
+
+def configure_logging(app: Flask) -> None:
     level_name = (app.config.get("LOG_LEVEL") or "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
-
     root = logging.getLogger()
     root.setLevel(level)
 
-    # Pytest closes captured stdio during teardown; a StreamHandler on stderr
-    # then raises "I/O operation on closed file" if background work still logs.
-    if app.config.get("TESTING"):
-        logging.raiseExceptions = False
-        for existing in list(root.handlers):
-            if getattr(existing, "_pindora_configured", False):
-                root.removeHandler(existing)
-        return
-
-    # Avoid double-handlers when the dev auto-reloader respawns the app.
-    if any(getattr(h, "_pindora_configured", False) for h in root.handlers):
-        return
+    for existing in list(root.handlers):
+        if getattr(existing, "_pindora_configured", False):
+            root.removeHandler(existing)
 
     handler = StreamHandler()
     handler.setLevel(level)
-    handler.setFormatter(
-        Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s")
-    )
     handler.addFilter(SecretRedactingFilter())
+    handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            processor=structlog.processors.JSONRenderer(),
+            foreign_pre_chain=[
+                structlog.stdlib.add_log_level,
+                structlog.stdlib.add_logger_name,
+                structlog.processors.TimeStamper(fmt="iso", key="timestamp"),
+                _attach_request_context,
+                _normalize_for_json,
+            ],
+        )
+    )
     handler._pindora_configured = True  # type: ignore[attr-defined]
     root.addHandler(handler)
+
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            structlog.processors.TimeStamper(fmt="iso", key="timestamp"),
+            _attach_request_context,
+            _normalize_for_json,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )

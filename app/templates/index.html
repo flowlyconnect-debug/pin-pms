@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pindora PMS</title>
+    <title>Pin PMS</title>
   </head>
   <body>
-    <h1>Pindora PMS</h1>
+    <h1>Pin PMS</h1>
     {% if current_user.is_authenticated %}
       <p>Kirjautunut: <strong>{{ current_user.email }}</strong> ({{ current_user.role }}).</p>
       {% if current_user.role in ['admin', 'superadmin'] %}
@@ -33,5 +33,6 @@
     {% else %}
       <p><a href="{{ url_for('auth.login') }}">Kirjaudu</a></p>
     {% endif %}
+    <p><a href="{{ url_for('core.public_status') }}">Public status</a></p>
   </body>
 </html>

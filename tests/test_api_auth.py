@@ -1,4 +1,5 @@
 """Spec section 16 — API-avainautentikointi."""
+
 from __future__ import annotations
 
 

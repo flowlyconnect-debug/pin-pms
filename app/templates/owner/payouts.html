@@ -1,0 +1,22 @@
+{% extends "owner/base.html" %}
+{% block title %}Owner Payouts{% endblock %}
+{% block content %}
+<h1>Payout history</h1>
+<table>
+  <thead><tr><th>Month</th><th>Gross</th><th>Fee</th><th>Net</th><th>Status</th><th>PDF</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.period_month }}</td>
+      <td>{{ "%.2f"|format(row.gross_revenue_cents / 100) }}</td>
+      <td>{{ "%.2f"|format(row.management_fee_cents / 100) }}</td>
+      <td>{{ "%.2f"|format(row.net_payout_cents / 100) }}</td>
+      <td>{{ row.status }}</td>
+      <td><a href="{{ url_for('owner_portal.payout_pdf', payout_id=row.id) }}">Download PDF</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6"><em>No payouts.</em></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

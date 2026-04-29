@@ -2,16 +2,15 @@ import secrets
 from datetime import datetime, timezone
 from enum import Enum
 
-from flask_login import UserMixin
 import pyotp
 import sqlalchemy as sa
+from flask_login import UserMixin
 from sqlalchemy import event
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.core.security import hash_token
 from app.extensions import db
 from app.models import TimestampMixin
-
 
 BACKUP_CODE_COUNT = 10
 BACKUP_CODE_BYTES = 6
@@ -29,10 +28,17 @@ class Organization(TimestampMixin, db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
+    subscription_plan_id = db.Column(
+        db.Integer,
+        db.ForeignKey("subscription_plans.id"),
+        nullable=True,
+        index=True,
+    )
 
     users = db.relationship("User", back_populates="organization", lazy="select")
     properties = db.relationship("Property", back_populates="organization", lazy="select")
     guests = db.relationship("Guest", back_populates="organization", lazy="select")
+    subscription_plan = db.relationship("SubscriptionPlan", lazy="joined")
 
 
 class User(TimestampMixin, UserMixin, db.Model):

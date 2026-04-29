@@ -1,4 +1,5 @@
 """Spec section 16 — varmuuskopion luonti."""
+
 from __future__ import annotations
 
 import shutil

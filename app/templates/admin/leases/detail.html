@@ -5,7 +5,7 @@
 {% block content %}
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.leases_list') }}">Takaisin vuokriin</a>
-    <a class="btn" href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Muokkaa lease</a>
+    <a class="btn" href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Muokkaa sopimusta</a>
   </div>
   <h1>Lease #{{ row.id }}</h1>
   <div class="card">

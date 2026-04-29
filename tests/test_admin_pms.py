@@ -80,12 +80,13 @@ def test_normal_user_cannot_access_property_and_unit_edit_pages(client, regular_
 
 
 def test_admin_sees_only_own_organization_data(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -192,7 +193,9 @@ def test_admin_can_open_property_edit_page(client, admin_user):
     from app.properties.models import Property
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    prop = Property(organization_id=admin_user.organization_id, name="Old Name", address="Old Address")
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Old Name", address="Old Address"
+    )
     db.session.add(prop)
     db.session.commit()
 
@@ -206,7 +209,9 @@ def test_admin_can_edit_own_property(client, admin_user):
     from app.properties.models import Property
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    prop = Property(organization_id=admin_user.organization_id, name="Old Name", address="Old Address")
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Old Name", address="Old Address"
+    )
     db.session.add(prop)
     db.session.commit()
 
@@ -310,7 +315,9 @@ def test_property_update_creates_audit_log(client, admin_user):
     from app.properties.models import Property
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    prop = Property(organization_id=admin_user.organization_id, name="Old Name", address="Old Address")
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Old Name", address="Old Address"
+    )
     db.session.add(prop)
     db.session.commit()
 
@@ -429,7 +436,9 @@ def test_admin_cancel_reservation_creates_audit_log(client, admin_user):
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
-    prop = Property(organization_id=admin_user.organization_id, name="Audit Cancel Hotel", address=None)
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Audit Cancel Hotel", address=None
+    )
     db.session.add(prop)
     db.session.flush()
     unit = Unit(property_id=prop.id, name="AC1", unit_type="double")
@@ -529,12 +538,13 @@ def test_regular_user_cannot_mark_reservation_paid(client, regular_user):
 
 
 def test_mark_paid_tenant_isolation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -648,12 +658,13 @@ def test_regular_user_cannot_download_invoice_pdf(client, regular_user):
 
 
 def test_invoice_pdf_tenant_isolation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -695,12 +706,13 @@ def test_invoice_pdf_tenant_isolation(client, admin_user):
 
 
 def test_admin_cannot_cancel_other_organization_reservation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -1019,12 +1031,13 @@ def test_audit_page_shows_latest_audit_events(client, superadmin):
 
 
 def test_dashboard_respects_tenant_isolation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -1236,16 +1249,19 @@ def test_get_week_overview_returns_exactly_seven_days(app, admin_user):
 
 
 def test_get_week_overview_respects_tenant_isolation(app, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.admin import services as admin_services
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     with app.app_context():
-        own_prop = Property(organization_id=admin_user.organization_id, name="Viikko OMA", address=None)
+        own_prop = Property(
+            organization_id=admin_user.organization_id, name="Viikko OMA", address=None
+        )
         db.session.add(own_prop)
         db.session.flush()
         own_unit = Unit(property_id=own_prop.id, name="W1", unit_type="double")
@@ -1362,12 +1378,13 @@ def test_dashboard_unit_overview_classifies_states(client, admin_user):
 def test_dashboard_unit_overview_tenant_isolation(client, admin_user):
     from unittest.mock import patch
 
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     today = date(2026, 4, 29)
@@ -1528,7 +1545,9 @@ def test_dashboard_performance_under_200ms_for_large_org(app, admin_user):
                     amount=100,
                     currency="EUR",
                     due_date=date(2026, 4, 1) + timedelta(days=idx % 30),
-                    paid_at=datetime(2026, 4, 2, 10, 0, tzinfo=timezone.utc) if idx % 2 == 0 else None,
+                    paid_at=(
+                        datetime(2026, 4, 2, 10, 0, tzinfo=timezone.utc) if idx % 2 == 0 else None
+                    ),
                     status="paid" if idx % 2 == 0 else "open",
                     description=None,
                     metadata_json=None,
@@ -1661,12 +1680,13 @@ def test_reservation_report_calculates_confirmed_and_cancelled(client, admin_use
 
 
 def test_reports_respect_tenant_isolation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -1752,12 +1772,13 @@ def test_normal_user_cannot_access_calendar(client, regular_user):
 
 
 def test_calendar_events_returns_only_same_organization(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -2045,9 +2066,7 @@ def test_calendar_events_combined_property_and_unit_filter(client, admin_user):
     db.session.commit()
 
     base = "/admin/calendar/events?start=2026-02-01&end=2026-02-28"
-    filtered = client.get(
-        f"{base}&property_id={prop_x.id}&unit_id={ux1.id}"
-    ).get_json()
+    filtered = client.get(f"{base}&property_id={prop_x.id}&unit_id={ux1.id}").get_json()
     assert {item["id"] for item in filtered} == {rx.id}
 
 
@@ -2091,8 +2110,7 @@ def test_calendar_events_rejects_other_organization_property_id(client, admin_us
     db.session.commit()
 
     response = client.get(
-        "/admin/calendar/events?start=2026-05-01&end=2026-05-31"
-        f"&property_id={foreign_prop.id}"
+        "/admin/calendar/events?start=2026-05-01&end=2026-05-31" f"&property_id={foreign_prop.id}"
     )
     assert response.status_code == 400
     body = response.get_json()
@@ -2118,8 +2136,7 @@ def test_calendar_events_rejects_other_organization_unit_id(client, admin_user):
     db.session.commit()
 
     response = client.get(
-        "/admin/calendar/events?start=2026-05-01&end=2026-05-31"
-        f"&unit_id={foreign_unit.id}"
+        "/admin/calendar/events?start=2026-05-01&end=2026-05-31" f"&unit_id={foreign_unit.id}"
     )
     assert response.status_code == 400
     body = response.get_json()
@@ -2219,12 +2236,13 @@ def test_normal_user_cannot_open_reservation_edit(client, regular_user):
 
 
 def test_admin_cannot_edit_other_organizations_reservation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -2671,16 +2689,19 @@ def test_regular_user_cannot_move_reservation(client, regular_user):
 
 
 def test_cannot_move_other_organization_reservation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
-    own_prop = Property(organization_id=admin_user.organization_id, name="Admin Move Org", address=None)
+    own_prop = Property(
+        organization_id=admin_user.organization_id, name="Admin Move Org", address=None
+    )
     db.session.add(own_prop)
     db.session.flush()
     own_unit = Unit(property_id=own_prop.id, name="Admin U", unit_type="double")
@@ -2728,12 +2749,13 @@ def test_cannot_move_other_organization_reservation(client, admin_user):
 
 
 def test_move_rejects_unit_from_other_organization(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -3041,12 +3063,13 @@ def test_regular_user_cannot_resize_reservation(client, regular_user):
 
 
 def test_cannot_resize_other_organization_reservation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -3334,6 +3357,8 @@ def test_dashboard_new_stats_respect_tenant_isolation(client, admin_user):
     from datetime import date as dt_date
     from unittest.mock import patch
 
+    from werkzeug.security import generate_password_hash
+
     from app.admin import services as admin_services
     from app.billing.models import Invoice, Lease
     from app.extensions import db
@@ -3342,7 +3367,6 @@ def test_dashboard_new_stats_respect_tenant_isolation(client, admin_user):
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -3569,13 +3593,14 @@ def test_dashboard_action_required_panel_shows_expected_rows(client, admin_user)
 
 
 def test_dashboard_action_required_panel_respects_tenant_isolation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.billing.models import Invoice
     from app.extensions import db
     from app.guests.models import Guest
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
@@ -3768,14 +3793,14 @@ def test_calendar_events_can_include_non_reservation_modules(client, admin_user)
     non_res = [item for item in data if not str(item["id"]).isdigit()]
     assert all(item["editable"] is False for item in non_res)
     assert all(
-        item["title"].startswith(
-            ("Lease starts:", "Lease ends:", "Invoice due:", "Maintenance:")
-        )
+        item["title"].startswith(("Lease starts:", "Lease ends:", "Invoice due:", "Maintenance:"))
         for item in non_res
     )
 
 
 def test_calendar_non_reservation_events_respect_tenant_isolation(client, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.billing.models import Invoice, Lease
     from app.extensions import db
     from app.guests.models import Guest
@@ -3783,11 +3808,12 @@ def test_calendar_non_reservation_events_respect_tenant_isolation(client, admin_
     from app.organizations.models import Organization
     from app.properties.models import Property, Unit
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
-    own_prop = Property(organization_id=admin_user.organization_id, name="Own Cal Org", address=None)
+    own_prop = Property(
+        organization_id=admin_user.organization_id, name="Own Cal Org", address=None
+    )
     db.session.add(own_prop)
     db.session.flush()
     own_unit = Unit(property_id=own_prop.id, name="OWN", unit_type="double")

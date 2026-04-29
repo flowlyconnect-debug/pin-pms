@@ -1,4 +1,5 @@
 """Spec section 5 — varakoodit palautustilanteita varten."""
+
 from __future__ import annotations
 
 
@@ -14,7 +15,7 @@ def test_generate_backup_codes_persists_only_hashes(superadmin):
     assert len(plaintext) == 10
     assert len(refreshed.backup_codes) == 10
     # Stored entries are SHA-256 hex digests, not the raw codes.
-    for raw_code, stored_hash in zip(plaintext, refreshed.backup_codes):
+    for raw_code, stored_hash in zip(plaintext, refreshed.backup_codes, strict=True):
         assert raw_code != stored_hash
         assert len(stored_hash) == 64  # SHA-256 hex
 

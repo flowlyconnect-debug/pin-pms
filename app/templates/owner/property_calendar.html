@@ -1,0 +1,21 @@
+{% extends "owner/base.html" %}
+{% block title %}Property Calendar{% endblock %}
+{% block content %}
+<h1>Property {{ property_id }} calendar</h1>
+<table>
+  <thead><tr><th>ID</th><th>Start</th><th>End</th><th>Status</th><th>Amount</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.id }}</td>
+      <td>{{ row.start_date }}</td>
+      <td>{{ row.end_date }}</td>
+      <td>{{ row.status }}</td>
+      <td>{{ row.amount or "-" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5"><em>No reservations.</em></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

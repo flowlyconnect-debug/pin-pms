@@ -67,9 +67,7 @@ def _record_login_attempt(email: str, *, success: bool) -> None:
 
 
 def _reset_failed_attempts(email: str) -> None:
-    LoginAttempt.query.filter_by(email=email, success=False).delete(
-        synchronize_session=False
-    )
+    LoginAttempt.query.filter_by(email=email, success=False).delete(synchronize_session=False)
     db.session.commit()
 
 
@@ -180,26 +178,20 @@ def cleanup_expired_tokens(*, now: datetime | None = None) -> dict[str, int]:
     from app.auth.models import PasswordResetToken
 
     current = now or datetime.now(timezone.utc)
-    deleted_password_reset = (
-        PasswordResetToken.query.filter(PasswordResetToken.expires_at < current).delete(
-            synchronize_session=False
-        )
-    )
-    deleted_email_2fa = (
-        TwoFactorEmailCode.query.filter(TwoFactorEmailCode.expires_at < current).delete(
-            synchronize_session=False
-        )
-    )
+    deleted_password_reset = PasswordResetToken.query.filter(
+        PasswordResetToken.expires_at < current
+    ).delete(synchronize_session=False)
+    deleted_email_2fa = TwoFactorEmailCode.query.filter(
+        TwoFactorEmailCode.expires_at < current
+    ).delete(synchronize_session=False)
 
     deleted_portal_magic = 0
     try:
         from app.portal.models import PortalMagicLinkToken
 
-        deleted_portal_magic = (
-            PortalMagicLinkToken.query.filter(
-                PortalMagicLinkToken.expires_at < current
-            ).delete(synchronize_session=False)
-        )
+        deleted_portal_magic = PortalMagicLinkToken.query.filter(
+            PortalMagicLinkToken.expires_at < current
+        ).delete(synchronize_session=False)
     except Exception:
         deleted_portal_magic = 0
 

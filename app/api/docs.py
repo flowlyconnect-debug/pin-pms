@@ -8,7 +8,7 @@ from app.api import api_bp
 
 def _build_openapi_spec() -> dict:
     spec = APISpec(
-        title="Pindora PMS API",
+        title="Pin PMS API",
         version="1.0.0",
         openapi_version="3.0.3",
         info={
@@ -25,9 +25,7 @@ def _build_openapi_spec() -> dict:
             "type": "apiKey",
             "in": "header",
             "name": "X-API-Key",
-            "description": (
-                "You may also use `Authorization: Bearer pms_<key>`."
-            ),
+            "description": ("You may also use `Authorization: Bearer pms_<key>`."),
         },
     )
 
@@ -69,11 +67,7 @@ def _build_openapi_spec() -> dict:
             if method in {"POST", "PATCH", "PUT"}:
                 operation["requestBody"] = {
                     "required": False,
-                    "content": {
-                        "application/json": {
-                            "schema": {"type": "object"}
-                        }
-                    },
+                    "content": {"application/json": {"schema": {"type": "object"}}},
                 }
             if rule.endpoint not in {"api.api_health", "api.openapi_spec", "api.swagger_ui"}:
                 operation["security"] = [{"ApiKeyAuth": []}]
@@ -91,14 +85,13 @@ def openapi_spec():
 
 @api_bp.get("/docs")
 def swagger_ui():
-    return render_template_string(
-        """
+    return render_template_string("""
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pindora PMS API Docs</title>
+    <title>Pin PMS API Docs</title>
     <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
   </head>
   <body>
@@ -114,5 +107,4 @@ def swagger_ui():
     </script>
   </body>
 </html>
-        """
-    )
+        """)

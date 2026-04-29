@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash
 
 
@@ -111,7 +112,7 @@ def test_lease_and_invoice_models_and_invoice_number_uniqueness(app, organizatio
         created_by_id=admin_user.id,
     )
     db.session.add(dup)
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         db.session.commit()
     db.session.rollback()
 
@@ -152,7 +153,6 @@ def test_create_lease_rejects_foreign_unit(app, organization, admin_user):
 def test_invoice_service_mark_paid_and_overdue_and_audit(app, organization, admin_user):
     from app.audit.models import AuditLog
     from app.billing import services as billing_service
-    from app.extensions import db
 
     _property_unit_guest(organization_id=organization.id)
     from app.properties.models import Property, Unit
@@ -232,8 +232,6 @@ def test_cannot_mark_invoice_paid_other_organization(app, organization, admin_us
 
     _property_unit_guest(organization_id=organization.id)
     from app.properties.models import Property, Unit
-
-    unit = Unit.query.join(Property).filter(Property.organization_id == organization.id).first()
 
     other_org = Organization(name="Org B")
     db.session.add(other_org)

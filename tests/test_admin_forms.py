@@ -57,5 +57,3 @@ def test_users_new_rejects_post_without_csrf(client, superadmin, app):
         assert response.status_code == 400
     finally:
         app.config["WTF_CSRF_ENABLED"] = original
-
-

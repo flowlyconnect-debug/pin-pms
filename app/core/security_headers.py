@@ -9,10 +9,10 @@ Authenticated HTML routes under ``/admin`` and ``/portal`` are pinned to
 ``Cache-Control: no-store`` so a shared proxy or a browser back button
 cannot expose another user's screen.
 """
+
 from __future__ import annotations
 
 from flask import Flask, request
-
 
 _DEFAULT_CSP = (
     "default-src 'self'; "
@@ -35,9 +35,7 @@ def register_security_headers(app: Flask) -> None:
         response.headers.setdefault("Content-Security-Policy", csp)
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault(
-            "Referrer-Policy", "strict-origin-when-cross-origin"
-        )
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault(
             "Permissions-Policy",
             "geolocation=(), microphone=(), camera=()",
@@ -50,9 +48,7 @@ def register_security_headers(app: Flask) -> None:
                 "max-age=63072000; includeSubDomains",
             )
 
-        if response.mimetype == "text/html" and request.path.startswith(
-            ("/admin", "/portal")
-        ):
+        if response.mimetype == "text/html" and request.path.startswith(("/admin", "/portal")):
             response.headers.setdefault(
                 "Cache-Control",
                 "no-store, no-cache, must-revalidate, private",

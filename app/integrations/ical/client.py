@@ -3,6 +3,8 @@ from __future__ import annotations
 import requests
 from flask import current_app
 
+from app.core.telemetry import trace_http_call
+
 
 class IcalClient:
     def __init__(self, *, timeout_seconds: int = 10):
@@ -15,11 +17,12 @@ class IcalClient:
         )
 
     def fetch_calendar(self, *, source_url: str) -> bytes:
-        response = requests.get(
+        response = trace_http_call(
+            "ical.fetch_calendar",
+            requests.get,
             source_url,
             timeout=self.timeout_seconds,
             headers={"Accept": "text/calendar,text/plain;q=0.9,*/*;q=0.1"},
         )
         response.raise_for_status()
         return response.content
-

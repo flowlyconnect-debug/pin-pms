@@ -178,11 +178,11 @@ def two_factor_setup():
 
     provisioning_uri = pyotp.TOTP(user.totp_secret).provisioning_uri(
         name=user.email,
-        issuer_name="Pindora PMS",
+        issuer_name="Pin PMS",
     )
-    totp_uri = qrcode.make(
-        provisioning_uri, image_factory=qrcode.image.svg.SvgImage
-    ).to_string(encoding="unicode")
+    totp_uri = qrcode.make(provisioning_uri, image_factory=qrcode.image.svg.SvgImage).to_string(
+        encoding="unicode"
+    )
 
     return render_template(
         "two_factor_setup.html",
@@ -342,9 +342,7 @@ def forgot_password():
                         context={
                             "user_email": user.email,
                             "reset_url": reset_url,
-                            "expires_minutes": int(
-                                PASSWORD_RESET_TTL.total_seconds() // 60
-                            ),
+                            "expires_minutes": int(PASSWORD_RESET_TTL.total_seconds() // 60),
                         },
                     )
                 except EmailTemplateNotFound:

@@ -7,6 +7,7 @@ logs and admin UIs. SHA-256 is sufficient here because the raw key is
 high-entropy (``secrets.token_urlsafe(32)`` → ~256 bits), so slow hashes like
 bcrypt are unnecessary and would only make request-path auth slower.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -16,13 +17,43 @@ from typing import Optional
 
 from app.extensions import db
 
-
 API_KEY_RAW_PREFIX = "pms_"
 API_KEY_PREFIX_LENGTH = 12  # Length of the stored ``key_prefix`` (e.g. ``pms_abcd1234``).
+ALLOWED_API_KEY_SCOPES: tuple[str, ...] = (
+    "reservations:read",
+    "reservations:write",
+    "invoices:read",
+    "invoices:write",
+    "guests:read",
+    "guests:write",
+    "properties:read",
+    "properties:write",
+    "maintenance:read",
+    "maintenance:write",
+    "reports:read",
+    "admin:*",
+)
+LEGACY_WILDCARD_SCOPES: tuple[str, ...] = ("reservations:*", "invoices:*")
 
 
 def _hash_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+
+
+def normalize_scopes(raw_scopes: str) -> str:
+    """Normalize and validate CSV scope input for persistence."""
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for scope in (raw_scopes or "").split(","):
+        normalized = scope.strip()
+        if not normalized or normalized in seen:
+            continue
+        if normalized not in ALLOWED_API_KEY_SCOPES and normalized not in LEGACY_WILDCARD_SCOPES:
+            raise ValueError(f"Unknown API key scope: {normalized}")
+        seen.add(normalized)
+        ordered.append(normalized)
+    return ",".join(ordered)
 
 
 class ApiKey(db.Model):
@@ -88,11 +119,12 @@ class ApiKey(db.Model):
         """
 
         raw_key = cls.generate_raw_key()
+        normalized_scopes = normalize_scopes(scopes)
         api_key = cls(
             name=name.strip(),
             organization_id=organization_id,
             user_id=user_id,
-            scopes=scopes.strip(),
+            scopes=normalized_scopes,
             expires_at=expires_at,
             key_prefix=raw_key[:API_KEY_PREFIX_LENGTH],
             key_hash=_hash_key(raw_key),

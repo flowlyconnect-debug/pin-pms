@@ -1,0 +1,16 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Laheta testiviesti · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Laheta testiviesti: <code>{{ template.key }}</code></h1>
+  <form method="post" action="{{ url_for('admin.email_template_test_send', key=template.key) }}">
+    {{ form.hidden_tag() }}
+    {{ form.to.label }}
+    {{ form.to(type="email", required=true, placeholder="vastaanottaja@example.com") }}
+    <div class="actions">
+      <button type="submit">Laheta testi</button>
+      <a class="btn-secondary" href="{{ url_for('admin.email_templates_list') }}">Peruuta</a>
+    </div>
+  </form>
+{% endblock %}

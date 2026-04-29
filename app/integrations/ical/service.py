@@ -10,6 +10,7 @@ from icalendar import Calendar, Event
 
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
+from app.core.telemetry import traced
 from app.extensions import db
 from app.integrations.ical import adapter
 from app.integrations.ical.client import IcalClient
@@ -55,7 +56,7 @@ class IcalService:
             .all()
         )
         cal = Calendar()
-        cal.add("prodid", "-//Pindora PMS//iCal Feed//EN")
+        cal.add("prodid", "-//Pin PMS//iCal Feed//EN")
         cal.add("version", "2.0")
         for row in events:
             item = Event()
@@ -77,7 +78,9 @@ class IcalService:
             .all()
         )
 
-    def create_feed(self, *, organization_id: int, unit_id: int, source_url: str, name: str | None) -> ImportedCalendarFeed:
+    def create_feed(
+        self, *, organization_id: int, unit_id: int, source_url: str, name: str | None
+    ) -> ImportedCalendarFeed:
         unit = (
             Unit.query.join(Property, Unit.property_id == Property.id)
             .filter(Unit.id == unit_id, Property.organization_id == organization_id)
@@ -128,6 +131,7 @@ class IcalService:
                 )
         return out
 
+    @traced("ical.sync_all_feeds")
     def sync_all_feeds(self, *, organization_id: int | None = None) -> int:
         query = ImportedCalendarFeed.query.filter_by(is_active=True)
         if organization_id is not None:
@@ -184,4 +188,3 @@ class IcalService:
                 feed.last_synced_at = datetime.now(timezone.utc)
                 db.session.commit()
         return imported_count
-

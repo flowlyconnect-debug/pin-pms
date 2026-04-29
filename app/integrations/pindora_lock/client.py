@@ -7,6 +7,8 @@ from typing import Any
 import requests
 from flask import current_app
 
+from app.core.telemetry import trace_http_call
+
 
 class PindoraLockClient:
     def __init__(self, *, base_url: str, api_key: str, timeout_seconds: int = 10):
@@ -42,7 +44,9 @@ class PindoraLockClient:
             },
         )
 
-    def revoke_access_code(self, *, provider_device_id: str, provider_code_id: str) -> dict[str, Any]:
+    def revoke_access_code(
+        self, *, provider_device_id: str, provider_code_id: str
+    ) -> dict[str, Any]:
         self._ensure_enabled()
         # Placeholder endpoint path; replace once vendor docs are confirmed.
         return self._request("DELETE", f"/devices/{provider_device_id}/codes/{provider_code_id}")
@@ -54,8 +58,12 @@ class PindoraLockClient:
         digest = hmac.new(secret, payload, hashlib.sha256).hexdigest()
         return hmac.compare_digest(digest, (signature or "").strip())
 
-    def _request(self, method: str, path: str, json_payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        response = requests.request(
+    def _request(
+        self, method: str, path: str, json_payload: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        response = trace_http_call(
+            "pindora_lock.request",
+            requests.request,
             method=method,
             url=f"{self.base_url}{path}",
             headers={

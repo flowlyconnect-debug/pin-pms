@@ -1,6 +1,6 @@
 # Deploy templates
 
-Reference configurations for running Pindora PMS on a Linux host with
+Reference configurations for running Pin PMS on a Linux host with
 Nginx + systemd + Gunicorn (project brief section 1).
 
 These are *examples* — copy them, replace placeholder hostnames and

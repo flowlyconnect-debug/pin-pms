@@ -1,8 +1,8 @@
 import os
 import socket
 import sys
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
 from urllib.parse import quote_plus
 
 from sqlalchemy.engine.url import make_url
@@ -219,20 +219,16 @@ class BaseConfig:
     MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN", "")
     MAILGUN_BASE_URL = os.getenv("MAILGUN_BASE_URL", "https://api.mailgun.net/v3")
     MAILGUN_FROM_EMAIL = (
-        os.getenv("MAILGUN_FROM_EMAIL")
-        or os.getenv("MAIL_FROM")
-        or "noreply@example.com"
+        os.getenv("MAILGUN_FROM_EMAIL") or os.getenv("MAIL_FROM") or "noreply@example.com"
     )
-    MAILGUN_FROM_NAME = (
-        os.getenv("MAILGUN_FROM_NAME")
-        or os.getenv("MAIL_FROM_NAME")
-        or "Pindora PMS"
-    )
+    MAILGUN_FROM_NAME = os.getenv("MAILGUN_FROM_NAME") or os.getenv("MAIL_FROM_NAME") or "Pin PMS"
     MAIL_FROM = MAILGUN_FROM_EMAIL
     MAIL_FROM_NAME = MAILGUN_FROM_NAME
     MAIL_DEV_LOG_ONLY = os.getenv("MAIL_DEV_LOG_ONLY", "0").lower() in {"1", "true", "yes"}
     EMAIL_SCHEDULER_ENABLED = os.getenv("EMAIL_SCHEDULER_ENABLED", "1").lower() in {
-        "1", "true", "yes",
+        "1",
+        "true",
+        "yes",
     }
 
     # CORS -- project brief section 10.
@@ -248,7 +244,9 @@ class BaseConfig:
     BACKUP_RETENTION_DAYS = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))
     BACKUP_SCHEDULE_CRON = os.getenv("BACKUP_SCHEDULE_CRON", "0 3 * * *")
     BACKUP_SCHEDULER_ENABLED = os.getenv("BACKUP_SCHEDULER_ENABLED", "1").lower() in {
-        "1", "true", "yes",
+        "1",
+        "true",
+        "yes",
     }
     BACKUP_NOTIFY_EMAIL = os.getenv("BACKUP_NOTIFY_EMAIL", "")
     # Optional S3-compatible off-site backup upload (AWS S3, B2, Wasabi, MinIO).
@@ -277,6 +275,17 @@ class BaseConfig:
     ICAL_HTTP_TIMEOUT_SECONDS = int(os.getenv("ICAL_HTTP_TIMEOUT_SECONDS", "10"))
     ICAL_SYNC_ENABLED = os.getenv("ICAL_SYNC_ENABLED", "1").lower() in {"1", "true", "yes"}
     ICAL_SYNC_INTERVAL_MINUTES = int(os.getenv("ICAL_SYNC_INTERVAL_MINUTES", "15"))
+    APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:5000")
+    STATUS_SCHEDULER_ENABLED = os.getenv("STATUS_SCHEDULER_ENABLED", "1").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    SQL_SLOW_QUERY_MS = int(os.getenv("SQL_SLOW_QUERY_MS", "500"))
+    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+    SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+    SENTRY_TRACES_SAMPLE_RATE = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
 
     # Guest check-in document encryption (Fernet key, base64 urlsafe 32-byte key).
     CHECKIN_FERNET_KEY = os.getenv("CHECKIN_FERNET_KEY", "")

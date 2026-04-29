@@ -16,7 +16,9 @@ class Property(TimestampMixin, db.Model):
     address = db.Column(db.String(512), nullable=True)
 
     organization = db.relationship("Organization", back_populates="properties", lazy="joined")
-    units = db.relationship("Unit", back_populates="property", lazy="select", cascade="all, delete-orphan")
+    units = db.relationship(
+        "Unit", back_populates="property", lazy="select", cascade="all, delete-orphan"
+    )
 
 
 class Unit(TimestampMixin, db.Model):

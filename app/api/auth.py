@@ -1,17 +1,17 @@
 """API-key authentication helpers for ``/api/v1`` routes."""
+
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Callable
-
-from datetime import datetime, timezone
-import logging
 
 from flask import after_this_request, g, request
 
 from app.api.models import ApiKey
-from app.api.services import record_api_key_usage
 from app.api.schemas import json_error
+from app.api.services import record_api_key_usage
 from app.extensions import db
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,10 @@ def require_api_key(view_func: Callable):
         @after_this_request
         def _record_usage(response):
             try:
-                ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote_addr
+                ip = (
+                    request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                    or request.remote_addr
+                )
                 record_api_key_usage(
                     api_key_id=api_key.id,
                     endpoint=request.path,
@@ -91,3 +94,41 @@ def require_api_key(view_func: Callable):
         return view_func(*args, **kwargs)
 
     return wrapper
+
+
+def _scope_matches(*, assigned_scope: str, required_scope: str) -> bool:
+    if assigned_scope == required_scope:
+        return True
+    if assigned_scope.endswith(":*"):
+        return required_scope.startswith(assigned_scope[:-1])
+    return False
+
+
+def scope_required(scope: str):
+    """Decorator that enforces a required API key scope for a route."""
+
+    required_scope = (scope or "").strip()
+
+    def decorator(view_func: Callable):
+        @wraps(view_func)
+        def wrapper(*args, **kwargs):
+            api_key = getattr(g, "api_key", None)
+            if api_key is None:
+                return json_error("unauthorized", "API key authentication is required.", status=401)
+            scopes = api_key.scope_list
+            if not scopes:
+                # Backward compatibility for old keys created before strict scopes.
+                return view_func(*args, **kwargs)
+            if required_scope and not any(
+                _scope_matches(assigned_scope=s, required_scope=required_scope) for s in scopes
+            ):
+                return json_error(
+                    "forbidden",
+                    f"Missing required scope: {required_scope}",
+                    status=403,
+                )
+            return view_func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

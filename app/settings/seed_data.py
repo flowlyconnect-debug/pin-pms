@@ -9,6 +9,7 @@ nightly rate, business hours) belong with the business logic that actually
 consumes them; this file is only for foundational settings the framework
 itself reads.
 """
+
 from __future__ import annotations
 
 from typing import TypedDict
@@ -25,7 +26,7 @@ class SettingSeed(TypedDict):
 SEED_SETTINGS: list[SettingSeed] = [
     {
         "key": "company_name",
-        "value": "Pindora PMS",
+        "value": "Pin PMS",
         "type": "string",
         "description": "Display name used in emails, page titles, and the admin UI.",
         "is_secret": False,
