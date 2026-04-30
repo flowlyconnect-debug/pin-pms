@@ -4,7 +4,7 @@
 
 {% block content %}
   <div class="actions">
-    <a class="btn" href="{{ url_for('admin.leases_new') }}">Luo vuokra</a>
+    <a class="btn" href="{{ url_for('admin.leases_new') }}">Luo vuokrasopimus</a>
   </div>
   <h1>Vuokrasopimukset</h1>
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
@@ -15,8 +15,8 @@
         <th>Huone</th>
         <th>Asiakas</th>
         <th>Päivät</th>
-        <th>Rent</th>
-        <th>Cycle</th>
+        <th>Vuokra</th>
+        <th>Laskutusjakso</th>
         <th>Tila</th>
         <th>Toiminnot</th>
       </tr>
@@ -47,7 +47,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="8" class="empty-state"><em>Ei leases yet.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.leases_new') }}">Luo vuokra</a></div></td></tr>
+        <tr><td colspan="8" class="empty-state"><em>Ei vuokrasopimuksia vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.leases_new') }}">Luo vuokrasopimus</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

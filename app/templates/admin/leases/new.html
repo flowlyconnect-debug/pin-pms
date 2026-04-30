@@ -14,7 +14,7 @@
       z-index: 30;
       margin-top: 4px;
       max-height: 220px;
-      overfMatala-y: auto;
+      overflow-y: auto;
       background: #fff;
       border: 1px solid #d1d5db;
       border-radius: 6px;
@@ -42,7 +42,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.leases_list') }}">Takaisin vuokriin</a>
   </div>
-  <h1>Uusi vuokra</h1>
+  <h1>Uusi vuokrasopimus</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
@@ -79,12 +79,12 @@
 
     <label for="billing_cycle">Laskutusjakso</label>
     <select id="billing_cycle" name="billing_cycle">
-      <option value="monthly" {% if form.billing_cycle == "monthly" %}selected{% endif %}>Monthly</option>
-      <option value="weekly" {% if form.billing_cycle == "weekly" %}selected{% endif %}>Weekly</option>
-      <option value="one_time" {% if form.billing_cycle == "one_time" %}selected{% endif %}>One time</option>
+      <option value="monthly" {% if form.billing_cycle == "monthly" %}selected{% endif %}>Kuukausittain</option>
+      <option value="weekly" {% if form.billing_cycle == "weekly" %}selected{% endif %}>Viikoittain</option>
+      <option value="one_time" {% if form.billing_cycle == "one_time" %}selected{% endif %}>Kertaluonteinen</option>
     </select>
 
-    <label for="notes">Eites</label>
+    <label for="notes">Muistiinpanot</label>
     <textarea id="notes" name="notes" rows="3">{{ form.notes }}</textarea>
 
     <div class="actions">
@@ -145,9 +145,9 @@
           .catch(function () { hideResults(); });
       }
       searchEl.addEventListener("input", function () {
-        clearAikaout(timer);
+        clearTimeout(timer);
         var q = searchEl.value;
-        timer = setAikaout(function () { fetchAsiakkaat(q); }, 200);
+        timer = setTimeout(function () { fetchAsiakkaat(q); }, 200);
       });
       if (clearBtn) {
         clearBtn.addEventListener("click", function () {

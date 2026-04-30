@@ -36,7 +36,7 @@ def test_users_new_missing_required_field_rerenders(client, superadmin):
     )
 
     assert response.status_code == 200
-    assert b"Create user" in response.data
+    assert b"Luo" in response.data
     assert User.query.filter_by(email="").first() is None
 
 

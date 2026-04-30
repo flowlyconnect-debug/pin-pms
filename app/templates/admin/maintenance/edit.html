@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Muokkaa maintenance #{{ row.id }} · Pin PMS{% endblock %}
+{% block title %}Muokkaa huoltopyyntöä #{{ row.id }} · Pin PMS{% endblock %}
 
 {% block head_extra %}
   <script>
@@ -27,7 +27,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">Takaisin pyyntöön</a>
   </div>
-  <h1>Muokkaa maintenance #{{ row.id }}</h1>
+  <h1>Muokkaa huoltopyyntöä #{{ row.id }}</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
@@ -70,7 +70,7 @@
         <option value="{{ u.id }}" {% if form.assigned_to_id == u.id|string %}selected{% endif %}>{{ u.email }}</option>
       {% endfor %}
     </select>
-    <p class="meta">Tila, resolve, and cancel are managed from the pyyntö detail page.</p>
+    <p class="meta">Tila, ratkaisu ja peruutus hoidetaan huoltopyynnön sivulta.</p>
     <div class="actions">
       <button type="submit" class="btn">Tallenna</button>
     </div>

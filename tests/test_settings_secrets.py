@@ -50,7 +50,7 @@ def test_secret_reveal_requires_fresh_2fa_code(client, superadmin):
         follow_redirects=True,
     )
     assert denied.status_code == 200
-    assert b"fresh 2FA code is required" in denied.data
+    assert b"tuore 2FA-koodi" in denied.data
     assert b"smtp-super-secret" not in denied.data
 
     allowed = client.post(

@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Muokkaa lease #{{ row.id }} · Pin PMS{% endblock %}
+{% block title %}Muokkaa vuokrasopimusta #{{ row.id }} · Pin PMS{% endblock %}
 
 {% block head_extra %}
   <style>
@@ -42,7 +42,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">Takaisin vuokraan</a>
   </div>
-  <h1>Muokkaa lease #{{ row.id }}</h1>
+  <h1>Muokkaa vuokrasopimusta #{{ row.id }}</h1>
   <p class="meta">Tila: <strong>{{ row.status }}</strong></p>
   {% if error %}
     <div class="error">{{ error }}</div>
@@ -71,9 +71,9 @@
       <input id="start_date" name="start_date" type="date" required value="{{ form.start_date }}">
       <label for="billing_cycle">Laskutusjakso</label>
       <select id="billing_cycle" name="billing_cycle">
-        <option value="monthly" {% if form.billing_cycle == "monthly" %}selected{% endif %}>Monthly</option>
-        <option value="weekly" {% if form.billing_cycle == "weekly" %}selected{% endif %}>Weekly</option>
-        <option value="one_time" {% if form.billing_cycle == "one_time" %}selected{% endif %}>One time</option>
+        <option value="monthly" {% if form.billing_cycle == "monthly" %}selected{% endif %}>Kuukausittain</option>
+        <option value="weekly" {% if form.billing_cycle == "weekly" %}selected{% endif %}>Viikoittain</option>
+        <option value="one_time" {% if form.billing_cycle == "one_time" %}selected{% endif %}>Kertaluonteinen</option>
       </select>
     {% endif %}
 
@@ -89,7 +89,7 @@
       <input id="deposit_amount" name="deposit_amount" type="number" min="0" step="0.01" value="{{ form.deposit_amount }}">
     {% endif %}
 
-    <label for="notes">Eites</label>
+    <label for="notes">Muistiinpanot</label>
     <textarea id="notes" name="notes" rows="3">{{ form.notes }}</textarea>
 
     <div class="actions">

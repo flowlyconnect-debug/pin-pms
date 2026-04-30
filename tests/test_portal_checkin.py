@@ -56,7 +56,7 @@ def test_portal_checkin_issues_access_code_and_hashes_db(client, regular_user, m
         content_type="multipart/form-data",
     )
     assert response.status_code == 200
-    assert b"Your door code:" in response.data
+    assert b"Ovikoodisi:" in response.data
 
     row = AccessCode.query.filter_by(reservation_id=reservation.id).first()
     assert row is not None

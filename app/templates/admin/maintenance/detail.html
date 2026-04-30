@@ -50,7 +50,7 @@
     <form method="post" action="{{ url_for('admin.maintenance_requests_assign', request_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <select name="assigned_to_id">
-        <option value="">— Unassigned —</option>
+        <option value="">— Ei vastuuhenkilöä —</option>
         {% for u in assignees %}
           <option value="{{ u.id }}" {% if row.assigned_to_id == u.id %}selected{% endif %}>{{ u.email }}</option>
         {% endfor %}

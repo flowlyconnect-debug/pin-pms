@@ -10,12 +10,12 @@
   <p class="meta">Asetukset luetaan <code>app.settings.services.get(key)</code>-kutsulla; tallennukset auditoidaan tapahtumana <code>setting.updated</code>.</p>
   <table>
     <thead>
-      <tr><th>Key</th><th>Value</th><th>Tyyppi</th><th>Kuvaus</th><th>Updated</th></tr>
+      <tr><th>Avain</th><th>Arvo</th><th>Tyyppi</th><th>Kuvaus</th><th>Päivitetty</th></tr>
     </thead>
     <tbody>
       {% for r in rows %}
         <tr>
-          <td><a href="{{ url_for('admin.settings_edit', key=r.key) }}"><code>{{ r.key }}</code></a>{% if r.is_secret %} <span class="meta">· secret</span>{% endif %}</td>
+          <td><a href="{{ url_for('admin.settings_edit', key=r.key) }}"><code>{{ r.key }}</code></a>{% if r.is_secret %} <span class="meta">· salainen</span>{% endif %}</td>
           <td><code>{{ mask(r) }}</code></td>
           <td>{{ r.type }}</td>
           <td class="meta">{{ r.description }}</td>

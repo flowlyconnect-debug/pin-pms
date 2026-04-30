@@ -108,19 +108,25 @@ def login():
             user = authenticate_user(email, password)
         except SQLAlchemyError as exc:
             current_app.logger.exception("Database error during /login authentication.")
-            # Surface the underlying cause in DEBUG so operators can diagnose
-            # schema or migration mismatches without grepping logs.
+            # Never leak hostnames, usernames, or other connection-string
+            # internals to the page — they may identify the production
+            # database. Operators can find the full traceback in the logs.
             if current_app.debug:
-                detail = f"DB error: {type(exc).__name__}: {str(exc)[:300]}"
+                detail = (
+                    f"Kirjautumispalvelu ei ole käytettävissä "
+                    f"(DB-virhe: {type(exc).__name__}). Katso lokit."
+                )
             else:
-                detail = "Login service is temporarily unavailable. Please try again."
+                detail = "Kirjautumispalvelu ei ole hetkellisesti käytettävissä. Yritä hetken kuluttua uudelleen."
             return _login_error_response(detail)
         except Exception as exc:  # noqa: BLE001
             current_app.logger.exception("Unexpected error during /login authentication.")
             if current_app.debug:
-                detail = f"Unexpected error: {type(exc).__name__}: {str(exc)[:300]}"
+                detail = (
+                    f"Odottamaton virhe ({type(exc).__name__}). Katso lokit."
+                )
             else:
-                detail = "Login service is temporarily unavailable. Please try again."
+                detail = "Kirjautumispalvelu ei ole hetkellisesti käytettävissä. Yritä hetken kuluttua uudelleen."
             return _login_error_response(detail)
 
         if user:
@@ -174,7 +180,7 @@ def two_factor_setup():
             target_id=user.id,
             commit=True,
         )
-        flash("Invalid verification code")
+        flash("Virheellinen vahvistuskoodi.")
 
     provisioning_uri = pyotp.TOTP(user.totp_secret).provisioning_uri(
         name=user.email,
@@ -283,7 +289,7 @@ def two_factor_verify():
             target_id=user.id,
             commit=True,
         )
-        flash("Invalid verification code")
+        flash("Virheellinen vahvistuskoodi.")
 
     return render_template("two_factor_verify.html")
 
@@ -301,9 +307,9 @@ def two_factor_email_code():
     if request.method == "POST":
         sent = send_email_2fa_code(user)
         if sent:
-            flash("A 2FA email code has been sent.")
+            flash("2FA-koodi lähetetty sähköpostiisi.")
             return redirect(url_for("auth.two_factor_verify"))
-        flash("Could not send email code right now. Try again.")
+        flash("Sähköpostikoodin lähetys ei onnistunut juuri nyt. Yritä uudelleen.")
 
     return render_template("two_factor_email_code.html")
 
@@ -366,7 +372,7 @@ def forgot_password():
                     commit=True,
                 )
 
-        flash("If an account exists for that address, a reset link has been sent.")
+        flash("Jos osoitteelle löytyy käyttäjätili, palautuslinkki on lähetetty sähköpostiin.")
         return redirect(url_for("auth.login"))
 
     return render_template("forgot_password.html")
@@ -399,7 +405,7 @@ def reset_password(token):
                 commit=False,
             )
             db.session.commit()
-            flash("Password updated. You can now sign in.")
+            flash("Salasana päivitetty. Voit nyt kirjautua sisään.")
             return redirect(url_for("auth.login"))
 
     return render_template("reset_password.html", error=error)

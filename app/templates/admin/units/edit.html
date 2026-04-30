@@ -1,12 +1,12 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Edit unit · Pin PMS{% endblock %}
+{% block title %}Muokkaa huonetta · Pin PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.units_list', property_id=row.property_id) }}">Takaisin huoneisiin</a>
   </div>
-  <h1>Edit unit</h1>
+  <h1>Muokkaa huonetta</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}

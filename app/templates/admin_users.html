@@ -9,8 +9,8 @@
     <thead>
       <tr>
         <th>Sähköposti</th>
-        <th>Role</th>
-        <th>Organization</th>
+        <th>Rooli</th>
+        <th>Organisaatio</th>
         <th>Aktiivinen</th>
         <th>2FA</th>
         <th>Toiminnot</th>
@@ -22,13 +22,13 @@
           <td><code>{{ u.email }}</code></td>
           <td>{{ u.role }}</td>
           <td>{{ u.organization.name }}</td>
-          <td>{{ "yes" if u.is_active else "no" }}</td>
-          <td>{{ "on" if u.is_2fa_enabled else "off" }}</td>
+          <td>{{ "kyllä" if u.is_active else "ei" }}</td>
+          <td>{{ "päällä" if u.is_2fa_enabled else "pois" }}</td>
           <td>
             <a href="{{ url_for('admin.users_edit', user_id=u.id) }}">Muokkaa</a>
             <form method="post" action="{{ url_for('admin.users_toggle_active', user_id=u.id) }}" style="display:inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit">{{ "Deactivate" if u.is_active else "Activate" }}</button>
+              <button type="submit">{{ "Poista käytöstä" if u.is_active else "Ota käyttöön" }}</button>
             </form>
             {% if current_user.is_superadmin and current_user.id != u.id %}
               <form method="post" action="{{ url_for('admin.superadmin_impersonate', user_id=u.id) }}" style="display:inline">
@@ -40,7 +40,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6">Ei users.</td></tr>
+        <tr><td colspan="6">Ei käyttäjiä.</td></tr>
       {% endfor %}
     </tbody>
   </table>

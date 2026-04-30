@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="fi">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Owner Portal · Pin PMS{% endblock %}</title>
+  <title>{% block title %}Omistajaportaali · Pin PMS{% endblock %}</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 0; background: #f8fafc; color: #111827; }
     header { background: #0f172a; color: #fff; padding: .8rem 1rem; }
@@ -15,12 +15,12 @@
 </head>
 <body>
   <header>
-    <strong>Owner Portal</strong>
+    <strong>Omistajaportaali</strong>
     <nav style="margin-top:.4rem;">
-      <a href="{{ url_for('owner_portal.dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('owner_portal.payouts') }}">Payouts</a>
-      <a href="{{ url_for('owner_portal.profile') }}">Profile</a>
-      <a href="{{ url_for('owner_portal.logout') }}">Logout</a>
+      <a href="{{ url_for('owner_portal.dashboard') }}">Etusivu</a>
+      <a href="{{ url_for('owner_portal.payouts') }}">Tilitykset</a>
+      <a href="{{ url_for('owner_portal.profile') }}">Profiili</a>
+      <a href="{{ url_for('owner_portal.logout') }}">Kirjaudu ulos</a>
     </nav>
   </header>
   <main>{% block content %}{% endblock %}</main>

@@ -3,8 +3,8 @@
 {% block title %}Kalenteriristiriidat · Pin PMS{% endblock %}
 
 {% block content %}
-  <h1>Kalenteri import conflicts</h1>
-  <p class="meta">Conflicts mean internal reservation dates overlap with imported iCal blocks.</p>
+  <h1>Kalenterituonnin ristiriidat</h1>
+  <p class="meta">Ristiriita tarkoittaa, että sisäinen varaus ja tuotu iCal-jakso menevät päällekkäin.</p>
 
   {% if rows %}
     <table>
@@ -12,8 +12,8 @@
         <tr>
           <th>Varaus</th>
           <th>Huone</th>
-          <th>Internal dates</th>
-          <th>Imported block</th>
+          <th>Sisäiset päivämäärät</th>
+          <th>Tuotu jakso</th>
         </tr>
       </thead>
       <tbody>

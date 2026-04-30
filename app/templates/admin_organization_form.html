@@ -3,7 +3,7 @@
 {% block title %}{% if is_new %}Uusi organisaatio{% else %}Muokkaa {{ target_org.name }}{% endif %} · Pin PMS{% endblock %}
 
 {% block content %}
-  <h1>{% if is_new %}Luo organization{% else %}Muokkaa <code>{{ target_org.name }}</code>{% endif %}</h1>
+  <h1>{% if is_new %}Luo organisaatio{% else %}Muokkaa <code>{{ target_org.name }}</code>{% endif %}</h1>
 
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
 

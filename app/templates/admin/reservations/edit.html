@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Edit reservation #{{ row.id }} · Pin PMS{% endblock %}
+{% block title %}Muokkaa varausta #{{ row.id }} · Pin PMS{% endblock %}
 
 {% block head_extra %}
   <style>
@@ -47,7 +47,7 @@
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Varaukset</a>
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">Näytä varaus</a>
   </div>
-  <h1>Edit reservation #{{ row.id }}</h1>
+  <h1>Muokkaa varausta #{{ row.id }}</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
@@ -70,7 +70,7 @@
       <button type="button" class="btn btn-secondary" id="guest_search_clear" style="margin-top: 0.35rem;">Tyhjennä asiakas</button>
     </div>
 
-    <label for="guest_name">Guest name</label>
+    <label for="guest_name">Asiakkaan nimi</label>
     <input id="guest_name" name="guest_name" type="text" required autocomplete="off" value="{{ form.guest_name }}">
 
     <label for="property_id">Kohde</label>

@@ -5,7 +5,7 @@
 {% block content %}
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.guests_list') }}">Takaisin asiakkaisiin</a>
-    <a class="btn" href="{{ url_for('admin.guests_edit', guest_id=row.id) }}">Muokkaa guest</a>
+    <a class="btn" href="{{ url_for('admin.guests_edit', guest_id=row.id) }}">Muokkaa asiakasta</a>
   </div>
   <h1>{{ row.full_name }}</h1>
   <div class="card">
@@ -14,7 +14,7 @@
     <p><strong>Huomiot:</strong> {{ row.notes or "—" }}</p>
     <p><strong>Mieltymykset:</strong> {{ row.preferences or "—" }}</p>
   </div>
-  <h2>Varaus history</h2>
+  <h2>Varaushistoria</h2>
   <table>
     <thead>
       <tr>

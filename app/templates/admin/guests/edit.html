@@ -6,7 +6,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.guests_detail', guest_id=row.id) }}">Takaisin asiakkaaseen</a>
   </div>
-  <h1>Muokkaa guest</h1>
+  <h1>Muokkaa asiakasta</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
@@ -20,7 +20,7 @@
     <input id="email" name="email" type="email" value="{{ form.email }}">
     <label for="phone">Puhelin</label>
     <input id="phone" name="phone" type="text" value="{{ form.phone }}">
-    <label for="notes">Eites</label>
+    <label for="notes">Muistiinpanot</label>
     <textarea id="notes" name="notes" rows="4">{{ form.notes }}</textarea>
     <label for="preferences">Mieltymykset</label>
     <textarea id="preferences" name="preferences" rows="4">{{ form.preferences }}</textarea>

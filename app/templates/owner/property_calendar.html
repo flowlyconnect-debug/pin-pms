@@ -1,9 +1,9 @@
 {% extends "owner/base.html" %}
-{% block title %}Property Calendar{% endblock %}
+{% block title %}Kohteen kalenteri · Omistajaportaali{% endblock %}
 {% block content %}
-<h1>Property {{ property_id }} calendar</h1>
+<h1>Kohteen {{ property_id }} kalenteri</h1>
 <table>
-  <thead><tr><th>ID</th><th>Start</th><th>End</th><th>Status</th><th>Amount</th></tr></thead>
+  <thead><tr><th>ID</th><th>Alkaa</th><th>Päättyy</th><th>Tila</th><th>Summa</th></tr></thead>
   <tbody>
     {% for row in rows %}
     <tr>
@@ -14,7 +14,7 @@
       <td>{{ row.amount or "-" }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="5"><em>No reservations.</em></td></tr>
+    <tr><td colspan="5"><em>Ei varauksia.</em></td></tr>
     {% endfor %}
   </tbody>
 </table>

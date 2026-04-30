@@ -14,7 +14,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="lease_id">Vuokra (valinnainen — käyttää vuokrasummaa, jos summa tyhjä)</label>
     <select id="lease_id" name="lease_id">
-      <option value="">— Eine —</option>
+      <option value="">— Ei mitään —</option>
       {% for l in lease_rows %}
         <option value="{{ l.id }}" {% if form.lease_id == l.id|string %}selected{% endif %}>
           #{{ l.id }} · {{ l.unit_name or l.unit_id }} · {{ l.guest_name or l.guest_id }} · {{ l.status }}
@@ -35,7 +35,7 @@
 
     <label for="status">Alkutila</label>
     <select id="status" name="status">
-      <option value="draft" {% if form.status == "draft" %}selected{% endif %}>Draft</option>
+      <option value="draft" {% if form.status == "draft" %}selected{% endif %}>Luonnos</option>
       <option value="open" {% if form.status == "open" %}selected{% endif %}>Avaa</option>
     </select>
 

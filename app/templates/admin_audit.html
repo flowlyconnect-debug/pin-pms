@@ -5,24 +5,24 @@
 {% block content %}
   <h1>Audit-loki</h1>
   <form method="get" class="card">
-    <label for="action">Toiminto (prefix match)</label>
+    <label for="action">Toiminto (alku-osuma)</label>
     <input id="action" type="text" name="action" value="{{ action_filter }}" placeholder="auth.login">
-    <label for="email">Actor email</label>
+    <label for="email">Tekijän sähköposti</label>
     <input id="email" type="text" name="email" value="{{ email_filter }}" placeholder="user@example.com">
-    <label for="page_size">Per page</label>
+    <label for="page_size">Riviä per sivu</label>
     <input id="page_size" type="number" name="page_size" value="{{ page_size }}" min="1" max="200">
     <div class="actions">
       <button type="submit">Suodata</button>
       {% if action_filter or email_filter %}
-        <a class="btn btn-secondary" href="{{ url_for('admin.audit') }}">Reset</a>
+        <a class="btn btn-secondary" href="{{ url_for('admin.audit') }}">Tyhjennä</a>
       {% endif %}
     </div>
   </form>
-  <p class="meta">{{ total }} events total · page {{ page }} · showing {{ rows|length }}</p>
+  <p class="meta">{{ total }} tapahtumaa · sivu {{ page }} · näytetään {{ rows|length }}</p>
   <table>
     <thead>
       <tr>
-        <th>Aikastamp (UTC)</th><th>Toiminto</th><th>Tila</th><th>Actor</th><th>Kohde</th><th>IP</th><th>Context</th>
+        <th>Aikaleima (UTC)</th><th>Toiminto</th><th>Tila</th><th>Tekijä</th><th>Kohde</th><th>IP</th><th>Konteksti</th>
       </tr>
     </thead>
     <tbody>
@@ -37,22 +37,22 @@
           <td>{% if row.context %}<code>{{ row.context|tojson }}</code>{% endif %}</td>
         </tr>
       {% else %}
-        <tr><td colspan="7"><em>Ei events match the current filter.</em></td></tr>
+        <tr><td colspan="7"><em>Ei tapahtumia annetuilla suodattimilla.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>
   <div class="actions">
     {% set qs_base = "action=" ~ action_filter ~ "&email=" ~ email_filter ~ "&page_size=" ~ page_size %}
     {% if has_prev %}
-      <a class="btn btn-secondary" href="?{{ qs_base }}&page={{ page - 1 }}">&larr; Previous</a>
+      <a class="btn btn-secondary" href="?{{ qs_base }}&page={{ page - 1 }}">&larr; Edellinen</a>
     {% else %}
-      <span class="meta">&larr; Previous</span>
+      <span class="meta">&larr; Edellinen</span>
     {% endif %}
     <span class="meta">Sivu {{ page }}</span>
     {% if has_next %}
-      <a class="btn btn-secondary" href="?{{ qs_base }}&page={{ page + 1 }}">Next &rarr;</a>
+      <a class="btn btn-secondary" href="?{{ qs_base }}&page={{ page + 1 }}">Seuraava &rarr;</a>
     {% else %}
-      <span class="meta">Next &rarr;</span>
+      <span class="meta">Seuraava &rarr;</span>
     {% endif %}
   </div>
 {% endblock %}

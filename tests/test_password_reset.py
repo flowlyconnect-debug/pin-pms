@@ -71,4 +71,4 @@ def test_reset_password_rejects_used_token(client, regular_user):
 
     response = client.get(f"/reset-password/{raw}")
     assert response.status_code == 200
-    assert b"invalid" in response.data.lower()
+    assert b"virheellinen" in response.data.lower()

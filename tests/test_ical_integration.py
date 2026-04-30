@@ -129,7 +129,7 @@ def test_admin_calendar_sync_page_and_import_conflict(client, admin_user):
 
     page = client.get(f"/admin/units/{unit.id}/calendar-sync")
     assert page.status_code == 200
-    assert b"Calendar sync" in page.data
+    assert b"Kalenterisynkronointi" in page.data
 
     posted = client.post(
         f"/admin/units/{unit.id}/calendar-sync",

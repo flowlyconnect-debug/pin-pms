@@ -1,9 +1,21 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Status Admin · Pin PMS{% endblock %}
+{% block title %}Tilanhallinta · Pin PMS{% endblock %}
 
 {% block content %}
-  <h1>Status Admin</h1>
+  <h1>Tilanhallinta</h1>
+
+  {% set state_labels = {
+    "operational": "Toiminnassa",
+    "degraded": "Heikentynyt",
+    "outage": "Käyttökatko",
+    "maintenance": "Huolto"
+  } %}
+  {% set severity_labels = {
+    "minor": "Lievä",
+    "major": "Vakava",
+    "critical": "Kriittinen"
+  } %}
 
   <h2>Komponentit</h2>
   {% for c in payload.components %}
@@ -14,30 +26,30 @@
       <strong>{{ c.name }}</strong> ({{ c.uptime_percent }}%)
       <select name="current_state">
         {% for s in ["operational","degraded","outage","maintenance"] %}
-          <option value="{{ s }}" {% if c.current_state == s %}selected{% endif %}>{{ s }}</option>
+          <option value="{{ s }}" {% if c.current_state == s %}selected{% endif %}>{{ state_labels[s] }}</option>
         {% endfor %}
       </select>
-      <label><input type="checkbox" name="scheduled_maintenance"> scheduled_maintenance</label>
+      <label><input type="checkbox" name="scheduled_maintenance"> Suunniteltu huolto</label>
       <button type="submit">Tallenna</button>
     </form>
   {% endfor %}
 
-  <h2>Luo incident</h2>
+  <h2>Luo häiriö</h2>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="incident_create">
     <input type="text" name="title" placeholder="Otsikko" required>
     <input type="text" name="component_keys" placeholder="api,email">
     <select name="severity">
-      <option value="minor">minor</option>
-      <option value="major">major</option>
-      <option value="critical">critical</option>
+      <option value="minor">{{ severity_labels["minor"] }}</option>
+      <option value="major">{{ severity_labels["major"] }}</option>
+      <option value="critical">{{ severity_labels["critical"] }}</option>
     </select>
     <textarea name="body" placeholder="Kuvaus"></textarea>
     <button type="submit">Luo</button>
   </form>
 
-  <h2>Incidentit</h2>
+  <h2>Häiriöt</h2>
   <ul>
     {% for i in payload.incidents %}
       <li>

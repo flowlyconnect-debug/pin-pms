@@ -1,9 +1,9 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{% if is_new %}Create user{% else %}Edit {{ target_user.email }}{% endif %} · Pin PMS{% endblock %}
+{% block title %}{% if is_new %}Uusi käyttäjä{% else %}Muokkaa: {{ target_user.email }}{% endif %} · Pin PMS{% endblock %}
 
 {% block content %}
-  <h1>{% if is_new %}Create user{% else %}Edit <code>{{ target_user.email }}</code>{% endif %}</h1>
+  <h1>{% if is_new %}Uusi käyttäjä{% else %}Muokkaa: <code>{{ target_user.email }}</code>{% endif %}</h1>
 
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
 

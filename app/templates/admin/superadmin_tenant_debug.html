@@ -1,11 +1,11 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Tenant Debug · Pin PMS{% endblock %}
+{% block title %}Vuokralaisen debug-näkymä · Pin PMS{% endblock %}
 
 {% block content %}
-  <h1>Tenant debug #{{ org_id }}</h1>
+  <h1>Vuokralaisen debug #{{ org_id }}</h1>
   <p>
-    Plan: <strong>{{ data.subscription.plan }}</strong> · Status: <strong>{{ data.subscription.status }}</strong>
+    Tilaus: <strong>{{ data.subscription.plan }}</strong> · Tila: <strong>{{ data.subscription.status }}</strong>
     · Luotu: {{ data.organization.created_at }}
   </p>
   <p>
@@ -13,9 +13,9 @@
     · Viimeisin kirjautuminen: <strong>{{ data.last_login_at or "—" }}</strong>
     · Varauksia 30d: <strong>{{ data.reservations_30d_count }}</strong>
   </p>
-  <p><a href="{{ sentry_url }}" target="_blank" rel="noopener">Open in Sentry</a></p>
+  <p><a href="{{ sentry_url }}" target="_blank" rel="noopener">Avaa Sentryssä</a></p>
 
-  <h2>Viimeiset audit-eventit</h2>
+  <h2>Viimeisimmät audit-tapahtumat</h2>
   <ul>
     {% for row in data.audit_events %}
       <li>{{ row.created_at }} · {{ row.action }} · {{ row.status }}</li>
@@ -29,17 +29,17 @@
     {% endfor %}
   </ul>
 
-  <h2>Viimeiset backupit</h2>
+  <h2>Viimeisimmät varmuuskopiot</h2>
   <ul>
     {% for row in data.backups %}
       <li>{{ row.created_at }} · {{ row.filename }} · {{ row.status }}</li>
     {% endfor %}
   </ul>
 
-  <h2>Password reset</h2>
+  <h2>Salasanan nollaus</h2>
   <form method="post" action="{{ url_for('auth.forgot_password') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="email" name="email" placeholder="contact@example.com" required>
-    <button type="submit">Send password reset</button>
+    <button type="submit">Lähetä salasanan nollaus</button>
   </form>
 {% endblock %}

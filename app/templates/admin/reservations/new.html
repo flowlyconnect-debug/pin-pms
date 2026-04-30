@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Create reservation · Pin PMS{% endblock %}
+{% block title %}Uusi varaus · Pin PMS{% endblock %}
 
 {% block head_extra %}
   <style>
@@ -45,7 +45,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Takaisin varauksiin</a>
   </div>
-  <h1>Create reservation</h1>
+  <h1>Uusi varaus</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}

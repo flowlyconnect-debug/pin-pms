@@ -17,16 +17,16 @@
     </div>
   </form>
   {% if data %}
-    <h2>Result</h2>
+    <h2>Tulos</h2>
     <table>
       <tbody>
-        <tr><td>Date range</td><td>{{ data.start_date }} → {{ data.end_date }}</td></tr>
-        <tr><td>Total units</td><td>{{ data.total_units }}</td></tr>
-        <tr><td>Reserved units</td><td>{{ data.reserved_units }}</td></tr>
-        <tr><td>Occupancy %</td><td>{{ data.occupancy_percentage }}</td></tr>
+        <tr><td>Aikaväli</td><td>{{ data.start_date }} → {{ data.end_date }}</td></tr>
+        <tr><td>Huoneita yhteensä</td><td>{{ data.total_units }}</td></tr>
+        <tr><td>Varattuja huoneita</td><td>{{ data.reserved_units }}</td></tr>
+        <tr><td>Käyttöaste %</td><td>{{ data.occupancy_percentage }}</td></tr>
       </tbody>
     </table>
   {% elif not error %}
-    <p class="meta"><em>Select a date range to run the report.</em></p>
+    <p class="meta"><em>Valitse aikaväli ja aja raportti.</em></p>
   {% endif %}
 {% endblock %}

@@ -255,7 +255,7 @@ def guests_new():
         except guest_service.GuestServiceError as err:
             error = err.message
         else:
-            flash("Guest created.")
+            flash("Asiakas luotu.")
             return redirect(url_for("admin.guests_detail", guest_id=row["id"]))
     return render_template("admin/guests/new.html", form=form, error=error)
 
@@ -321,7 +321,7 @@ def guests_edit(guest_id: int):
                 abort(404)
             error = err.message
         else:
-            flash("Guest updated.")
+            flash("Asiakkaan tiedot päivitetty.")
             return redirect(url_for("admin.guests_detail", guest_id=row["id"]))
     return render_template("admin/guests/edit.html", row=row, form=form, error=error)
 
@@ -363,7 +363,7 @@ def properties_new():
         except property_service.PropertyServiceError as err:
             error = err.message
         else:
-            flash("Property created.")
+            flash("Kohde luotu.")
             return redirect(url_for("admin.properties_detail", property_id=row["id"]))
 
     return render_template("admin/properties/new.html", form=form, error=error)
@@ -413,7 +413,7 @@ def properties_edit(property_id: int):
         except property_service.PropertyServiceError as err:
             error = err.message
         else:
-            flash("Property updated.")
+            flash("Kohteen tiedot päivitetty.")
             return redirect(url_for("admin.properties_detail", property_id=row["id"]))
 
     return render_template("admin/properties/edit.html", row=row, form=form, error=error)
@@ -464,7 +464,7 @@ def units_new(property_id: int):
         except property_service.PropertyServiceError as err:
             error = err.message
         else:
-            flash("Unit created.")
+            flash("Huone luotu.")
             return redirect(url_for("admin.units_list", property_id=property_id))
 
     return render_template(
@@ -506,7 +506,7 @@ def units_edit(unit_id: int):
         except property_service.PropertyServiceError as err:
             error = err.message
         else:
-            flash("Unit updated.")
+            flash("Huoneen tiedot päivitetty.")
             return redirect(url_for("admin.units_list", property_id=row["property_id"]))
 
     return render_template("admin/units/edit.html", row=row, form=form, error=error)
@@ -530,7 +530,7 @@ def units_calendar_sync(unit_id: int):
         source_url = (request.form.get("source_url") or "").strip()
         name = (request.form.get("name") or "").strip() or None
         if not source_url.lower().startswith(("http://", "https://")):
-            error = "Calendar URL must start with http:// or https://."
+            error = "Kalenteri-URL:n tulee alkaa osoitteella http:// tai https://."
         else:
             try:
                 service.create_feed(
@@ -542,7 +542,7 @@ def units_calendar_sync(unit_id: int):
             except IcalServiceError as err:
                 error = err.message
             else:
-                flash("Imported calendar source saved.")
+                flash("Tuotu kalenterilähde tallennettu.")
                 return redirect(url_for("admin.units_calendar_sync", unit_id=unit_id))
 
     feeds = service.list_unit_feeds(organization_id=org_id, unit_id=unit_id)
@@ -570,7 +570,7 @@ def calendar_sync_feed_now(feed_id: int):
     if row is None or row.organization_id != _pms_org_id():
         abort(404)
     IcalService().sync_all_feeds(organization_id=row.organization_id)
-    flash("Calendar sync finished.")
+    flash("Kalenterin synkronointi valmis.")
     return redirect(url_for("admin.units_calendar_sync", unit_id=row.unit_id))
 
 
@@ -619,7 +619,7 @@ def reservations_new():
         form["currency"] = (request.form.get("currency") or "").strip().upper() or "EUR"
 
         if not form["unit_id"] or not form["start_date"] or not form["end_date"]:
-            error = "Unit and dates are required."
+            error = "Huone ja päivämäärät ovat pakollisia."
         else:
             try:
                 parsed_guest_id = int(form["guest_id"]) if form["guest_id"] else None
@@ -635,11 +635,11 @@ def reservations_new():
                     actor_user_id=current_user.id,
                 )
             except (TypeError, ValueError):
-                error = "Unit and guest must be valid numeric IDs."
+                error = "Huoneen ja asiakkaan tunnisteiden tulee olla numeroita."
             except reservation_service.ReservationServiceError as err:
                 error = err.message
             else:
-                flash("Reservation created.")
+                flash("Varaus luotu.")
                 return redirect(url_for("admin.reservations_detail", reservation_id=row["id"]))
 
     return render_template(
@@ -796,7 +796,7 @@ def reservations_edit(reservation_id: int):
                 abort(404)
             error = err.message
         else:
-            flash("Reservation updated.")
+            flash("Varaus päivitetty.")
             if return_to == "calendar":
                 return redirect(url_for("admin.calendar_page"))
             if return_to == "list":
@@ -817,7 +817,7 @@ def reservations_edit(reservation_id: int):
 @require_admin_pms_access
 def reservations_cancel(reservation_id: int):
     if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
-        flash("Please confirm cancellation.")
+        flash("Vahvista peruutus.")
         return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
 
     try:
@@ -829,7 +829,7 @@ def reservations_cancel(reservation_id: int):
     except reservation_service.ReservationServiceError:
         abort(404)
 
-    flash("Reservation cancelled.")
+    flash("Varaus peruttu.")
     return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
 
 
@@ -849,7 +849,7 @@ def reservations_mark_paid(reservation_id: int):
             abort(403)
         flash(err.message)
         return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
-    flash("Reservation marked as paid.")
+    flash("Varaus merkitty maksetuksi.")
     return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
 
 
@@ -886,7 +886,7 @@ def reports_occupancy():
 
     if start_date_raw or end_date_raw:
         if not start_date_raw or not end_date_raw:
-            error = "Both start date and end date are required."
+            error = "Sekä alku- että loppupäivä ovat pakollisia."
         else:
             from datetime import date
 
@@ -894,10 +894,10 @@ def reports_occupancy():
                 start_date = date.fromisoformat(start_date_raw)
                 end_date = date.fromisoformat(end_date_raw)
             except ValueError:
-                error = "Dates must be valid ISO dates (YYYY-MM-DD)."
+                error = "Päivämäärien tulee olla kelvollisia muodossa YYYY-MM-DD."
             else:
                 if start_date >= end_date:
-                    error = "Start date must be before end date."
+                    error = "Alkupäivän tulee olla ennen loppupäivää."
                 else:
                     data = report_service.occupancy_report(
                         organization_id=_pms_org_id(),
@@ -979,7 +979,7 @@ def leases_new():
             or not form["start_date"]
             or not form["rent_amount"]
         ):
-            error = "Unit, guest, start date, and rent are required."
+            error = "Huone, asiakas, alkupäivä ja vuokra ovat pakollisia."
         else:
             try:
                 res_id = int(form["reservation_id"]) if form["reservation_id"] else None
@@ -997,11 +997,11 @@ def leases_new():
                     actor_user_id=current_user.id,
                 )
             except (TypeError, ValueError):
-                error = "Unit, guest, and reservation must be valid numeric IDs."
+                error = "Huoneen, asiakkaan ja varauksen tunnisteiden tulee olla numeroita."
             except billing_service.LeaseServiceError as err:
                 error = err.message
             else:
-                flash("Lease created.")
+                flash("Vuokrasopimus luotu.")
                 return redirect(url_for("admin.leases_detail", lease_id=row["id"]))
 
     return render_template(
@@ -1092,7 +1092,7 @@ def leases_edit(lease_id: int):
             if payload["unit_id"] is None or payload["guest_id"] is None:
                 raise billing_service.LeaseServiceError(
                     code="validation_error",
-                    message="Unit and guest are required.",
+                    message="Huone ja asiakas ovat pakollisia.",
                     status=400,
                 )
         elif st == "active":
@@ -1113,13 +1113,13 @@ def leases_edit(lease_id: int):
                 actor_user_id=current_user.id,
             )
         except (TypeError, ValueError):
-            error = "Unit, guest, and reservation must be valid numeric IDs."
+            error = "Huoneen, asiakkaan ja varauksen tunnisteiden tulee olla numeroita."
         except billing_service.LeaseServiceError as err:
             if err.status == 404:
                 abort(404)
             error = err.message
         else:
-            flash("Lease updated.")
+            flash("Vuokrasopimus päivitetty.")
             return redirect(url_for("admin.leases_detail", lease_id=lease_id))
 
     return render_template(
@@ -1146,7 +1146,7 @@ def leases_activate(lease_id: int):
             abort(404)
         flash(err.message)
         return redirect(url_for("admin.leases_detail", lease_id=lease_id))
-    flash("Lease activated.")
+    flash("Vuokrasopimus aktivoitu.")
     return redirect(url_for("admin.leases_detail", lease_id=lease_id))
 
 
@@ -1154,7 +1154,7 @@ def leases_activate(lease_id: int):
 @require_admin_pms_access
 def leases_end(lease_id: int):
     if (request.form.get("confirm_end") or "").strip().lower() != "yes":
-        flash("Please confirm ending the lease.")
+        flash("Vahvista vuokrasopimuksen päättäminen.")
         return redirect(url_for("admin.leases_detail", lease_id=lease_id))
     end_raw = (request.form.get("end_date") or "").strip() or None
     try:
@@ -1169,7 +1169,7 @@ def leases_end(lease_id: int):
             abort(404)
         flash(err.message)
         return redirect(url_for("admin.leases_detail", lease_id=lease_id))
-    flash("Lease ended.")
+    flash("Vuokrasopimus päätetty.")
     return redirect(url_for("admin.leases_detail", lease_id=lease_id))
 
 
@@ -1177,7 +1177,7 @@ def leases_end(lease_id: int):
 @require_admin_pms_access
 def leases_cancel(lease_id: int):
     if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
-        flash("Please confirm cancellation.")
+        flash("Vahvista peruutus.")
         return redirect(url_for("admin.leases_detail", lease_id=lease_id))
     try:
         _ = billing_service.cancel_lease(
@@ -1190,7 +1190,7 @@ def leases_cancel(lease_id: int):
             abort(404)
         flash(err.message)
         return redirect(url_for("admin.leases_detail", lease_id=lease_id))
-    flash("Lease cancelled.")
+    flash("Vuokrasopimus peruttu.")
     return redirect(url_for("admin.leases_detail", lease_id=lease_id))
 
 
@@ -1240,7 +1240,7 @@ def invoices_new():
         form["reservation_id"] = (request.form.get("reservation_id") or "").strip()
 
         if not form["due_date"]:
-            error = "Due date is required."
+            error = "Eräpäivä on pakollinen."
         elif form["lease_id"]:
             try:
                 row = billing_service.create_invoice_for_lease(
@@ -1254,15 +1254,15 @@ def invoices_new():
                     actor_user_id=current_user.id,
                 )
             except (TypeError, ValueError):
-                error = "Lease id must be a valid number."
+                error = "Vuokrasopimuksen tunnisteen tulee olla numero."
             except billing_service.InvoiceServiceError as err:
                 error = err.message
             else:
-                flash("Invoice created.")
+                flash("Lasku luotu.")
                 return redirect(url_for("admin.invoices_detail", invoice_id=row["id"]))
         else:
             if not form["amount"]:
-                error = "Amount is required when no lease is selected."
+                error = "Summa on pakollinen, jos vuokrasopimusta ei ole valittu."
             else:
                 try:
                     res_id = int(form["reservation_id"]) if form["reservation_id"] else None
@@ -1281,11 +1281,11 @@ def invoices_new():
                         actor_user_id=current_user.id,
                     )
                 except (TypeError, ValueError):
-                    error = "Guest and reservation must be valid numeric IDs when provided."
+                    error = "Asiakkaan ja varauksen tunnisteiden tulee olla numeroita, jos ne annetaan."
                 except billing_service.InvoiceServiceError as err:
                     error = err.message
                 else:
-                    flash("Invoice created.")
+                    flash("Lasku luotu.")
                     return redirect(url_for("admin.invoices_detail", invoice_id=row["id"]))
 
     return render_template(
@@ -1323,7 +1323,7 @@ def invoices_mark_paid(invoice_id: int):
             abort(404)
         flash(err.message)
         return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
-    flash("Invoice marked as paid.")
+    flash("Lasku merkitty maksetuksi.")
     return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
 
 
@@ -1331,7 +1331,7 @@ def invoices_mark_paid(invoice_id: int):
 @require_admin_pms_access
 def invoices_cancel(invoice_id: int):
     if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
-        flash("Please confirm cancellation.")
+        flash("Vahvista peruutus.")
         return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
     try:
         _ = billing_service.cancel_invoice(
@@ -1344,7 +1344,7 @@ def invoices_cancel(invoice_id: int):
             abort(404)
         flash(err.message)
         return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
-    flash("Invoice cancelled.")
+    flash("Lasku peruttu.")
     return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
 
 
@@ -1352,7 +1352,7 @@ def invoices_cancel(invoice_id: int):
 @require_admin_pms_access
 def invoices_mark_overdue():
     n = billing_service.mark_overdue_invoices(organization_id=_pms_org_id())
-    flash(f"Marked {n} invoice(s) as overdue.")
+    flash(f"{n} laskua merkitty erääntyneeksi.")
     return redirect(url_for("admin.invoices_list"))
 
 
@@ -1439,7 +1439,7 @@ def maintenance_requests_new():
         for key in form:
             form[key] = (request.form.get(key) or "").strip()
         if not form["property_id"] or not form["title"]:
-            error = "Property and title are required."
+            error = "Kohde ja otsikko ovat pakollisia."
         else:
             try:
                 row = maintenance_service.create_maintenance_request(
@@ -1457,11 +1457,11 @@ def maintenance_requests_new():
                     actor_user_id=current_user.id,
                 )
             except (TypeError, ValueError):
-                error = "IDs must be valid numbers."
+                error = "Tunnisteiden tulee olla numeroita."
             except maintenance_service.MaintenanceServiceError as err:
                 error = err.message
             else:
-                flash("Maintenance request created.")
+                flash("Huoltopyyntö luotu.")
                 return redirect(url_for("admin.maintenance_requests_detail", request_id=row["id"]))
 
     return render_template(
@@ -1506,7 +1506,7 @@ def maintenance_requests_edit(request_id: int):
     except maintenance_service.MaintenanceServiceError:
         abort(404)
     if row["status"] in {"resolved", "cancelled"}:
-        flash("This request cannot be edited.")
+        flash("Tätä pyyntöä ei voi muokata.")
         return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
     form = {
@@ -1525,7 +1525,7 @@ def maintenance_requests_edit(request_id: int):
         for key in form:
             form[key] = (request.form.get(key) or "").strip()
         if not form["property_id"] or not form["title"]:
-            error = "Property and title are required."
+            error = "Kohde ja otsikko ovat pakollisia."
         else:
             payload = {
                 "property_id": int(form["property_id"]),
@@ -1546,13 +1546,13 @@ def maintenance_requests_edit(request_id: int):
                     actor_user_id=current_user.id,
                 )
             except (TypeError, ValueError):
-                error = "IDs must be valid numbers."
+                error = "Tunnisteiden tulee olla numeroita."
             except maintenance_service.MaintenanceServiceError as err:
                 if err.status == 404:
                     abort(404)
                 error = err.message
             else:
-                flash("Maintenance request updated.")
+                flash("Huoltopyyntö päivitetty.")
                 return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
     return render_template(
@@ -1582,7 +1582,7 @@ def maintenance_requests_set_status(request_id: int):
             abort(404)
         flash(err.message)
     else:
-        flash("Status updated.")
+        flash("Tila päivitetty.")
     return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
 
@@ -1598,13 +1598,13 @@ def maintenance_requests_assign(request_id: int):
             actor_user_id=current_user.id,
         )
     except (TypeError, ValueError):
-        flash("Invalid assignee.")
+        flash("Virheellinen vastuuhenkilö.")
     except maintenance_service.MaintenanceServiceError as err:
         if err.status == 404:
             abort(404)
         flash(err.message)
     else:
-        flash("Assignment updated.")
+        flash("Vastuuhenkilö päivitetty.")
     return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
 
@@ -1622,7 +1622,7 @@ def maintenance_requests_resolve(request_id: int):
             abort(404)
         flash(err.message)
     else:
-        flash("Request marked resolved.")
+        flash("Pyyntö merkitty ratkaistuksi.")
     return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
 
@@ -1630,7 +1630,7 @@ def maintenance_requests_resolve(request_id: int):
 @require_admin_pms_access
 def maintenance_requests_cancel(request_id: int):
     if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
-        flash("Please confirm cancellation.")
+        flash("Vahvista peruutus.")
         return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
     try:
         _ = maintenance_service.cancel_maintenance_request(
@@ -1643,7 +1643,7 @@ def maintenance_requests_cancel(request_id: int):
             abort(404)
         flash(err.message)
     else:
-        flash("Request cancelled.")
+        flash("Pyyntö peruttu.")
     return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
 
@@ -1759,7 +1759,7 @@ def email_template_test_send(key: str):
     if form.validate_on_submit():
         to = form.to.data.strip().lower()
         if "@" not in to or "." not in to.split("@")[-1]:
-            flash("Anna kelvollinen vastaanottajan sahkopostiosoite.")
+            flash("Anna kelvollinen vastaanottajan sähköpostiosoite.")
             return render_template(
                 "admin_email_template_test_send.html", template=template, form=form
             )
@@ -1777,7 +1777,7 @@ def email_template_test_send(key: str):
                 context={"key": template.key, "to": to},
                 commit=True,
             )
-            flash("Testiviesti lahetetty onnistuneesti.")
+            flash("Testiviesti lähetetty onnistuneesti.")
             return redirect(url_for("admin.email_templates_list"))
         except EmailServiceError as err:
             audit_record(
@@ -1788,9 +1788,9 @@ def email_template_test_send(key: str):
                 context={"key": template.key, "to": to, "error": err.public_message},
                 commit=True,
             )
-            flash(f"Testiviestin lahetys epaonnistui: {err.public_message}")
+            flash(f"Testiviestin lähetys epäonnistui: {err.public_message}")
     elif request.method == "POST":
-        flash("Anna kelvollinen vastaanottajan sahkopostiosoite.")
+        flash("Anna kelvollinen vastaanottajan sähköpostiosoite.")
 
     return render_template("admin_email_template_test_send.html", template=template, form=form)
 
@@ -1829,7 +1829,7 @@ def email_template_edit(key: str):
             flash("Pohja tallennettu.")
             return redirect(url_for("admin.email_template_edit", key=key))
         else:
-            error = "Tarkista lomakkeen kentat."
+            error = "Tarkista lomakkeen kentät."
 
     return render_template(
         "admin_email_template_edit.html",
@@ -1871,7 +1871,7 @@ def settings_new():
         setting_key = form.key.data.strip()
         setting_type = form.type.data
         if settings_service.find(setting_key) is not None:
-            error = f"A setting with key {setting_key!r} already exists."
+            error = f"Asetus avaimella {setting_key!r} on jo olemassa."
         else:
             try:
                 settings_service.set_value(
@@ -1883,12 +1883,12 @@ def settings_new():
                     actor_user_id=current_user.id,
                 )
             except settings_service.SettingValueError as err:
-                error = f"Invalid value for type {setting_type!r}: {err}"
+                error = f"Virheellinen arvo tyypille {setting_type!r}: {err}"
             else:
-                flash(f"Setting {setting_key!r} created.")
+                flash(f"Asetus {setting_key!r} luotu.")
                 return redirect(url_for("admin.settings_edit", key=setting_key))
     elif request.method == "POST":
-        error = "Please correct the highlighted fields."
+        error = "Korjaa korostetut kentät."
 
     return render_template(
         "admin_settings_new.html",
@@ -1922,7 +1922,7 @@ def settings_edit(key: str):
         if post_action == "reveal":
             code = (request.form.get("reveal_code") or "").replace(" ", "").strip()
             if not _verify_fresh_2fa_code(code):
-                error = "A valid fresh 2FA code is required to reveal this secret."
+                error = "Salaisuuden näyttämiseen vaaditaan kelvollinen tuore 2FA-koodi."
                 form.value.data = ""
             else:
                 reveal_value = settings_service.get(row.key, default="")
@@ -1937,7 +1937,7 @@ def settings_edit(key: str):
                 try:
                     new_value = _coerce_form_value(submitted_value, row.type)
                 except (ValueError, settings_service.SettingValueError) as err:
-                    error = f"Invalid value for type {row.type!r}: {err}"
+                    error = f"Virheellinen arvo tyypille {row.type!r}: {err}"
                     new_value = None
 
             if error is None:
@@ -1952,10 +1952,10 @@ def settings_edit(key: str):
                 except settings_service.SettingValueError as err:
                     error = str(err)
                 else:
-                    flash("Setting saved.")
+                    flash("Asetus tallennettu.")
                     return redirect(url_for("admin.settings_edit", key=row.key))
         else:
-            error = "Please correct the highlighted fields."
+            error = "Korjaa korostetut kentät."
 
     return render_template(
         "admin_settings_edit.html",
@@ -2072,7 +2072,7 @@ def users_new():
     if form.validate_on_submit():
         normalized_email = form.email.data.strip().lower()
         if User.query.filter_by(email=normalized_email).first() is not None:
-            error = f"User '{normalized_email}' already exists."
+            error = f"Käyttäjä '{normalized_email}' on jo olemassa."
         else:
             try:
                 user = admin_service.create_user(
@@ -2087,10 +2087,10 @@ def users_new():
             except admin_service.UserServiceError as err:
                 error = str(err)
             else:
-                flash(f"User {user.email} created.")
+                flash(f"Käyttäjä {user.email} luotu.")
                 return redirect(url_for("admin.users_list"))
     elif request.method == "POST":
-        error = "Please correct the highlighted fields."
+        error = "Korjaa korostetut kentät."
 
     return render_template(
         "admin_user_form.html",
@@ -2176,10 +2176,10 @@ def users_edit(user_id: int):
                 },
                 commit=True,
             )
-            flash("User updated.")
+            flash("Käyttäjän tiedot päivitetty.")
             return redirect(url_for("admin.users_list"))
     elif request.method == "POST":
-        error = "Please correct the highlighted fields."
+        error = "Korjaa korostetut kentät."
 
     return render_template(
         "admin_user_form.html",
@@ -2219,7 +2219,8 @@ def users_toggle_active(user_id: int):
         return redirect(url_for("admin.users_list"))
     db.session.refresh(target_user)
     flash(
-        f"User {target_user.email} is now " f"{'active' if target_user.is_active else 'inactive'}."
+        f"Käyttäjä {target_user.email} on nyt "
+        f"{'aktiivinen' if target_user.is_active else 'poistettu käytöstä'}."
     )
     return redirect(url_for("admin.users_list"))
 
@@ -2245,7 +2246,7 @@ def organizations_new():
     if form.validate_on_submit():
         org_name = form.name.data.strip()
         if Organization.query.filter_by(name=org_name).first() is not None:
-            error = f"Organization '{org_name}' already exists."
+            error = f"Organisaatio '{org_name}' on jo olemassa."
         else:
             org = Organization(name=org_name)
             db.session.add(org)
@@ -2261,10 +2262,10 @@ def organizations_new():
                 context={"name": org.name},
                 commit=True,
             )
-            flash(f"Organization '{org.name}' created.")
+            flash(f"Organisaatio '{org.name}' luotu.")
             return redirect(url_for("admin.organizations_list"))
     elif request.method == "POST":
-        error = "Please correct the highlighted fields."
+        error = "Korjaa korostetut kentät."
 
     return render_template(
         "admin_organization_form.html",
@@ -2296,7 +2297,7 @@ def organizations_edit(org_id: int):
             context={"old_name": old_name, "new_name": org.name},
             commit=True,
         )
-        flash("Organization updated.")
+        flash("Organisaation tiedot päivitetty.")
         return redirect(url_for("admin.organizations_list"))
     elif request.method == "POST":
         error = "Please correct the highlighted fields."
@@ -2352,11 +2353,11 @@ def owners_new():
                     password=password,
                 )
             db.session.commit()
-            flash("Owner created.")
+            flash("Omistaja luotu.")
             return redirect(url_for("admin.owners_list"))
-        except Exception as exc:
+        except Exception:
             db.session.rollback()
-            error = str(exc)
+            error = "Omistajan luonti epäonnistui."
     return render_template("admin/owners_new.html", error=error)
 
 
@@ -2379,10 +2380,10 @@ def owners_assign_property(owner_id: int):
             valid_to=date.fromisoformat(valid_to_raw) if valid_to_raw else None,
         )
         db.session.commit()
-        flash("Property linked to owner.")
-    except Exception as exc:
+        flash("Kohde liitetty omistajalle.")
+    except Exception:
         db.session.rollback()
-        flash(f"Could not assign property: {exc}")
+        flash("Kohteen liittäminen omistajalle epäonnistui.")
     return redirect(url_for("admin.owners_list"))
 
 
@@ -2401,7 +2402,7 @@ def api_keys_new():
     users = User.query.filter_by(is_active=True).order_by(User.email.asc()).all()
     form = ApiKeyForm()
     form.organization_id.choices = [(o.id, o.name) for o in organizations]
-    form.user_id.choices = [(0, "-- none (org-scoped) --")] + [(u.id, u.email) for u in users]
+    form.user_id.choices = [(0, "-- ei käyttäjää (organisaatiotaso) --")] + [(u.id, u.email) for u in users]
     error: str | None = None
 
     if form.validate_on_submit():
@@ -2412,12 +2413,12 @@ def api_keys_new():
         if selected_user_id is not None:
             selected_user = User.query.get(selected_user_id)
             if selected_user is None:
-                error = "Selected user does not exist."
+                error = "Valittua käyttäjää ei ole olemassa."
             elif selected_user.organization_id != form.organization_id.data:
-                error = "Selected user must belong to the selected organization."
+                error = "Valitun käyttäjän tulee kuulua valittuun organisaatioon."
         selected_scopes = list(form.scopes.data or [])
         if "admin:*" in selected_scopes and not current_user.is_superadmin:
-            error = "Only superadmin can create API keys with admin:* scope."
+            error = "Vain pääylläpitäjä voi luoda API-avaimia admin:* -laajuudella."
         if error is None:
             api_key, raw_key = ApiKey.issue(
                 name=form.name.data.strip(),
@@ -2443,10 +2444,10 @@ def api_keys_new():
                 },
                 commit=True,
             )
-            flash("API key issued. The plaintext is shown once below -- copy it now.")
+            flash("API-avain luotu. Selväkielinen avain näytetään alla vain kerran — kopioi se heti.")
             return redirect(url_for("admin.api_keys_list", show_raw=raw_key))
     elif request.method == "POST":
-        error = "Please correct the highlighted fields."
+        error = "Korjaa korostetut kentät."
 
     return render_template(
         "admin_api_key_form.html",
@@ -2474,7 +2475,8 @@ def api_keys_toggle_active(key_id: int):
         commit=True,
     )
     flash(
-        f"API key {api_key.key_prefix} is now " f"{'active' if api_key.is_active else 'inactive'}."
+        f"API-avain {api_key.key_prefix} on nyt "
+        f"{'aktiivinen' if api_key.is_active else 'poistettu käytöstä'}."
     )
     return redirect(url_for("admin.api_keys_list"))
 
@@ -2496,7 +2498,7 @@ def api_keys_delete(key_id: int):
         context={"prefix": prefix},
         commit=True,
     )
-    flash(f"API key {prefix} deleted.")
+    flash(f"API-avain {prefix} poistettu.")
     return redirect(url_for("admin.api_keys_list"))
 
 
@@ -2538,10 +2540,10 @@ def superadmin_status():
             comp.current_state = (request.form.get("current_state") or "operational").strip()
             comp.scheduled_maintenance = bool(request.form.get("scheduled_maintenance"))
             db.session.commit()
-            flash("Komponentin tila paivitetty.")
+            flash("Komponentin tila päivitetty.")
         elif action == "incident_create":
             incident = StatusIncident(
-                title=(request.form.get("title") or "").strip() or "Untitled incident",
+                title=(request.form.get("title") or "").strip() or "Nimeämätön häiriö",
                 body=(request.form.get("body") or "").strip(),
                 severity=(request.form.get("severity") or "minor").strip(),
                 component_keys=[
@@ -2553,12 +2555,12 @@ def superadmin_status():
             )
             db.session.add(incident)
             db.session.commit()
-            flash("Incident luotu.")
+            flash("Häiriö luotu.")
         elif action == "incident_close":
             incident = StatusIncident.query.get_or_404(int(request.form.get("incident_id")))
             incident.status = "resolved"
             incident.resolved_at = datetime.now(timezone.utc)
             db.session.commit()
-            flash("Incident suljettu.")
+            flash("Häiriö suljettu.")
     payload = admin_service.public_status_payload(window_days=90)
     return render_template("admin/superadmin_status.html", payload=payload)

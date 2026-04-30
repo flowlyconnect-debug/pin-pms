@@ -11,15 +11,15 @@
     <p><strong>Tila:</strong> {{ row.status }}</p>
     <p><strong>Summa:</strong> {{ row.amount }} {{ row.currency }}</p>
     <p><strong>Eräpäivä:</strong> {{ row.due_date }}</p>
-    {% if row.paid_at %}<p><strong>Paid at:</strong> {{ row.paid_at }}</p>{% endif %}
-    {% if row.lease_id %}<p><strong>Lease:</strong> <a href="{{ url_for('admin.leases_detail', lease_id=row.lease_id) }}">#{{ row.lease_id }}</a></p>{% endif %}
+    {% if row.paid_at %}<p><strong>Maksettu:</strong> {{ row.paid_at }}</p>{% endif %}
+    {% if row.lease_id %}<p><strong>Vuokrasopimus:</strong> <a href="{{ url_for('admin.leases_detail', lease_id=row.lease_id) }}">#{{ row.lease_id }}</a></p>{% endif %}
     {% if row.reservation_id %}<p><strong>Varaus:</strong> #{{ row.reservation_id }}</p>{% endif %}
     {% if row.guest_id %}<p><strong>Asiakas:</strong> #{{ row.guest_id }}</p>{% endif %}
     {% if row.description %}<p><strong>Kuvaus:</strong> {{ row.description }}</p>{% endif %}
   </div>
 
   {% if row.status in ["open", "overdue"] %}
-    <h2>Mark paid</h2>
+    <h2>Merkitse maksetuksi</h2>
     <form method="post" action="{{ url_for('admin.invoices_mark_paid', invoice_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="actions">

@@ -1,8 +1,8 @@
 {% extends "owner/base.html" %}
-{% block title %}Owner Profile{% endblock %}
+{% block title %}Profiili · Omistajaportaali{% endblock %}
 {% block content %}
-<h1>Profile</h1>
-<p>Email: {{ row.email }}</p>
-<p>Owner ID: {{ row.owner_id }}</p>
-<p>Last login: {{ row.last_login_at or "-" }}</p>
+<h1>Profiili</h1>
+<p>Sähköposti: {{ row.email }}</p>
+<p>Omistaja-ID: {{ row.owner_id }}</p>
+<p>Viimeinen kirjautuminen: {{ row.last_login_at or "-" }}</p>
 {% endblock %}

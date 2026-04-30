@@ -1,17 +1,17 @@
 {% extends "owner/base.html" %}
-{% block title %}Owner Dashboard{% endblock %}
+{% block title %}Etusivu · Omistajaportaali{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
-<p>Current month: {{ stats.period_month }}</p>
-<p>Gross: {{ "%.2f"|format(stats.gross_revenue_cents / 100) }} EUR</p>
-<p>Management fee: {{ "%.2f"|format(stats.management_fee_cents / 100) }} EUR</p>
-<p>Net payout: {{ "%.2f"|format(stats.net_payout_cents / 100) }} EUR</p>
-<h2>Properties</h2>
+<h1>Etusivu</h1>
+<p>Kuluva kuukausi: {{ stats.period_month }}</p>
+<p>Bruttotulo: {{ "%.2f"|format(stats.gross_revenue_cents / 100) }} EUR</p>
+<p>Hallinnointipalkkio: {{ "%.2f"|format(stats.management_fee_cents / 100) }} EUR</p>
+<p>Nettotilitys: {{ "%.2f"|format(stats.net_payout_cents / 100) }} EUR</p>
+<h2>Kohteet</h2>
 <ul>
   {% for p in properties %}
   <li><a href="{{ url_for('owner_portal.property_calendar', property_id=p.id) }}">{{ p.name }}</a></li>
   {% else %}
-  <li>No properties assigned.</li>
+  <li>Ei liitettyjä kohteita.</li>
   {% endfor %}
 </ul>
 {% endblock %}

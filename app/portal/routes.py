@@ -38,7 +38,7 @@ def require_portal_login(view_func):
 @limiter.limit(
     _login_rate_limit,
     methods=["POST"],
-    error_message="Too many login attempts. Please wait and try again.",
+    error_message="Liian monta kirjautumisyritystä. Odota hetki ja yritä uudelleen.",
 )
 def login():
     if request.method == "POST":
@@ -53,7 +53,7 @@ def login():
                 actor_email=email or None,
                 commit=True,
             )
-            return render_template("portal/login.html", error="Invalid email or password.")
+            return render_template("portal/login.html", error="Virheellinen sähköposti tai salasana.")
         session["portal_user_id"] = user.id
         audit_record(
             "portal.login.success",
@@ -74,7 +74,7 @@ def login():
 @limiter.limit(
     _login_rate_limit,
     methods=["POST"],
-    error_message="Too many attempts. Please wait and try again.",
+    error_message="Liian monta yritystä. Odota hetki ja yritä uudelleen.",
 )
 def request_magic_link():
     email = (request.form.get("email") or "").strip().lower()
@@ -88,8 +88,8 @@ def request_magic_link():
                 to=email,
                 context={
                     "user_email": email,
-                    "subject_line": "Your Pindora portal magic link",
-                    "message": f"Use this link to sign in: {magic_url}",
+                    "subject_line": "Pindora-portaalin kirjautumislinkki",
+                    "message": f"Kirjaudu sisään tästä linkistä: {magic_url}",
                 },
             )
         except EmailTemplateNotFound:
@@ -106,7 +106,7 @@ def request_magic_link():
             target_id=row.user_id,
             commit=True,
         )
-    flash("If your account exists, a magic link has been sent.")
+    flash("Jos käyttäjätilisi on olemassa, sähköpostiisi lähetettiin kirjautumislinkki.")
     return redirect(url_for("portal.login"))
 
 
@@ -133,7 +133,7 @@ def magic_link_login(token: str):
 @portal_bp.get("/logout")
 def logout():
     session.pop("portal_user_id", None)
-    flash("Logged out.")
+    flash("Olet kirjautunut ulos.")
     return redirect(url_for("portal.login"))
 
 
@@ -199,13 +199,13 @@ def maintenance(user):
                 due_date_raw=(request.form.get("due_date") or "").strip() or None,
             )
         except ValueError:
-            error = "Reservation is required."
+            error = "Varaus on pakollinen."
         except portal_service.PortalServiceError as exc:
             if exc.status == 404:
                 abort(404)
             error = exc.message
         else:
-            flash("Maintenance request created.")
+            flash("Huoltopyyntö luotu.")
             return redirect(url_for("portal.maintenance"))
     rows = portal_service.list_maintenance_requests(
         organization_id=user.organization_id,
@@ -249,7 +249,7 @@ def check_in(token: str):
         return (
             render_template(
                 "portal/checkin.html",
-                error="All fields are required for online check-in.",
+                error="Kaikki kentät ovat pakollisia verkkokirjautumisessa.",
                 access_code=None,
             ),
             400,
@@ -258,7 +258,7 @@ def check_in(token: str):
         dob = date.fromisoformat(dob_raw)
     except ValueError:
         return (
-            render_template("portal/checkin.html", error="Invalid birth date.", access_code=None),
+            render_template("portal/checkin.html", error="Virheellinen syntymäaika.", access_code=None),
             400,
         )
     try:

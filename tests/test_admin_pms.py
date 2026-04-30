@@ -43,7 +43,7 @@ def test_admin_can_open_reservation_creation_form(client, admin_user):
 
     response = client.get("/admin/reservations/new")
     assert response.status_code == 200
-    assert b"Create reservation" in response.data
+    assert b"Uusi varaus" in response.data
 
 
 def test_normal_user_cannot_access_pms_pages(client, regular_user):
@@ -201,7 +201,7 @@ def test_admin_can_open_property_edit_page(client, admin_user):
 
     response = client.get(f"/admin/properties/{prop.id}/edit")
     assert response.status_code == 200
-    assert b"Edit property" in response.data
+    assert b"Muokkaa kohdetta" in response.data
 
 
 def test_admin_can_edit_own_property(client, admin_user):
@@ -260,7 +260,7 @@ def test_admin_can_open_unit_edit_page(client, admin_user):
 
     response = client.get(f"/admin/units/{unit.id}/edit")
     assert response.status_code == 200
-    assert b"Edit unit" in response.data
+    assert b"Muokkaa huonetta" in response.data
 
 
 def test_admin_can_edit_own_unit(client, admin_user):
@@ -423,9 +423,9 @@ def test_admin_can_see_reservation_detail_with_labels(client, admin_user):
     assert b"U9" in page.data
     assert b"2026-05-10" in page.data
     assert b"confirmed" in page.data
-    assert b"Payment status:" in page.data
+    assert b"Maksun tila:" in page.data
     assert b"pending" in page.data
-    assert b"Edit reservation" in page.data
+    assert b"Muokkaa varausta" in page.data
 
 
 def test_admin_cancel_reservation_creates_audit_log(client, admin_user):
@@ -1591,7 +1591,7 @@ def test_admin_can_access_reports_index(client, admin_user):
 
     response = client.get("/admin/reports")
     assert response.status_code == 200
-    assert b"Reports" in response.data
+    assert b"Raportit" in response.data
 
 
 def test_normal_user_cannot_access_reports(client, regular_user):
@@ -1629,9 +1629,9 @@ def test_occupancy_report_calculates_correctly(client, admin_user):
 
     response = client.get("/admin/reports/occupancy?start_date=2026-08-01&end_date=2026-08-04")
     assert response.status_code == 200
-    assert b"Total units" in response.data
+    assert b"Huoneita yhteens\xc3\xa4" in response.data
     assert b">2<" in response.data
-    assert b"Reserved units" in response.data
+    assert b"Varattuja huoneita" in response.data
     assert b">1<" in response.data
     assert b">50.0<" in response.data
 
@@ -1671,11 +1671,11 @@ def test_reservation_report_calculates_confirmed_and_cancelled(client, admin_use
 
     response = client.get("/admin/reports/reservations")
     assert response.status_code == 200
-    assert b"Total reservations" in response.data
+    assert b"Varauksia yhteens\xc3\xa4" in response.data
     assert b">2<" in response.data
-    assert b"Confirmed reservations" in response.data
+    assert b"Vahvistetut varaukset" in response.data
     assert b">1<" in response.data
-    assert b"Cancelled reservations" in response.data
+    assert b"Perutut varaukset" in response.data
     assert b">1<" in response.data
 
 
@@ -1741,7 +1741,7 @@ def test_reports_respect_tenant_isolation(client, admin_user):
     assert occupancy.status_code == 200
     assert b">1<" in occupancy.data
     assert reservation_report.status_code == 200
-    assert b"Total reservations" in reservation_report.data
+    assert b"Varauksia yhteens\xc3\xa4" in reservation_report.data
     assert b">1<" in reservation_report.data
 
 
@@ -1750,7 +1750,7 @@ def test_occupancy_invalid_date_range_is_rejected(client, admin_user):
 
     response = client.get("/admin/reports/occupancy?start_date=2026-08-05&end_date=2026-08-01")
     assert response.status_code == 200
-    assert b"Start date must be before end date." in response.data
+    assert b"Alkup\xc3\xa4iv\xc3\xa4n tulee olla ennen loppup\xc3\xa4iv\xc3\xa4\xc3\xa4." in response.data
 
 
 def test_admin_can_access_calendar(client, admin_user):
@@ -1758,10 +1758,10 @@ def test_admin_can_access_calendar(client, admin_user):
 
     response = client.get("/admin/calendar")
     assert response.status_code == 200
-    assert b"Reservation calendar" in response.data
+    assert b"Varauskalenteri" in response.data
     assert b"fullcalendar" in response.data.lower()
-    assert b"All properties" in response.data
-    assert b"All units" in response.data
+    assert b"Kaikki kohteet" in response.data
+    assert b"Kaikki huoneet" in response.data
 
 
 def test_normal_user_cannot_access_calendar(client, regular_user):
@@ -2176,8 +2176,8 @@ def test_admin_can_open_reservation_edit_page(client, admin_user):
 
     response = client.get(f"/admin/reservations/{res.id}/edit")
     assert response.status_code == 200
-    assert b"Edit reservation" in response.data
-    assert b"Guest name" in response.data
+    assert b"Muokkaa varausta" in response.data
+    assert b"Asiakkaan nimi" in response.data
 
 
 def test_admin_can_update_reservation_via_edit_form(client, admin_user):

@@ -6,7 +6,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.calendar_page') }}">Kalenteri</a>
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Takaisin varauksiin</a>
-    <a class="btn" href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='detail') }}">Edit reservation</a>
+    <a class="btn" href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='detail') }}">Muokkaa varausta</a>
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_invoice_pdf', reservation_id=row.id) }}">Lataa lasku PDF</a>
   </div>
   <h1>Varaus #{{ row.id }}</h1>
@@ -24,7 +24,7 @@
     <p><strong>Tila:</strong> {{ row.status }}</p>
     <p><strong>Summa:</strong> {{ row.amount or "-" }}</p>
     <p><strong>Valuutta:</strong> {{ row.currency }}</p>
-    <p><strong>Payment status:</strong> {{ row.payment_status }}</p>
+    <p><strong>Maksun tila:</strong> {{ row.payment_status }}</p>
     <p><strong>Laskunumero:</strong> {{ row.invoice_number or "-" }}</p>
     <p><strong>Laskun päivä:</strong> {{ row.invoice_date or "-" }}</p>
     <p><strong>Eräpäivä:</strong> {{ row.due_date or "-" }}</p>

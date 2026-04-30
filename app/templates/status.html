@@ -3,25 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Status · Pin PMS</title>
+  <title>Tila · Pin PMS</title>
 </head>
 <body>
-  <h1>Pin PMS status</h1>
-  <p>Tila: <strong style="color:{{ 'red' if has_open_incident else 'green' }};">{{ "Incident open" if has_open_incident else "All systems operational" }}</strong></p>
+  <h1>Pin PMS — palvelun tila</h1>
+  <p>Tila: <strong style="color:{{ 'red' if has_open_incident else 'green' }};">{{ "Häiriö meneillään" if has_open_incident else "Kaikki järjestelmät toiminnassa" }}</strong></p>
 
-  <h2>Komponentit (90d uptime)</h2>
+  <h2>Komponentit (90 vrk käyttöaste)</h2>
   <ul>
     {% for c in payload.components %}
       <li>{{ c.name }} · {{ c.current_state }} · {{ c.uptime_percent }}%</li>
     {% endfor %}
   </ul>
 
-  <h2>Viimeiset incidentit</h2>
+  <h2>Viimeisimmät häiriöt</h2>
   <ul>
     {% for i in payload.incidents %}
       <li>{{ i.started_at }} · {{ i.title }} · {{ i.status }}</li>
     {% else %}
-      <li>Ei incidenttejä.</li>
+      <li>Ei häiriöitä.</li>
     {% endfor %}
   </ul>
 </body>

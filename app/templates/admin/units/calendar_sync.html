@@ -1,9 +1,9 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Calendar sync · Pin PMS{% endblock %}
+{% block title %}Kalenterisynkronointi · Pin PMS{% endblock %}
 
 {% block content %}
-  <h1>Calendar sync for {{ row.name }}</h1>
+  <h1>Kalenterisynkronointi huoneelle {{ row.name }}</h1>
   <p class="meta">Käytä tätä iCal-osoitetta Airbnbn/Booking.comin tuonti-vientiasetuksissa tälle huoneelle.</p>
 
   <section class="card">
@@ -17,7 +17,7 @@
     <form method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>Nimi (valinnainen)<br><input type="text" name="name" placeholder="Booking.com Huone 12"></label><br><br>
-      <label>iCal URL<br><input type="url" name="source_url" required style="min-width: 32rem;"></label><br><br>
+      <label>iCal-URL<br><input type="url" name="source_url" required style="min-width: 32rem;"></label><br><br>
       <button type="submit">Tallenna lähde</button>
     </form>
   </section>

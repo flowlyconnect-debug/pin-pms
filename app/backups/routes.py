@@ -49,11 +49,11 @@ def backups_create():
             trigger=BackupTrigger.MANUAL,
             actor_user_id=current_user.id,
         )
-    except BackupError as err:
-        flash(f"Backup failed: {err}")
+    except BackupError:
+        flash("Varmuuskopiointi epäonnistui.")
         return redirect(url_for("backups_admin.backups_list"))
 
-    flash(f"Backup created: {backup.filename} ({backup.size_human}).")
+    flash(f"Varmuuskopio luotu: {backup.filename} ({backup.size_human}).")
     return redirect(url_for("backups_admin.backups_list"))
 
 
@@ -108,7 +108,7 @@ def backups_restore(backup_id: int):
                 context={"stage": "password"},
                 commit=True,
             )
-            error = "Password did not match."
+            error = "Salasana ei täsmännyt."
         elif not user.totp_secret or not pyotp.TOTP(user.totp_secret).verify(
             totp_code, valid_window=1
         ):
@@ -120,20 +120,20 @@ def backups_restore(backup_id: int):
                 context={"stage": "2fa"},
                 commit=True,
             )
-            error = "Verification code did not match."
+            error = "Vahvistuskoodi ei täsmännyt."
         else:
             try:
                 safe_copy = restore_backup(
                     filename=backup.filename,
                     actor_user_id=current_user.id,
                 )
-            except BackupError as err:
-                flash(f"Restore failed: {err}")
+            except BackupError:
+                flash("Palautus epäonnistui.")
                 return redirect(url_for("backups_admin.backups_list"))
 
             flash(
-                f"Restore complete from {backup.filename}. A safe-copy of the "
-                f"previous state was saved as {safe_copy.filename}."
+                f"Palautus suoritettu varmuuskopiosta {backup.filename}. "
+                f"Edellinen tila tallennettiin turvakopiona nimellä {safe_copy.filename}."
             )
             return redirect(url_for("backups_admin.backups_list"))
 

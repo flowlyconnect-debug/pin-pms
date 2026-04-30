@@ -1,30 +1,30 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Lease #{{ row.id }} · Pindora PMS{% endblock %}
+{% block title %}Vuokrasopimus #{{ row.id }} · Pindora PMS{% endblock %}
 
 {% block content %}
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.leases_list') }}">Takaisin vuokriin</a>
     <a class="btn" href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Muokkaa sopimusta</a>
   </div>
-  <h1>Lease #{{ row.id }}</h1>
+  <h1>Vuokrasopimus #{{ row.id }}</h1>
   <div class="card">
     <p><strong>Tila:</strong> {{ row.status }}</p>
-    <p><strong>Kohde / unit:</strong> {{ row.property_name or "—" }} / {{ row.unit_name or row.unit_id }}</p>
+    <p><strong>Kohde / huone:</strong> {{ row.property_name or "—" }} / {{ row.unit_name or row.unit_id }}</p>
     <p><strong>Asiakas:</strong> {{ row.guest_name or "—" }} (#{{ row.guest_id }})</p>
     {% if row.reservation_id %}
       <p><strong>Varaus:</strong> #{{ row.reservation_id }}</p>
     {% endif %}
     <p><strong>Alku:</strong> {{ row.start_date }}</p>
     <p><strong>Loppu:</strong> {{ row.end_date or "—" }}</p>
-    <p><strong>Rent:</strong> {{ row.rent_amount }}</p>
-    <p><strong>Deposit:</strong> {{ row.deposit_amount }}</p>
+    <p><strong>Vuokra:</strong> {{ row.rent_amount }}</p>
+    <p><strong>Vakuus:</strong> {{ row.deposit_amount }}</p>
     <p><strong>Laskutusjakso:</strong> {{ row.billing_cycle }}</p>
     {% if row.notes %}<p><strong>Huomiot:</strong> {{ row.notes }}</p>{% endif %}
   </div>
 
   {% if row.status == "draft" %}
-    <h2>Activate</h2>
+    <h2>Aktivoi</h2>
     <form method="post" action="{{ url_for('admin.leases_activate', lease_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <p class="meta">Aktivointi tekee vuokrasta aktiivisen ja laskutusvalmiin.</p>
@@ -40,7 +40,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="end_date">Loppupäivä (oletus: tänään, jos tyhjä)</label>
       <input id="end_date" name="end_date" type="date" value="{{ row.end_date or '' }}">
-      <label><input type="checkbox" name="confirm_end" value="yes" required> I confirm ending this lease</label>
+      <label><input type="checkbox" name="confirm_end" value="yes" required> Vahvistan vuokrasopimuksen päättämisen</label>
       <div class="actions">
         <button type="submit" class="btn btn-secondary">Päätä vuokra</button>
       </div>

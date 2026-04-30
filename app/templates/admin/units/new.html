@@ -6,7 +6,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.units_list', property_id=property_row.id) }}">Takaisin huoneisiin</a>
   </div>
-  <h1>Uusi huone for {{ property_row.name }}</h1>
+  <h1>Uusi huone kohteeseen {{ property_row.name }}</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
