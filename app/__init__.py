@@ -23,7 +23,7 @@ from app.core.telemetry import init_tracing
 from app.extensions import cors, csrf, db, limiter, login_manager, migrate
 
 
-def create_app(config_object: str = "config.Config") -> Flask:
+def create_app(config_object: str = "default") -> Flask:
     try:
         from dotenv import load_dotenv
 
