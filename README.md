@@ -312,6 +312,12 @@ Reference Nginx + systemd templates live in `deploy/`. Copy them to the
 host, point them at the project's virtualenv, and adjust hostnames /
 TLS paths. See `deploy/README.md` for step-by-step instructions.
 
+Render start command (runs migrations before serving traffic):
+
+```bash
+python -m flask db upgrade && gunicorn --bind 0.0.0.0:$PORT --workers 3 --access-logfile - --error-logfile - run:app
+```
+
 ## Deployment checklist
 
 - [ ] Set a strong production `SECRET_KEY`

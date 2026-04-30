@@ -16,7 +16,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required, login_user, logout_user
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
@@ -107,7 +107,21 @@ def login():
         try:
             user = authenticate_user(email, password)
         except SQLAlchemyError as exc:
-            current_app.logger.exception("Database error during /login authentication.")
+            log_payload = {
+                "error_type": type(exc).__name__,
+                "email": email,
+                "path": request.path,
+            }
+            if isinstance(exc, DBAPIError):
+                log_payload["dbapi_error"] = str(exc.orig)
+                if exc.statement:
+                    log_payload["statement"] = exc.statement
+                if exc.params:
+                    log_payload["params"] = repr(exc.params)[:500]
+            current_app.logger.exception(
+                "Database error during /login authentication.",
+                extra=log_payload,
+            )
             # Never leak hostnames, usernames, or other connection-string
             # internals to the page — they may identify the production
             # database. Operators can find the full traceback in the logs.
