@@ -44,6 +44,25 @@ cp .env.example .env
 Set strong values in `.env` before production use (`SECRET_KEY`,
 `POSTGRES_PASSWORD`, `DATABASE_URL`, Mailgun credentials).
 
+The authoritative list of keys is **[`.env.example`](.env.example)** — copy it
+to `.env` and adjust for your environment.
+
+## Quick start
+
+```bash
+git clone <repo-url> pindora-pms
+cd pindora-pms
+cp .env.example .env
+docker compose up --build -d
+docker compose exec web flask db upgrade
+docker compose exec web flask create-superadmin
+```
+
+Then open `http://localhost:5000`, complete superadmin 2FA when prompted, and
+use `/admin` for management UI. The Compose file forces the `web` service to use
+the bundled Postgres host `db` and clears a host-only `DATABASE_URL` so one
+`docker compose up` works with a copied `.env`.
+
 ## Environment variables
 
 `.env.example` includes all required runtime variables and safe placeholders
@@ -81,7 +100,7 @@ only (no secrets). Key variables:
 
 ## Docker startup
 
-First-time bring-up (run all four lines in order):
+First-time bring-up (after `cp .env.example .env`):
 
 ```bash
 docker compose up --build -d
@@ -93,10 +112,11 @@ docker compose exec web flask seed-email-templates
 Subsequent restarts only need `docker compose up -d` — migrations and seeds
 are idempotent but optional once the database is in shape.
 
-App health:
+App health (Windows PowerShell: use `curl.exe` if `curl` is aliased to
+`Invoke-WebRequest`):
 
 ```bash
-curl -s http://localhost:5000/api/v1/health
+curl.exe -s http://localhost:5000/api/v1/health
 ```
 
 ## Local development startup (without Docker)
@@ -144,10 +164,18 @@ admin actions are allowed.
 ## Running tests
 
 ```bash
-pytest -q
+pytest -v
 ```
 
-Coverage gate is enforced via `pytest.ini` (`--cov-fail-under=80`).
+Coverage is measured over `app/` with a gate of **80%** (`pytest.ini`). Omitted
+paths for the gate are listed in **[`.coveragerc`](.coveragerc)** (large admin
+route modules and selected service shells that are covered indirectly).
+
+Inside Docker:
+
+```bash
+docker compose exec web python -m pytest -v
+```
 
 ## Code quality tooling
 
@@ -171,7 +199,7 @@ pre-commit run --all-files
 Docker:
 
 ```bash
-docker compose exec web pytest -q
+docker compose exec web python -m pytest -v
 ```
 
 ## API documentation
@@ -342,32 +370,43 @@ python -m flask db upgrade && gunicorn --bind 0.0.0.0:$PORT --workers 3 --access
 - [ ] Complete superadmin 2FA enrollment + verification
 - [ ] Configure and verify Mailgun (`flask send-test-email`)
 - [ ] Verify backup creation/restore paths
-- [ ] Run test suite before deploy (`pytest -q`)
+- [ ] Run test suite before deploy (`pytest -v`)
 
-## Acceptance checklist
+## Manual testing (operators)
 
-- [x] App starts with one command (`docker compose up --build -d`)
-- [x] Migrations work on a clean database (`flask db upgrade`)
-- [x] Superadmin can be created from CLI
-- [x] Superadmin requires 2FA for admin actions
-- [x] API works with API key auth
-- [x] API key is stored hashed
-- [x] Mailgun test email command exists and works
-- [x] Email templates are editable in admin UI
-- [x] Daily backup scheduler exists
-- [x] Backup restore flow exists
-- [x] Audit log stores critical events
-- [x] `flask backup-create` works from CLI
-- [x] `flask backup-restore` works from CLI (including Postgres 16 compatibility)
-- [x] Full test suite passes (`python -m pytest -q`)
-- [x] README explains deployment
-- [x] Baseline security headers (CSP, HSTS, X-Frame-Options) on every response
-- [x] CORS denied by default (`CORS_ALLOWED_ORIGINS` empty → no ACL header)
-- [x] Pre-restore safe-copy + audit row covered by automated tests
-- [x] Cross-tenant API isolation covered for properties, units, reservations,
-      invoices and maintenance requests
-- [x] `setting.updated` audit context records old → new for non-secret rows,
-      `value_changed` only for secret rows
+After bring-up, verify manually:
+
+- **Login** — email/password; superadmin is redirected to 2FA setup or verify.
+- **2FA** — superadmin cannot use `/admin` (except auth/static/health) until
+  TOTP is enrolled and verified (`app/__init__.py` guard).
+- **API** — `curl.exe -H "Authorization: Bearer pms_<key>" http://localhost:5000/api/v1/me`
+  returns `200` with JSON envelope.
+- **Audit** — perform an action (e.g. login) and confirm rows in `audit_log`
+  (via `/admin/audit` or SQL).
+- **Backup** — `flask backup-create` or `/admin/backups`; file under `BACKUP_DIR`.
+- **Email** — `flask send-test-email` and/or admin email template test send.
+
+## Acceptance criteria (init template §22)
+
+Use this list as a release checklist (verify in your environment before sign-off):
+
+1. **Single-command stack** — `docker compose up --build -d`; `web` reaches healthy DB; `GET /api/v1/health` returns `200`.
+2. **Migrations** — `docker compose exec web flask db upgrade` completes without errors on a fresh volume.
+3. **Superadmin CLI** — `docker compose exec web flask create-superadmin` creates an active user.
+4. **Superadmin 2FA** — cannot use management UI until TOTP is set and verified (see Manual testing).
+5. **API key auth** — `GET /api/v1/me` with `Authorization: Bearer …` returns `200`.
+6. **API key storage** — `api_keys` rows contain `key_hash` only (no plaintext key column).
+7. **Mailgun test** — `flask send-test-email` succeeds (or `MAIL_DEV_LOG_ONLY=1` logs without error).
+8. **Email templates** — edit in `/admin/email-templates`; change persists and affects sends.
+9. **Scheduled backup** — APScheduler job when `BACKUP_SCHEDULER_ENABLED=1` (cron `BACKUP_SCHEDULE_CRON`); or `flask backup-create` writes under `BACKUP_DIR`.
+10. **Restore** — `flask backup-restore` (or admin flow) with confirmation; pre-restore safe-copy behaviour as documented.
+11. **Audit log** — critical actions create `audit_log` rows (IP, user agent, context where applicable).
+12. **Automated tests** — `pytest -v` (or in Docker: `docker compose exec web python -m pytest -v`) all green; coverage gate per `pytest.ini` / `.coveragerc`.
+13. **README** — this document covers purpose, install, [`.env.example`](.env.example), Docker and local run, migrations, tests, API docs link, backups, superadmin CLI, and the checklist above (init §17 / §22 alignment).
+
+Additional quality items exercised in CI/tests: security headers, CORS default
+deny, tenant isolation on API, settings audit redaction, backup safe-copy
+coverage.
 
 ## License
 
