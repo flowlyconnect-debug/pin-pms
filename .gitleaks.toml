@@ -1,0 +1,11 @@
+title = "pindora-pms"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic credentials in tests and documented placeholders."
+paths = [
+  "tests/",
+  ".env.example",
+]
