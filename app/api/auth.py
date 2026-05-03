@@ -9,6 +9,7 @@ from functools import wraps
 from typing import Callable, Optional
 
 from flask import after_this_request, g, request
+from sqlalchemy.orm import object_session
 
 from app.api.models import ApiKey
 from app.api.schemas import json_error
@@ -51,13 +52,17 @@ def _extract_raw_key() -> str | None:
 def ensure_api_key_loaded() -> Optional[tuple]:
     """Validate ``Authorization`` / ``X-API-Key``, populate ``g.api_key``, or return a JSON error.
 
-    Idempotent per request: if ``g.api_key`` is already set, returns ``None``.
+    Idempotent per request: if ``g.api_key`` is already loaded for the same raw
+    token and still bound to the active SQLAlchemy session, returns ``None``.
     """
 
-    if getattr(g, "api_key", None) is not None:
-        return None
-
     raw_key = _extract_raw_key()
+    cached = getattr(g, "api_key", None)
+    if cached is not None and raw_key and raw_key == getattr(g, "_api_key_raw_token", None):
+        sess = object_session(cached)
+        if sess is not None and getattr(sess, "is_active", False):
+            return None
+
     if not raw_key:
         return json_error(
             "unauthorized",
@@ -66,8 +71,15 @@ def ensure_api_key_loaded() -> Optional[tuple]:
             status=401,
         )
 
+    g._api_key_raw_token = raw_key
+    g._api_key_usage_scheduled = False
+
     api_key = ApiKey.find_active_by_raw_key(raw_key)
     if api_key is None:
+        g.api_key = None
+        g.api_organization = None
+        g.api_user = None
+        g._api_key_raw_token = None
         return json_error(
             "unauthorized",
             "Invalid, disabled, or expired API key.",
@@ -143,9 +155,8 @@ def scope_required(scope: str):
 
         @wraps(view_func)
         def wrapper(*args, **kwargs):
-            if (
-                request.endpoint == "api.export_unit_calendar_ics"
-                and required_scope == "properties:read"
+            if required_scope == "properties:read" and is_unit_calendar_ics_request_path(
+                request.path
             ):
                 from app.integrations.ical.service import IcalService
 
@@ -154,6 +165,13 @@ def scope_required(scope: str):
                     token = (request.args.get("token") or "").strip()
                     if token:
                         if IcalService().verify_unit_token(unit_id=unit_id, token=token):
+                            # Signed URL auth replaces API-key auth; clear any stale key
+                            # context so the view does not touch a detached ``ApiKey``.
+                            g.pop("api_key", None)
+                            g.pop("api_organization", None)
+                            g.pop("api_user", None)
+                            g.pop("_api_key_raw_token", None)
+                            g.pop("_api_key_usage_scheduled", None)
                             return view_func(*args, **kwargs)
                         return json_error("forbidden", "Invalid calendar token.", status=403)
 

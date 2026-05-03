@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, g, request
+from flask import Blueprint, current_app, request
 
 api_bp = Blueprint("api", __name__)
 
@@ -8,10 +8,27 @@ from app.api import (  # noqa: E402
     routes,  # noqa: E402,F401
 )
 
-from app.api.auth import ensure_api_key_loaded, is_unit_calendar_ics_request_path  # noqa: E402
+from app.api.auth import is_unit_calendar_ics_request_path  # noqa: E402
 from app.api.schemas import json_error  # noqa: E402
 
 _SCOPE_WHITELIST_PATHS = frozenset({"/api/v1/health", "/api/v1/me"})
+
+
+def _lookup_required_scope(view_func):
+    """Find ``_required_scope`` set by ``@scope_required`` through Flask/route wrappers."""
+
+    seen: set[int] = set()
+    func = view_func
+    while func is not None:
+        oid = id(func)
+        if oid in seen:
+            break
+        seen.add(oid)
+        scope = getattr(func, "_required_scope", None)
+        if isinstance(scope, str) and scope.strip():
+            return scope.strip()
+        func = getattr(func, "__wrapped__", None)
+    return None
 
 
 @api_bp.before_request
@@ -29,7 +46,7 @@ def enforce_api_v1_scope_contract():
     if view_func is None:
         return None
 
-    if not hasattr(view_func, "_required_scope"):
+    if _lookup_required_scope(view_func) is None:
         current_app.logger.error(
             "endpoint missing @scope_required",
             extra={
@@ -47,11 +64,8 @@ def enforce_api_v1_scope_contract():
     if is_unit_calendar_ics_request_path(request.path):
         return None
 
-    err = ensure_api_key_loaded()
-    if err is not None:
-        return err
-
-    if not hasattr(g, "api_key") or g.api_key is None:
-        return json_error("unauthorized", "API key authentication is required.", status=401)
+    # Auth + scope enforcement stay in ``@require_api_key`` / ``@scope_required``.
+    # Loading the key here duplicated work and could leave ``g.api_key`` expired
+    # before the view wrappers ran (SQLAlchemy session edge cases in tests).
 
     return None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import app.api as api_package
 import pytest
 
 
@@ -154,7 +155,16 @@ def test_properties_write_scope_for_create(client, regular_user):
 
 def test_guard_returns_500_when_required_scope_attr_removed(app, client, api_key, monkeypatch):
     view_func = app.view_functions["api.list_properties"]
-    monkeypatch.delattr(view_func, "_required_scope", raising=False)
+    func = view_func
+    seen: set[int] = set()
+    while func is not None:
+        oid = id(func)
+        if oid in seen:
+            break
+        seen.add(oid)
+        monkeypatch.delattr(func, "_required_scope", raising=False)
+        func = getattr(func, "__wrapped__", None)
+
     response = client.get("/api/v1/properties?page=1&per_page=5", headers=_auth_headers(api_key.raw))
     assert response.status_code == 500
     body = response.get_json()
@@ -178,7 +188,7 @@ def test_all_api_v1_routes_have_required_scope_or_are_whitelisted(app):
         if view_func is None:
             continue
 
-        if not hasattr(view_func, "_required_scope"):
+        if api_package._lookup_required_scope(view_func) is None:
             missing.append(f"{rule.rule} ({rule.endpoint})")
 
     assert not missing, f"Missing @scope_required on: {missing}"

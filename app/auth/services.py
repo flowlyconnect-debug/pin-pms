@@ -1,13 +1,22 @@
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
-from flask import current_app, request
+import pyotp
+from flask import current_app
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
-from app.auth.models import EMAIL_2FA_TTL, LoginAttempt, TwoFactorEmailCode
+from app.auth.models import (
+    EMAIL_2FA_TTL,
+    PASSWORD_RESET_TTL,
+    LoginAttempt,
+    PasswordResetToken,
+    TwoFactorEmailCode,
+)
 from app.email.models import TemplateKey
-from app.email.services import send_template
+from app.email.services import EmailTemplateNotFound, send_template
 from app.extensions import db
 from app.users.models import User
 
@@ -103,9 +112,17 @@ def _is_locked_out(email: str) -> bool:
 
 
 def _record_login_attempt(email: str, *, success: bool) -> None:
-    ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-    if not ip:
-        ip = request.remote_addr
+    try:
+        from flask import has_request_context, request as flask_request
+
+        if has_request_context():
+            ip = flask_request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            if not ip:
+                ip = flask_request.remote_addr
+        else:
+            ip = None
+    except Exception:
+        ip = None
     db.session.add(LoginAttempt(email=email, ip=ip, success=success))
     db.session.commit()
 
@@ -220,7 +237,6 @@ def send_email_2fa_code(user: User) -> bool:
 
 def cleanup_expired_tokens(*, now: datetime | None = None) -> dict[str, int]:
     """Delete expired token rows used by auth and portal flows."""
-    from app.auth.models import PasswordResetToken
 
     current = now or datetime.now(timezone.utc)
     deleted_password_reset = PasswordResetToken.query.filter(
@@ -246,3 +262,202 @@ def cleanup_expired_tokens(*, now: datetime | None = None) -> dict[str, int]:
         "two_factor_email_codes": int(deleted_email_2fa or 0),
         "portal_magic_link_tokens": int(deleted_portal_magic or 0),
     }
+
+
+# --- Route-facing orchestration (keeps ``auth.routes`` thin) ----------------
+
+
+def authenticate_user_for_login(*, email: str, password: str) -> tuple[User | None, str | None, bool]:
+    """Run :func:`authenticate_user` and map SQLAlchemy failures to a safe page message.
+
+    Returns ``(user, error_message, is_infrastructure_error)``.
+    """
+
+    try:
+        user = authenticate_user(email, password)
+        return user, None, False
+    except SQLAlchemyError as exc:
+        try:
+            from flask import has_request_context, request as flask_request
+
+            path = flask_request.path if has_request_context() else None
+        except Exception:
+            path = None
+        log_payload = {
+            "error_type": type(exc).__name__,
+            "email": email,
+            "path": path,
+        }
+        if isinstance(exc, DBAPIError):
+            log_payload["dbapi_error"] = str(exc.orig)
+            if exc.statement:
+                log_payload["statement"] = exc.statement
+            if exc.params:
+                log_payload["params"] = repr(exc.params)[:500]
+        current_app.logger.exception(
+            "Database error during /login authentication.",
+            extra=log_payload,
+        )
+        if current_app.debug:
+            detail = (
+                f"Kirjautumispalvelu ei ole käytettävissä "
+                f"(DB-virhe: {type(exc).__name__}). Katso lokit."
+            )
+        else:
+            detail = "Kirjautumispalvelu ei ole hetkellisesti käytettävissä. Yritä hetken kuluttua uudelleen."
+        return None, detail, True
+    except Exception as exc:  # noqa: BLE001
+        current_app.logger.exception("Unexpected error during /login authentication.")
+        if current_app.debug:
+            detail = f"Odottamaton virhe ({type(exc).__name__}). Katso lokit."
+        else:
+            detail = "Kirjautumispalvelu ei ole hetkellisesti käytettävissä. Yritä hetken kuluttua uudelleen."
+        return None, detail, True
+
+
+def ensure_superadmin_totp_secret_initialized(user: User) -> None:
+    if not user.totp_secret:
+        user.totp_secret = pyotp.random_base32()
+        db.session.commit()
+
+
+def complete_superadmin_two_factor_setup(
+    *, user: User, code: str
+) -> tuple[bool, list[str] | None]:
+    """Verify TOTP and enable 2FA; returns ``(success, plaintext_backup_codes)``."""
+
+    normalized = (code or "").replace(" ", "").strip()
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(normalized, valid_window=1):
+        audit_record(
+            "auth.2fa.setup_failed",
+            status=AuditStatus.FAILURE,
+            target_type="user",
+            target_id=user.id,
+            commit=True,
+        )
+        return False, None
+
+    user.is_2fa_enabled = True
+    plaintext_codes = user.generate_backup_codes()
+    enable_2fa(user, backup_codes_issued=len(plaintext_codes))
+    db.session.commit()
+    return True, plaintext_codes
+
+
+def regenerate_superadmin_backup_codes(*, user: User) -> list[str]:
+    plaintext_codes = user.generate_backup_codes()
+    audit_record(
+        "auth.2fa.backup_codes_regenerated",
+        status=AuditStatus.SUCCESS,
+        target_type="user",
+        target_id=user.id,
+        context={"count": len(plaintext_codes)},
+    )
+    db.session.commit()
+    return plaintext_codes
+
+
+Superadmin2faVerifyResult = Literal["totp", "backup", "email", "failed"]
+
+
+def verify_superadmin_two_factor_code(*, user: User, code: str) -> Superadmin2faVerifyResult:
+    normalized = (code or "").replace(" ", "").strip()
+    totp = pyotp.TOTP(user.totp_secret)
+    if totp.verify(normalized, valid_window=1):
+        audit_record(
+            "auth.2fa.verified",
+            status=AuditStatus.SUCCESS,
+            target_type="user",
+            target_id=user.id,
+            commit=True,
+        )
+        return "totp"
+
+    if user.consume_backup_code(normalized):
+        audit_record(
+            "auth.2fa.backup_code_used",
+            status=AuditStatus.SUCCESS,
+            target_type="user",
+            target_id=user.id,
+            context={"codes_remaining": user.backup_codes_remaining},
+            commit=True,
+        )
+        return "backup"
+
+    if TwoFactorEmailCode.consume_active_code(user_id=user.id, raw_code=normalized):
+        audit_record(
+            "2fa.email_code_used",
+            status=AuditStatus.SUCCESS,
+            organization_id=user.organization_id,
+            target_type="user",
+            target_id=user.id,
+        )
+        db.session.commit()
+        return "email"
+
+    return "failed"
+
+
+def request_password_reset(*, email: str) -> None:
+    """Issue reset token when eligible, send email, write audit (same UX for unknown emails)."""
+
+    if not email:
+        return
+    user = User.query.filter_by(email=email).first()
+    if user is not None and user.is_active:
+        token_row, raw_token = PasswordResetToken.issue(user_id=user.id)
+        db.session.add(token_row)
+        db.session.commit()
+
+        from flask import url_for
+
+        reset_url = url_for("auth.reset_password", token=raw_token, _external=True)
+        try:
+            send_template(
+                TemplateKey.PASSWORD_RESET,
+                to=user.email,
+                context={
+                    "user_email": user.email,
+                    "reset_url": reset_url,
+                    "expires_minutes": int(PASSWORD_RESET_TTL.total_seconds() // 60),
+                },
+            )
+        except EmailTemplateNotFound:
+            current_app.logger.warning("password_reset template not seeded")
+        audit_record(
+            "auth.password.reset_requested",
+            status=AuditStatus.SUCCESS,
+            actor_type=ActorType.USER,
+            actor_id=user.id,
+            actor_email=user.email,
+            target_type="user",
+            target_id=user.id,
+            commit=True,
+        )
+    else:
+        audit_record(
+            "auth.password.reset_requested",
+            status=AuditStatus.FAILURE,
+            actor_type=ActorType.ANONYMOUS,
+            actor_email=email,
+            commit=True,
+        )
+
+
+def complete_password_reset_after_validation(*, row: PasswordResetToken, password: str) -> None:
+    user = row.user
+    user.set_password(password)
+    row.mark_used()
+    audit_record(
+        "auth.password.changed",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.USER,
+        actor_id=user.id,
+        actor_email=user.email,
+        target_type="user",
+        target_id=user.id,
+        context={"via": "reset_token"},
+        commit=False,
+    )
+    db.session.commit()

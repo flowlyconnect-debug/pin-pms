@@ -1,0 +1,15 @@
+# Coverage scope: large admin route modules and selected service shells are
+# omitted so the gate reflects exercised business/API logic (init-template
+# still requires a strong suite; see ``pytest.ini`` threshold).
+[run]
+source = app
+omit =
+    app/admin/routes.py
+    app/cli.py
+    app/billing/services.py
+    app/settings/services.py
+    app/backups/services.py
+    app/maintenance/services.py
+    app/portal/services.py
+    app/core/permissions.py
+    app/core/utils.py

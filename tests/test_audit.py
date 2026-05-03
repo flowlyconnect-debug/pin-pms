@@ -335,7 +335,7 @@ def test_audit_backup_created_and_restored(app, monkeypatch, tmp_path):
 
     with app.test_request_context("/", environ_overrides=_ENV):
         monkeypatch.setattr("app.backups.services.subprocess.Popen", _FakeCreateBackupPopen)
-        backup = create_backup(trigger=BackupTrigger.MANUAL, actor_user_id=1)
+        backup = create_backup(trigger=BackupTrigger.MANUAL, actor_user_id=None)
     assert backup.status == BackupStatus.SUCCESS
     created = AuditLog.query.filter_by(action="backup.created").order_by(AuditLog.id.desc()).first()
     assert created is not None
@@ -355,7 +355,7 @@ def test_audit_backup_created_and_restored(app, monkeypatch, tmp_path):
     )
 
     with app.test_request_context("/", environ_overrides=_ENV):
-        _ = restore_backup(filename=restore_file.name, actor_user_id=2)
+        _ = restore_backup(filename=restore_file.name, actor_user_id=None)
     restored = AuditLog.query.filter_by(action="backup.restored").order_by(AuditLog.id.desc()).first()
     assert restored is not None
     _assert_request_audit_fields(restored)

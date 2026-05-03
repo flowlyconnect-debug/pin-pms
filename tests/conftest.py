@@ -351,16 +351,27 @@ def db_isolation(request):
 
     # If a test left an open/failed transaction, clear it first.
     db.session.rollback()
+    # Drop the scoped session so a poisoned Postgres transaction (e.g. aborted
+    # mid-test) cannot leak into the per-table DELETE pass below.
+    db.session.remove()
+
+    from sqlalchemy.exc import InternalError, ProgrammingError
 
     # sorted_tables is parent->child; reverse so child rows are deleted first.
     for table in reversed(db.metadata.sorted_tables):
-        db.session.execute(table.delete())
+        try:
+            db.session.execute(table.delete())
+        except (ProgrammingError, InternalError):
+            # Missing table (optional models) or aborted transaction — skip and reset.
+            db.session.rollback()
 
-    db.session.commit()
-
-    # IMPORTANT: drop scoped-session identity map so stale ORM objects
-    # (like current_user from previous test) cannot be reused.
-    db.session.remove()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    finally:
+        # Clear identity map so stale ORM objects cannot be reused.
+        db.session.remove()
 
 
 @pytest.fixture

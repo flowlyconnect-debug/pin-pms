@@ -6,13 +6,21 @@ services:
     container_name: pindora-web
     env_file:
       - .env
+    # Local stack: always talk to the Compose ``db`` service on port 5432.
+    # A copied ``.env`` often has ``POSTGRES_HOST=127.0.0.1`` or a host ``DATABASE_URL``,
+    # which breaks *inside* the web container — these entries override ``env_file``.
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      DATABASE_URL: ""
     # Override the image's production CMD (gunicorn) with Flask's dev server
     # so local changes auto-reload. Remove this block to mimic production.
     command: ["flask", "run", "--host=0.0.0.0", "--port=5000", "--debug"]
     ports:
       - "5000:5000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - .:/app
       # Persist database backups outside the container so they survive
@@ -26,6 +34,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
     # Host port 5433 avoids clashing with a local PostgreSQL install on :5432.
     ports:
       - "5433:5432"

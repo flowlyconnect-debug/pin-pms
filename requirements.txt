@@ -10,6 +10,7 @@ psycopg2-binary
 python-dotenv
 gunicorn
 pytest
+pytest-cov
 pyotp
 qrcode
 requests

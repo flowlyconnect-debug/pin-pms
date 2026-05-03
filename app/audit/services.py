@@ -169,11 +169,11 @@ def record(
             final_ua = user_agent
 
         merged_context: Optional[dict[str, Any]] = None
-        if metadata or context:
+        if metadata is not None or context is not None:
             merged_context = {}
-            if metadata:
+            if metadata is not None:
                 merged_context.update(dict(metadata))
-            if context:
+            if context is not None:
                 merged_context.update(dict(context))
 
         entry = AuditLog(
