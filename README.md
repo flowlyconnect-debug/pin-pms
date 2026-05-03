@@ -154,7 +154,19 @@ Coverage gate is enforced via `pytest.ini` (`--cov-fail-under=80`).
 - Type checking: `mypy app/` (gradual strict rollout tracked in `docs/typing_progress.md`)
 - Linting: `ruff check app/ tests/`
 - Formatting: `black --check app/ tests/`
-- Optional hooks: `pre-commit install`
+
+### Pre-commit (ruff, black, gitleaks)
+
+Install once per clone and wire Git hooks:
+
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files
+```
+
+`gitleaks` scans commits for accidental secrets; allowlists for `tests/` and
+`.env.example` live in `.gitleaks.toml`.
 
 Docker:
 

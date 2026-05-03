@@ -34,6 +34,11 @@ from app.admin.forms import (
     UserEditForm,
 )
 from app.api.models import ApiKey, ApiKeyUsage
+from app.api.services import (
+    audit_admin_api_key_created,
+    audit_admin_api_key_deleted,
+    audit_admin_api_key_toggle,
+)
 from app.api.schemas import json_error, json_ok
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditLog, AuditStatus
@@ -41,7 +46,7 @@ from app.auth.models import TwoFactorEmailCode
 from app.auth.routes import require_superadmin_2fa
 from app.billing import services as billing_service
 from app.email.models import EmailTemplate
-from app.email.services import EmailServiceError
+from app.email.services import EmailServiceError, update_email_template_admin
 from app.extensions import db
 from app.guests import services as guest_service
 from app.integrations.ical.models import ImportedCalendarFeed
@@ -1810,21 +1815,12 @@ def email_template_edit(key: str):
         form.body_html.data = template.effective_html_content or ""
     if request.method == "POST":
         if form.validate():
-            normalized_html: str | None = (form.body_html.data or "").strip() or None
-            template.subject = form.subject.data.strip()
-            template.body_text = form.body_text.data
-            template.body_html = normalized_html
-            template.text_content = form.body_text.data
-            template.html_content = normalized_html
-            template.updated_by_id = current_user.id
-            db.session.commit()
-            audit_record(
-                "email_template.updated",
-                status=AuditStatus.SUCCESS,
-                target_type="email_template",
-                target_id=template.id,
-                context={"key": template.key},
-                commit=True,
+            update_email_template_admin(
+                template=template,
+                subject=form.subject.data.strip(),
+                body_text=form.body_text.data,
+                body_html=(form.body_html.data or "").strip() or None,
+                actor_id=current_user.id,
             )
             flash("Pohja tallennettu.")
             return redirect(url_for("admin.email_template_edit", key=key))
@@ -2429,20 +2425,10 @@ def api_keys_new():
             )
             db.session.add(api_key)
             db.session.flush()
-            audit_record(
-                "apikey.created",
-                status=AuditStatus.SUCCESS,
-                actor_type=ActorType.USER,
+            audit_admin_api_key_created(
+                api_key=api_key,
                 actor_id=current_user.id,
                 actor_email=current_user.email,
-                target_type="api_key",
-                target_id=api_key.id,
-                context={
-                    "name": api_key.name,
-                    "prefix": api_key.key_prefix,
-                    "scopes": api_key.scope_list,
-                },
-                commit=True,
             )
             flash("API-avain luotu. Selväkielinen avain näytetään alla vain kerran — kopioi se heti.")
             return redirect(url_for("admin.api_keys_list", show_raw=raw_key))
@@ -2463,16 +2449,10 @@ def api_keys_new():
 def api_keys_toggle_active(key_id: int):
     api_key = ApiKey.query.get_or_404(key_id)
     api_key.is_active = not api_key.is_active
-    audit_record(
-        "apikey.active_toggled",
-        status=AuditStatus.SUCCESS,
-        actor_type=ActorType.USER,
+    audit_admin_api_key_toggle(
+        api_key=api_key,
         actor_id=current_user.id,
         actor_email=current_user.email,
-        target_type="api_key",
-        target_id=api_key.id,
-        context={"is_active": api_key.is_active, "prefix": api_key.key_prefix},
-        commit=True,
     )
     flash(
         f"API-avain {api_key.key_prefix} on nyt "
@@ -2486,18 +2466,14 @@ def api_keys_toggle_active(key_id: int):
 def api_keys_delete(key_id: int):
     api_key = ApiKey.query.get_or_404(key_id)
     prefix = api_key.key_prefix
-    db.session.delete(api_key)
-    audit_record(
-        "apikey.deleted",
-        status=AuditStatus.SUCCESS,
-        actor_type=ActorType.USER,
+    audit_admin_api_key_deleted(
+        key_id=key_id,
+        prefix=prefix,
         actor_id=current_user.id,
         actor_email=current_user.email,
-        target_type="api_key",
-        target_id=key_id,
-        context={"prefix": prefix},
-        commit=True,
     )
+    db.session.delete(api_key)
+    db.session.commit()
     flash(f"API-avain {prefix} poistettu.")
     return redirect(url_for("admin.api_keys_list"))
 

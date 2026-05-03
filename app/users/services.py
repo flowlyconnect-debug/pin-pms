@@ -172,7 +172,7 @@ def update_user_role(
 
     user.role = nr
     audit_record(
-        "role_changed",
+        "user.role_changed",
         status=AuditStatus.SUCCESS,
         actor_type=actor_type or ActorType.SYSTEM,
         actor_id=actor_id,
@@ -286,7 +286,7 @@ def change_password(
         target_type="user",
         target_id=user.id,
         context={
-            "via": ("admin" if (actor_type or ActorType.SYSTEM) == ActorType.USER else "service")
+            "via": ("admin" if (actor_type or ActorType.SYSTEM) == ActorType.USER else "service"),
         },
     )
     if commit:

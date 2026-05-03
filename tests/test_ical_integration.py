@@ -94,6 +94,46 @@ def test_export_unit_calendar_requires_signed_token(client, admin_user):
     assert b"reservation-" in ok.data
 
 
+def test_export_unit_calendar_accepts_api_key_with_properties_read(client, organization, regular_user):
+    from app.api.models import ApiKey
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    prop = Property(organization_id=organization.id, name="ICS API", address="A")
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="U-api", unit_type="studio")
+    db.session.add(unit)
+    db.session.flush()
+    db.session.add(
+        Reservation(
+            unit_id=unit.id,
+            guest_name="API guest",
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 3),
+            status="confirmed",
+            currency="EUR",
+            payment_status="pending",
+        )
+    )
+    key, raw = ApiKey.issue(
+        name="ical api",
+        organization_id=organization.id,
+        user_id=regular_user.id,
+        scopes="properties:read",
+    )
+    db.session.add(key)
+    db.session.commit()
+
+    ok = client.get(
+        f"/api/v1/units/{unit.id}/calendar.ics",
+        headers={"Authorization": f"Bearer {raw}"},
+    )
+    assert ok.status_code == 200
+    assert b"BEGIN:VCALENDAR" in ok.data
+
+
 def test_admin_calendar_sync_page_and_import_conflict(client, admin_user):
     from app.extensions import db
     from app.organizations.models import Organization

@@ -17,6 +17,7 @@ from app.billing import services as billing_service
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
 from app.properties import services as property_service
+from app.properties.models import Property, Unit
 from app.reservations import services as reservation_service
 from app.status.service import readiness_status
 
@@ -29,6 +30,8 @@ def api_health():
 
 
 @api_bp.get("/health/ready")
+@require_api_key
+@scope_required("reports:read")
 def api_health_ready():
     payload = readiness_status(current_app)
     status = 200 if payload["ok"] else 503
@@ -195,12 +198,22 @@ def create_unit(property_id: int):
 
 
 @api_bp.get("/units/<int:unit_id>/calendar.ics")
+@scope_required("properties:read")
 def export_unit_calendar_ics(unit_id: int):
-    token = (request.args.get("token") or "").strip()
+    api_key = getattr(g, "api_key", None)
+    if api_key is not None:
+        row = (
+            Unit.query.join(Property, Unit.property_id == Property.id)
+            .filter(
+                Unit.id == unit_id,
+                Property.organization_id == api_key.organization_id,
+            )
+            .first()
+        )
+        if row is None:
+            return json_error("not_found", "Unit not found.", status=404)
     service = IcalService()
     try:
-        if not service.verify_unit_token(unit_id=unit_id, token=token):
-            return json_error("forbidden", "Invalid calendar token.", status=403)
         payload = service.export_unit_calendar(unit_id=unit_id)
     except IcalServiceError as err:
         return json_error(err.code, err.message, status=err.status)

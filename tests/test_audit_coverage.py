@@ -37,8 +37,8 @@ def test_auth_login_logout_and_login_failed_audit(client, regular_user):
     _ = _login(client, email=regular_user.email, password="wrong-password")
 
     assert AuditLog.query.filter_by(action="login").first() is not None
-    assert AuditLog.query.filter_by(action="logout").first() is not None
-    assert AuditLog.query.filter_by(action="login_failed").first() is not None
+    assert AuditLog.query.filter_by(action="auth.logout").first() is not None
+    assert AuditLog.query.filter_by(action="auth.login_failed").first() is not None
 
 
 def test_auth_2fa_enabled_and_disabled_audit(client, superadmin):
@@ -84,9 +84,9 @@ def test_user_and_setting_audit_actions(organization):
 
     assert AuditLog.query.filter_by(action="user.created").first() is not None
     assert AuditLog.query.filter_by(action="password_changed").first() is not None
-    assert AuditLog.query.filter_by(action="role_changed").first() is not None
+    assert AuditLog.query.filter_by(action="user.role_changed").first() is not None
     assert AuditLog.query.filter_by(action="user.deleted").first() is not None
-    assert AuditLog.query.filter_by(action="setting.updated").first() is not None
+    assert AuditLog.query.filter_by(action="settings.update").first() is not None
 
 
 def test_apikey_and_email_template_audit_actions(client, superadmin, regular_user):
@@ -140,7 +140,7 @@ def test_apikey_and_email_template_audit_actions(client, superadmin, regular_use
     )
     assert edit_response.status_code == 302
     db.session.rollback()
-    assert AuditLog.query.filter_by(action="email_template.updated").first() is not None
+    assert AuditLog.query.filter_by(action="email_template.update").first() is not None
 
 
 def test_apikey_rotated_cli_audit(app, regular_user):
@@ -158,9 +158,11 @@ def test_apikey_rotated_cli_audit(app, regular_user):
     db.session.commit()
 
     runner = app.test_cli_runner()
-    result = runner.invoke(args=["rotate-api-key"], input=f"{key.key_prefix}\n")
+    result = runner.invoke(
+        args=["rotate-api-key", "--key-id", str(key.id), "--reason", "audit coverage"],
+    )
     assert result.exit_code == 0
-    assert AuditLog.query.filter_by(action="apikey.rotated").first() is not None
+    assert AuditLog.query.filter_by(action="api_key.rotated").first() is not None
 
 
 class _FakeCreateBackupPopen:

@@ -13,4 +13,4 @@ throughout the app. Import routes at the bottom so the admin blueprint can
 attach views without creating a circular import.
 """
 
-from app.audit.services import record  # noqa: F401
+from app.audit.services import audit_record, record  # noqa: F401

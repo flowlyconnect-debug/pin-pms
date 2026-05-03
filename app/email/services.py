@@ -318,6 +318,39 @@ def _send_rendered(*, key: str, to: str, rendered) -> bool:
     return True
 
 
+def update_email_template_admin(
+    *,
+    template: EmailTemplate,
+    subject: str,
+    body_text: str,
+    body_html: str | None,
+    actor_id: int,
+) -> None:
+    """Persist superadmin edits to a template row and write the audit event."""
+
+    from app.audit.models import ActorType
+
+    normalized_html = (body_html or "").strip() or None
+    template.subject = subject.strip()
+    template.body_text = body_text
+    template.body_html = normalized_html
+    template.text_content = body_text
+    template.html_content = normalized_html
+    template.updated_by_id = actor_id
+    db.session.commit()
+
+    audit_record(
+        "email_template.update",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.USER,
+        actor_id=actor_id,
+        target_type="email_template",
+        target_id=template.id,
+        context={"template_key": template.key},
+        commit=True,
+    )
+
+
 def ensure_seed_templates() -> None:
     """Insert any missing default templates.
 

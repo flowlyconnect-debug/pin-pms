@@ -110,11 +110,19 @@ def _resolve_request_metadata() -> tuple[Optional[str], Optional[str]]:
     forwarded = request.headers.get("X-Forwarded-For", "")
     ip = forwarded.split(",")[0].strip() if forwarded else (request.remote_addr or None)
 
-    user_agent = request.headers.get("User-Agent", None)
+    user_agent: Optional[str] = None
+    ua_obj = getattr(request, "user_agent", None)
+    if ua_obj is not None:
+        user_agent = getattr(ua_obj, "string", None) or None
+    if not user_agent:
+        user_agent = request.headers.get("User-Agent", None)
     if user_agent is not None and len(user_agent) > 512:
         user_agent = user_agent[:512]
 
     return ip, user_agent
+
+
+_UNSET = object()
 
 
 def record(
@@ -128,6 +136,9 @@ def record(
     target_type: Optional[str] = None,
     target_id: Optional[int] = None,
     context: Optional[Mapping[str, Any]] = None,
+    metadata: Optional[Mapping[str, Any]] = None,
+    ip_address: Any = _UNSET,
+    user_agent: Any = _UNSET,
     commit: bool = False,
 ) -> Optional[AuditLog]:
     """Insert an audit row. Safe to call from anywhere.
@@ -137,11 +148,33 @@ def record(
     ``current_user``, or anonymous request). Explicit values always win so
     CLI commands can audit a user they are creating even though the CLI
     itself has no logged-in actor.
+
+    ``metadata`` is merged into ``context`` (``context`` wins on key clashes).
+    Pass ``ip_address`` / ``user_agent`` explicitly to override request-derived
+    values; use ``None`` to force blank when you intentionally skip request
+    metadata.
     """
 
     try:
         resolved_type, resolved_id, resolved_email, resolved_org = _resolve_actor()
-        ip, user_agent = _resolve_request_metadata()
+        resolved_ip, resolved_ua = _resolve_request_metadata()
+
+        if ip_address is _UNSET:
+            final_ip = resolved_ip
+        else:
+            final_ip = ip_address
+        if user_agent is _UNSET:
+            final_ua = resolved_ua
+        else:
+            final_ua = user_agent
+
+        merged_context: Optional[dict[str, Any]] = None
+        if metadata or context:
+            merged_context = {}
+            if metadata:
+                merged_context.update(dict(metadata))
+            if context:
+                merged_context.update(dict(context))
 
         entry = AuditLog(
             action=action,
@@ -152,9 +185,9 @@ def record(
             organization_id=(organization_id if organization_id is not None else resolved_org),
             target_type=target_type,
             target_id=target_id,
-            ip_address=ip,
-            user_agent=user_agent,
-            context=dict(context) if context else None,
+            ip_address=final_ip,
+            user_agent=final_ua,
+            context=merged_context,
         )
 
         db.session.add(entry)
@@ -192,3 +225,7 @@ def vacuum_audit_logs(*, keep_days: int) -> int:
         commit=True,
     )
     return int(deleted or 0)
+
+
+# Alias used across the codebase (`from app.audit import record as audit_record`).
+audit_record = record

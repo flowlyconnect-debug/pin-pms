@@ -18,6 +18,25 @@ _DB_ENV_KEYS = frozenset(
     }
 )
 
+_DEV_LOCAL_DB_PASSWORD = "dev-only-insecure-local-postgres-password"
+
+
+def require_env(name: str) -> str:
+    """Return a non-empty environment value or raise (used for production secrets)."""
+
+    value = os.getenv(name)
+    if value is None or str(value).strip() == "":
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return str(value).strip()
+
+
+def apply_production_config(config: dict) -> None:
+    """Set required production secrets on ``config`` (no silent dev fallbacks)."""
+
+    config["SECRET_KEY"] = require_env("SECRET_KEY")
+    config["SQLALCHEMY_DATABASE_URI"] = require_env("DATABASE_URL")
+    config["MAILGUN_API_KEY"] = require_env("MAILGUN_API_KEY")
+
 
 def _running_in_docker() -> bool:
     """Best-effort detection for container runtime."""
@@ -151,13 +170,13 @@ def _default_database_url() -> str:
         port=port,
     )
     user = _db_get("POSTGRES_USER", "postgres") or "postgres"
-    password = _db_get("POSTGRES_PASSWORD", "postgres") or "postgres"
-    if (password or "").strip().lower() in {
+    password = (_db_get("POSTGRES_PASSWORD") or "").strip()
+    if not password or password.lower() in {
         "replace-with-strong-password",
         "replace_me",
         "changeme",
     }:
-        password = "postgres"
+        password = _DEV_LOCAL_DB_PASSWORD
     database = _db_get("POSTGRES_DB", "pindora") or "pindora"
     return (
         f"postgresql+psycopg2://{quote_plus(user)}:{quote_plus(password)}"
@@ -171,13 +190,13 @@ def _unmask_placeholder_database_url(url: str) -> str:
     lower = url.lower()
     if ":***@" not in url and ":%2a%2a%2a@" not in lower:
         return url
-    password = _db_get("POSTGRES_PASSWORD") or "postgres"
-    if (password or "").strip().lower() in {
+    password = (_db_get("POSTGRES_PASSWORD") or "").strip()
+    if not password or password.lower() in {
         "replace-with-strong-password",
         "replace_me",
         "changeme",
     }:
-        password = "postgres"
+        password = _DEV_LOCAL_DB_PASSWORD
     quoted = quote_plus(password)
     out = url.replace(":***@", f":{quoted}@")
     out = out.replace(":%2A%2A%2A@", f":{quoted}@")
@@ -191,7 +210,10 @@ def _resolved_database_url() -> str:
         raw = _default_database_url()
         raw = _coerce_database_url_host(raw)
     else:
-        raw = explicit.replace(":replace-with-strong-password@", ":postgres@")
+        raw = explicit.replace(
+            ":replace-with-strong-password@",
+            f":{quote_plus(_DEV_LOCAL_DB_PASSWORD)}@",
+        )
         raw = _unmask_placeholder_database_url(raw)
     return _apply_postgres_port_env(raw)
 
@@ -297,9 +319,12 @@ class DevelopmentConfig(BaseConfig):
     # Flask sessions, CSRF (e.g. login form), and Flask-Login need a key. Without
     # this, GET /login raises RuntimeError when SECRET_KEY is unset in the env.
     SECRET_KEY = os.getenv("SECRET_KEY") or "dev-only-insecure-secret-change-me"
+    MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY", "dev-only-insecure-mailgun-api-key")
 
 
 class ProductionConfig(BaseConfig):
+    """Production: required secrets are applied in ``create_app`` via ``apply_production_config``."""
+
     DEBUG = False
     SESSION_COOKIE_SECURE = True
 

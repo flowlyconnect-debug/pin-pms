@@ -9,13 +9,18 @@ import structlog
 from flask import Flask, g, has_request_context, request
 from flask_login import current_user
 
-_SECRET_PATTERNS = [
-    re.compile(r"(password\s*[:=]\s*)([^\s,;]+)", re.IGNORECASE),
-    re.compile(r"(api[_-]?key\s*[:=]\s*)([^\s,;]+)", re.IGNORECASE),
-    re.compile(r"(authorization\s*:\s*bearer\s+)([^\s,;]+)", re.IGNORECASE),
-    re.compile(r"(x-api-key\s*:\s*)([^\s,;]+)", re.IGNORECASE),
-    re.compile(r"(secret\s*[:=]\s*)([^\s,;]+)", re.IGNORECASE),
-]
+# Log message redaction: key=value, key: value, and Authorization Bearer …
+# (?<![\w]) avoids matching e.g. ``secret`` inside unrelated identifiers.
+_PAIR_KEYS = r"(?:password|token|api[_-]?key|secret|x-api-key)"
+_PAIR_RE = re.compile(
+    rf"(?i)(?<![\w])(?P<key>{_PAIR_KEYS})\s*[:=]\s*(?P<val>[^\s,;]+)",
+    re.IGNORECASE,
+)
+_AUTH_RE = re.compile(
+    r"(?i)(?<![\w])(?P<key>authorization)\s*[:=]\s*(?:Bearer\s+)?(?P<val>[^\s,;]+)",
+    re.IGNORECASE,
+)
+
 _SECRET_KEYS = {
     "password",
     "api_key",
@@ -26,20 +31,32 @@ _SECRET_KEYS = {
 }
 
 
-class SecretRedactingFilter(logging.Filter):
+def redact(message: str) -> str:
+    """Mask sensitive ``key=value`` / ``key: value`` fragments in a log line."""
+
+    out = _PAIR_RE.sub(lambda m: f"{m.group('key')}=***", message)
+    out = _AUTH_RE.sub(lambda m: f"{m.group('key')}=***", out)
+    return out
+
+
+class RedactingFilter(logging.Filter):
+    """Strip secrets from log ``record.msg`` / ``record.args`` before formatting."""
+
     def filter(self, record: LogRecord) -> bool:
         try:
             message = record.getMessage()
         except Exception:
             return True
-        redacted = message
-        for pattern in _SECRET_PATTERNS:
-            redacted = pattern.sub(r"\1<redacted>", redacted)
+        redacted = redact(message)
         if redacted != message:
             record.msg = redacted
             record.args = ()
         record.__dict__ = _redact_secret_context(record.__dict__)
         return True
+
+
+# Backwards-compatible name
+SecretRedactingFilter = RedactingFilter
 
 
 def _redact_secret_context(payload: Any) -> Any:
@@ -48,6 +65,11 @@ def _redact_secret_context(payload: Any) -> Any:
         out: dict[Any, Any] = {}
         for key, value in payload.items():
             key_lower = str(key).lower()
+            # Do not walk stdlib ``LogRecord.args`` as a generic sequence: it must
+            # stay a tuple of the correct arity for %-format ``record.msg``.
+            if key_lower == "args":
+                out[key] = value
+                continue
             if key_lower in _SECRET_KEYS:
                 out[key] = "<redacted>"
                 continue
@@ -59,10 +81,7 @@ def _redact_secret_context(payload: Any) -> Any:
     if isinstance(payload, Sequence) and not isinstance(payload, (str, bytes, bytearray)):
         return [_redact_secret_context(item) for item in payload]
     if isinstance(payload, str):
-        redacted = payload
-        for pattern in _SECRET_PATTERNS:
-            redacted = pattern.sub(r"\1<redacted>", redacted)
-        return redacted
+        return redact(payload)
     return payload
 
 
@@ -126,7 +145,7 @@ def configure_logging(app: Flask) -> None:
 
     handler = StreamHandler()
     handler.setLevel(level)
-    handler.addFilter(SecretRedactingFilter())
+    handler.addFilter(RedactingFilter())
     handler.setFormatter(
         structlog.stdlib.ProcessorFormatter(
             processor=structlog.processors.JSONRenderer(),

@@ -43,7 +43,12 @@ def _bootstrap_two_orgs():
             name=f"{name} key",
             organization_id=org.id,
             user_id=user.id,
-            scopes="",
+            scopes=(
+                "reservations:read,reservations:write,"
+                "invoices:read,invoices:write,guests:read,guests:write,"
+                "properties:read,properties:write,maintenance:read,maintenance:write,"
+                "reports:read"
+            ),
         )
         db.session.add(key)
         return org, user, raw

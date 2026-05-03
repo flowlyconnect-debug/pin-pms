@@ -77,6 +77,7 @@ class ApiKey(db.Model):
     key_hash = db.Column(db.String(128), nullable=False, unique=True, index=True)
     scopes = db.Column(db.String(512), nullable=False, default="")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    rotated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     expires_at = db.Column(db.DateTime(timezone=True), nullable=True)
     last_used_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(

@@ -51,9 +51,10 @@ def test_client_create_access_code_uses_requests(monkeypatch):
 
 
 def test_client_verifies_webhook_signature(app):
-    app.config["PINDORA_LOCK_WEBHOOK_SECRET"] = "whsec_123"
+    webhook_signing_key = "test-only-lock-webhook-hmac-secret"
+    app.config["PINDORA_LOCK_WEBHOOK_SECRET"] = webhook_signing_key
     payload = b'{"event":"code.revoked"}'
-    digest = hmac.new(b"whsec_123", payload, hashlib.sha256).hexdigest()
+    digest = hmac.new(webhook_signing_key.encode("utf-8"), payload, hashlib.sha256).hexdigest()
     client = PindoraLockClient(base_url="https://lock.example", api_key="secret")
     assert client.verify_webhook_signature(payload=payload, signature=digest) is True
     assert client.verify_webhook_signature(payload=payload, signature="bad") is False

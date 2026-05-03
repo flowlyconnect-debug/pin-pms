@@ -38,7 +38,7 @@ def billing_api_key(regular_user):
         name="Billing key",
         organization_id=regular_user.organization_id,
         user_id=regular_user.id,
-        scopes="",
+        scopes="invoices:read,invoices:write",
     )
     db.session.add(key)
     db.session.commit()

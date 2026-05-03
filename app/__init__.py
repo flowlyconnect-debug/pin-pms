@@ -39,13 +39,14 @@ def create_app(config_object: str = "default") -> Flask:
     else:
         app.config.from_object(selected_config)
 
-    if not app.config.get("TESTING"):
+    if selected_config == "production":
+        from app.config import apply_production_config
+
+        apply_production_config(app.config)
+    elif not app.config.get("TESTING"):
         from app.config import _resolved_database_url
 
         app.config["SQLALCHEMY_DATABASE_URI"] = _resolved_database_url()
-
-    if selected_config == "production" and not app.config.get("SECRET_KEY"):
-        raise RuntimeError("SECRET_KEY must be set in production.")
 
     _init_sentry(app)
     configure_logging(app)

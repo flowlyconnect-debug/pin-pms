@@ -23,7 +23,7 @@ from app.audit.models import ActorType, AuditStatus
 from app.auth.forms import ResetPasswordForm
 from app.auth.models import PASSWORD_RESET_TTL, PasswordResetToken, TwoFactorEmailCode
 from app.auth.services import (
-    audit_login_failed,
+    audit_login_failed_2fa,
     audit_login_success,
     audit_logout,
     authenticate_user,
@@ -156,7 +156,6 @@ def login():
             next_url = _safe_next_url(request.args.get("next"))
             return redirect(next_url or _default_post_login_url_for(user.role))
 
-        audit_login_failed(email)
         error = "Invalid email or password."
 
     return _login_error_response(error)
@@ -296,13 +295,7 @@ def two_factor_verify():
             next_url = _safe_next_url(session.pop("post_login_next", None))
             return redirect(next_url or _default_post_login_url_for(user.role))
 
-        audit_record(
-            "auth.2fa.failed",
-            status=AuditStatus.FAILURE,
-            target_type="user",
-            target_id=user.id,
-            commit=True,
-        )
+        audit_login_failed_2fa(user)
         flash("Virheellinen vahvistuskoodi.")
 
     return render_template("two_factor_verify.html")

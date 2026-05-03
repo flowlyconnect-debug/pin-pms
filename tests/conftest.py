@@ -11,7 +11,8 @@ tests in section 16. The full machinery is split into:
 * :func:`app` (session) — boots the Flask app under ``TestConfig``, runs
   ``db.create_all()`` once, and tears down at the end.
 * :func:`db_isolation` (autouse, function) — wipes every table after each
-  test so ordering does not leak state between tests.
+  test so ordering does not leak state between tests. Tests marked
+  ``no_db_isolation`` skip the session ``app`` fixture and DB teardown.
 * The data fixtures (``organization``, ``regular_user``, ``superadmin``,
   ``api_key``) build minimal rows and stash a couple of plain-text helpers
   (``password_plain``, ``raw``) on the returned ORM object for test
@@ -31,11 +32,28 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 import psycopg2
 import pyotp
 import pytest
 from werkzeug.security import generate_password_hash
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_dotenv_for_tests() -> None:
+    """Load ``.env`` before building ``TEST_DATABASE_URL`` (pytest does not run ``create_app`` yet)."""
+
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(_REPO_ROOT / ".env")
+
+
+_load_dotenv_for_tests()
+
 
 DEFAULT_TEST_API_SCOPES = ",".join(
     [
@@ -83,6 +101,57 @@ def _docker_host_port_from_database_url() -> tuple[str | None, int | None]:
     return host, port
 
 
+def _default_postgres_sslmode(host: str) -> str | None:
+    """libpq ``sslmode`` for pytest DB checks. Remote hosts default to ``require`` (e.g. Render)."""
+
+    override = (os.getenv("POSTGRES_SSLMODE") or "").strip()
+    if override:
+        ov = override.lower()
+        if ov in {"off", "false", "disable", "omit", "none", "no"}:
+            return None
+        return override
+    h = (host or "").strip().lower()
+    if h in {"127.0.0.1", "localhost", "::1", "db"}:
+        return None
+    return "require"
+
+
+def _psycopg2_connect_params(p: dict[str, object], *, dbname: str) -> dict[str, object]:
+    """Build kwargs for ``psycopg2.connect`` including optional ``sslmode``."""
+
+    kw: dict[str, object] = {
+        "host": p["host"],
+        "port": int(p["port"]),
+        "user": p["user"],
+        "password": p["password"],
+        "dbname": dbname,
+    }
+    sslmode = p.get("sslmode")
+    if isinstance(sslmode, str) and sslmode.strip():
+        kw["sslmode"] = sslmode.strip()
+    return kw
+
+
+def _probe_working_postgres_port(host: str, user: str, password: str) -> int | None:
+    """When ``POSTGRES_PORT`` is unset on loopback, prefer compose mapping (5433) then native (5432)."""
+
+    for port in (5433, 5432):
+        try:
+            conn = psycopg2.connect(
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                dbname="postgres",
+                connect_timeout=2,
+            )
+            conn.close()
+            return port
+        except Exception:
+            continue
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Resolve test connection params from POSTGRES_* (raw, unencoded).
 # ---------------------------------------------------------------------------
@@ -92,7 +161,17 @@ def _conn_params() -> dict[str, object]:
     """Plain connection parameters as pytest sees them — never URL-encoded."""
 
     host = os.getenv("POSTGRES_HOST", _default_postgres_host())
-    port = int(os.getenv("POSTGRES_PORT", "5433"))
+    user = os.environ["POSTGRES_USER"] if "POSTGRES_USER" in os.environ else "postgres"
+    password = (
+        os.environ["POSTGRES_PASSWORD"] if "POSTGRES_PASSWORD" in os.environ else "postgres"
+    )
+
+    port_resolved = False
+    if "POSTGRES_PORT" in os.environ:
+        port = int(os.environ["POSTGRES_PORT"])
+        port_resolved = True
+    else:
+        port = 5432
 
     # Some setups keep host-oriented POSTGRES_* values even inside the web
     # container (127.0.0.1:5433). Prefer DATABASE_URL host/port in Docker.
@@ -100,8 +179,17 @@ def _conn_params() -> dict[str, object]:
         docker_host, docker_port = _docker_host_port_from_database_url()
         if docker_host:
             host = docker_host
-        if docker_port:
+        if docker_port is not None:
             port = int(docker_port)
+            port_resolved = True
+
+    if not port_resolved:
+        if host in {"127.0.0.1", "localhost"}:
+            probed = _probe_working_postgres_port(host, str(user), str(password))
+            port = probed if probed is not None else 5432
+        else:
+            # Service hostname (e.g. ``db`` inside Compose) always uses the container port.
+            port = 5432
 
     # Default to loopback so ``pytest`` on a developer machine (outside Docker)
     # does not resolve the compose service name ``db`` (which only exists on the
@@ -112,12 +200,10 @@ def _conn_params() -> dict[str, object]:
     # if it is set to an empty string (trust auth), that value is preserved.
     return {
         "host": host,
-        # Keep defaults aligned with .env.example and docker-compose published port.
         "port": port,
-        "user": os.environ["POSTGRES_USER"] if "POSTGRES_USER" in os.environ else "postgres",
-        "password": (
-            os.environ["POSTGRES_PASSWORD"] if "POSTGRES_PASSWORD" in os.environ else "postgres"
-        ),
+        "user": user,
+        "password": password,
+        "sslmode": _default_postgres_sslmode(host),
     }
 
 
@@ -139,7 +225,13 @@ def _build_test_database_url() -> str:
     p = _conn_params()
     user = _percent_encode(str(p["user"]))
     password = _percent_encode(str(p["password"]))
-    return f"postgresql+psycopg2://{user}:{password}@{p['host']}:{p['port']}/pindora_test"
+    base = f"postgresql+psycopg2://{user}:{password}@{p['host']}:{p['port']}/pindora_test"
+    sslmode = p.get("sslmode")
+    if isinstance(sslmode, str) and sslmode.strip():
+        from urllib.parse import quote_plus
+
+        return f"{base}?sslmode={quote_plus(sslmode.strip())}"
+    return base
 
 
 # Set TEST_DATABASE_URL at module-import time so :class:`TestConfig` (whose
@@ -168,19 +260,18 @@ def _ensure_test_database() -> None:
     test_db_name = "pindora_test"
 
     try:
-        conn = psycopg2.connect(
-            host=p["host"],
-            port=p["port"],
-            user=p["user"],
-            password=p["password"],
-            dbname="postgres",
-        )
+        kw = _psycopg2_connect_params(p, dbname="postgres")
+        kw["connect_timeout"] = 15
+        conn = psycopg2.connect(**kw)
     except psycopg2.OperationalError as exc:
         raise RuntimeError(
-            "Could not connect to PostgreSQL for tests. Start Postgres locally, or "
-            "set TEST_DATABASE_URL / POSTGRES_HOST / POSTGRES_USER / POSTGRES_PASSWORD. "
-            "Default host is 127.0.0.1 (for pytest on the host). Inside Docker Compose, "
-            "set POSTGRES_HOST=db (see .env.example).\n"
+            "Could not connect to PostgreSQL for tests. Start Postgres locally, copy "
+            ".env.example to .env with matching POSTGRES_* values, or set "
+            "TEST_DATABASE_URL / POSTGRES_HOST / POSTGRES_USER / POSTGRES_PASSWORD. "
+            "On loopback, port 5433 (Docker publish) then 5432 is tried when POSTGRES_PORT "
+            "is unset. Hosted providers (e.g. Render) need TLS: sslmode=require is applied "
+            "automatically for non-local hosts, or set POSTGRES_SSLMODE explicitly. "
+            "Inside Docker Compose, use POSTGRES_HOST=db (see .env.example).\n"
             f"Original error: {exc}"
         ) from exc
     try:
@@ -247,8 +338,13 @@ def client(app):
 
 
 @pytest.fixture(autouse=True)
-def db_isolation(app):
+def db_isolation(request):
     """Wipe every table after each test so ordering does not leak state."""
+    if request.node.get_closest_marker("no_db_isolation"):
+        yield
+        return
+
+    request.getfixturevalue("app")
     from app.extensions import db
 
     yield

@@ -109,7 +109,7 @@ def test_update_user_role_writes_audit(app, organization):
         db.session.refresh(user)
         assert user.role == UserRole.ADMIN.value
         row = AuditLog.query.filter_by(
-            action="role_changed",
+            action="user.role_changed",
             target_id=user.id,
         ).first()
         assert row is not None

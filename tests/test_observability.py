@@ -14,12 +14,15 @@ def test_request_id_header_and_log_context(app, client):
     assert response.headers.get("X-Request-Id")
 
 
-def test_health_ready_returns_503_when_db_down(client, monkeypatch):
-    from app.extensions import db
+def test_health_ready_returns_503_when_not_ready(client, api_key, monkeypatch):
+    """Readiness uses ``readiness_status``; patch it so checks fail without breaking API-key lookup."""
 
-    def fail_execute(*args, **kwargs):
-        raise RuntimeError("db down")
-
-    monkeypatch.setattr(db.session, "execute", fail_execute)
-    response = client.get("/api/v1/health/ready")
+    monkeypatch.setattr(
+        "app.api.routes.readiness_status",
+        lambda _app: {"ok": False, "checks": {"db": {"ok": False, "detail": "synthetic"}}},
+    )
+    response = client.get(
+        "/api/v1/health/ready",
+        headers={"Authorization": f"Bearer {api_key.raw}"},
+    )
     assert response.status_code == 503

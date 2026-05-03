@@ -19,7 +19,7 @@ def maintenance_api_key(regular_user):
         name="Maintenance API key",
         organization_id=regular_user.organization_id,
         user_id=regular_user.id,
-        scopes="",
+        scopes="maintenance:read,maintenance:write",
     )
     db.session.add(key)
     db.session.commit()
@@ -291,7 +291,7 @@ def test_maintenance_api_unlinked_key_cannot_create(app, organization):
         name="No user key",
         organization_id=organization.id,
         user_id=None,
-        scopes="",
+        scopes="maintenance:write",
     )
     db.session.add(key)
     db.session.commit()

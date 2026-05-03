@@ -4,6 +4,7 @@ from apispec import APISpec
 from flask import current_app, jsonify, render_template_string
 
 from app.api import api_bp
+from app.api.auth import require_api_key, scope_required
 
 
 def _build_openapi_spec() -> dict:
@@ -69,7 +70,7 @@ def _build_openapi_spec() -> dict:
                     "required": False,
                     "content": {"application/json": {"schema": {"type": "object"}}},
                 }
-            if rule.endpoint not in {"api.api_health", "api.openapi_spec", "api.swagger_ui"}:
+            if rule.endpoint not in {"api.api_health"}:
                 operation["security"] = [{"ApiKeyAuth": []}]
             operations[method.lower()] = operation
 
@@ -79,11 +80,15 @@ def _build_openapi_spec() -> dict:
 
 
 @api_bp.get("/openapi.json")
+@require_api_key
+@scope_required("reports:read")
 def openapi_spec():
     return jsonify(_build_openapi_spec())
 
 
 @api_bp.get("/docs")
+@require_api_key
+@scope_required("reports:read")
 def swagger_ui():
     return render_template_string("""
 <!doctype html>

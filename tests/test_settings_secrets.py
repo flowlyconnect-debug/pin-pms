@@ -80,7 +80,7 @@ def test_set_value_persists_updated_by_and_audits(superadmin):
     assert persisted is not None
     assert persisted.updated_by == superadmin.id
 
-    audit = AuditLog.query.filter_by(action="setting.updated").order_by(AuditLog.id.desc()).first()
+    audit = AuditLog.query.filter_by(action="settings.update").order_by(AuditLog.id.desc()).first()
     assert audit is not None
     assert audit.target_id == row.id
 
@@ -89,7 +89,7 @@ def test_logging_filter_redacts_secret_context_values():
     from app.core.logging import _redact_secret_context
 
     payload = {
-        "event": "setting.updated",
+        "event": "settings.update",
         "is_secret": True,
         "value": "plain-secret",
         "nested": {"is_secret": True, "raw_value": "nested-secret"},

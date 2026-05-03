@@ -12,26 +12,70 @@ from app.extensions import db
 from app.users.models import User
 
 
+def _audit_auth_login_failed(
+    *,
+    reason: str,
+    login_identifier: str | None,
+    user: User | None = None,
+) -> None:
+    ident = (login_identifier or "").strip().lower() or None
+    audit_record(
+        "auth.login_failed",
+        status=AuditStatus.FAILURE,
+        actor_type=ActorType.ANONYMOUS,
+        actor_email=ident,
+        target_type="user" if user is not None else "auth",
+        target_id=user.id if user is not None else None,
+        context={"reason": reason, "login_identifier": ident},
+        commit=True,
+    )
+
+
 def authenticate_user(email: str, password: str) -> User | None:
     normalized_email = (email or "").strip().lower()
     if not normalized_email:
+        _audit_auth_login_failed(
+            reason="missing_identifier",
+            login_identifier=None,
+            user=None,
+        )
         return None
 
     if _is_locked_out(normalized_email):
         _record_login_attempt(normalized_email, success=False)
+        _audit_auth_login_failed(
+            reason="account_locked",
+            login_identifier=normalized_email,
+            user=None,
+        )
         return None
 
     user = User.query.filter_by(email=normalized_email).first()
     if not user:
         _record_login_attempt(normalized_email, success=False)
+        _audit_auth_login_failed(
+            reason="user_not_found",
+            login_identifier=normalized_email,
+            user=None,
+        )
         return None
 
     if not user.is_active:
         _record_login_attempt(normalized_email, success=False)
+        _audit_auth_login_failed(
+            reason="user_inactive",
+            login_identifier=normalized_email,
+            user=user,
+        )
         return None
 
     if not user.check_password(password):
         _record_login_attempt(normalized_email, success=False)
+        _audit_auth_login_failed(
+            reason="invalid_password",
+            login_identifier=normalized_email,
+            user=user,
+        )
         return None
 
     _record_login_attempt(normalized_email, success=True)
@@ -81,24 +125,24 @@ def audit_login_success(user: User) -> None:
         organization_id=user.organization_id,
         target_type="user",
         target_id=user.id,
+        context={},
         commit=True,
     )
 
 
-def audit_login_failed(email: str | None = None) -> None:
-    normalized_email = (email or "").strip().lower() or None
-    audit_record(
-        "login_failed",
-        status=AuditStatus.FAILURE,
-        actor_type=ActorType.ANONYMOUS,
-        actor_email=normalized_email,
-        commit=True,
+def audit_login_failed_2fa(user: User) -> None:
+    """Record a failed second-factor check during login (superadmin flow)."""
+
+    _audit_auth_login_failed(
+        reason="invalid_2fa_code",
+        login_identifier=user.email,
+        user=user,
     )
 
 
 def audit_logout(user: User) -> None:
     audit_record(
-        "logout",
+        "auth.logout",
         status=AuditStatus.SUCCESS,
         actor_type=ActorType.USER,
         actor_id=user.id,
@@ -106,6 +150,7 @@ def audit_logout(user: User) -> None:
         organization_id=user.organization_id,
         target_type="user",
         target_id=user.id,
+        context={},
         commit=True,
     )
 

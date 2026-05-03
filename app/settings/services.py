@@ -23,8 +23,8 @@ Secrets
 
 When ``is_secret=True`` the row is still readable through :func:`get`, but
 the admin UI and audit log only ever see the masked output of
-:func:`mask_for_display`. Audit context for ``setting.updated`` never
-includes the raw value — only the ``key``, ``type``, and ``is_secret`` flag.
+:func:`mask_for_display`. Audit context for ``settings.update`` never
+includes raw secret values — only redaction flags and row metadata.
 
 Per-request cache
 -----------------
@@ -229,8 +229,8 @@ def set_value(
       supplied in that case.
     * The encoded value is written to ``value``, ``updated_by`` is set to
       ``actor_user_id``, and ``updated_at`` is auto-touched by the model.
-    * An ``audit.setting.updated`` row is committed with context
-      ``{"key", "type", "is_secret"}`` — **never** the raw value.
+    * A ``settings.update`` audit row is committed with structured context
+      (init template §11) — **never** raw values for secret rows.
 
     Raises :class:`SettingValueError` if the value cannot be encoded under the
     declared type.
@@ -282,39 +282,23 @@ def set_value(
     db.session.commit()
     _cache_invalidate(key)
 
+    value_changed = True
+    if not is_create:
+        value_changed = previous_value != new_encoded
+
     audit_context: dict[str, Any] = {
         "key": row.key,
         "type": row.type,
-        "is_secret": row.is_secret,
+        "is_secret": bool(row.is_secret),
         "action": "create" if is_create else "update",
+        "old_value_redacted": bool(previous_is_secret),
+        "new_value_redacted": bool(row.is_secret),
     }
-
-    # Brief section 11: audit must reflect *what* changed. For non-secret
-    # rows we attach decoded before/after values; for secret rows we keep
-    # only an opaque "value changed" signal so secrets never reach the log.
-    if row.is_secret or previous_is_secret:
-        if not is_create and previous_value != new_encoded:
-            audit_context["value_changed"] = True
-    else:
-        try:
-            decoded_old = (
-                _decode(previous_value, previous_type or row.type) if not is_create else None
-            )
-        except SettingValueError:
-            decoded_old = previous_value
-        try:
-            decoded_new = _decode(new_encoded, row.type)
-        except SettingValueError:
-            decoded_new = new_encoded
-
-        if is_create:
-            audit_context["new_value"] = decoded_new
-        elif decoded_old != decoded_new:
-            audit_context["old_value"] = decoded_old
-            audit_context["new_value"] = decoded_new
+    if (row.is_secret or previous_is_secret) and value_changed:
+        audit_context["value_changed"] = True
 
     audit_record(
-        "setting.updated",
+        "settings.update",
         status=AuditStatus.SUCCESS,
         actor_id=actor_user_id,
         target_type="setting",
