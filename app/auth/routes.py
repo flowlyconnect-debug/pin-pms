@@ -16,24 +16,27 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required, login_user, logout_user
-from sqlalchemy.exc import DBAPIError, SQLAlchemyError
+import pyotp
+import qrcode
+import qrcode.image.svg
 
-from app.audit import record as audit_record
-from app.audit.models import ActorType, AuditStatus
 from app.auth.forms import ResetPasswordForm
-from app.auth.models import PASSWORD_RESET_TTL, PasswordResetToken, TwoFactorEmailCode
+from app.auth.models import PasswordResetToken
 from app.auth.services import (
     audit_login_failed_2fa,
     audit_login_success,
     audit_logout,
-    authenticate_user,
-    enable_2fa,
+    authenticate_user_for_login,
+    complete_password_reset_after_validation,
+    complete_superadmin_two_factor_setup,
+    ensure_superadmin_totp_secret_initialized,
+    regenerate_superadmin_backup_codes,
+    request_password_reset,
     send_email_2fa_code,
+    verify_superadmin_two_factor_code,
 )
-from app.email.models import TemplateKey
-from app.email.services import EmailTemplateNotFound, send_template
-from app.extensions import db, limiter
-from app.users.models import User, UserRole
+from app.extensions import limiter
+from app.users.models import UserRole
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -104,44 +107,9 @@ def login():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        try:
-            user = authenticate_user(email, password)
-        except SQLAlchemyError as exc:
-            log_payload = {
-                "error_type": type(exc).__name__,
-                "email": email,
-                "path": request.path,
-            }
-            if isinstance(exc, DBAPIError):
-                log_payload["dbapi_error"] = str(exc.orig)
-                if exc.statement:
-                    log_payload["statement"] = exc.statement
-                if exc.params:
-                    log_payload["params"] = repr(exc.params)[:500]
-            current_app.logger.exception(
-                "Database error during /login authentication.",
-                extra=log_payload,
-            )
-            # Never leak hostnames, usernames, or other connection-string
-            # internals to the page — they may identify the production
-            # database. Operators can find the full traceback in the logs.
-            if current_app.debug:
-                detail = (
-                    f"Kirjautumispalvelu ei ole käytettävissä "
-                    f"(DB-virhe: {type(exc).__name__}). Katso lokit."
-                )
-            else:
-                detail = "Kirjautumispalvelu ei ole hetkellisesti käytettävissä. Yritä hetken kuluttua uudelleen."
-            return _login_error_response(detail)
-        except Exception as exc:  # noqa: BLE001
-            current_app.logger.exception("Unexpected error during /login authentication.")
-            if current_app.debug:
-                detail = (
-                    f"Odottamaton virhe ({type(exc).__name__}). Katso lokit."
-                )
-            else:
-                detail = "Kirjautumispalvelu ei ole hetkellisesti käytettävissä. Yritä hetken kuluttua uudelleen."
-            return _login_error_response(detail)
+        user, infra_error, _ = authenticate_user_for_login(email=email, password=password)
+        if infra_error:
+            return _login_error_response(infra_error)
 
         if user:
             login_user(user)
@@ -171,28 +139,15 @@ def two_factor_setup():
 
     error = None
 
-    if not user.totp_secret:
-        user.totp_secret = pyotp.random_base32()
-        db.session.commit()
+    ensure_superadmin_totp_secret_initialized(user)
 
     if request.method == "POST":
         code = (request.form.get("code") or "").replace(" ", "").strip()
-        totp = pyotp.TOTP(user.totp_secret)
-        if totp.verify(code, valid_window=1):
-            user.is_2fa_enabled = True
-            plaintext_codes = user.generate_backup_codes()
+        ok, plaintext_codes = complete_superadmin_two_factor_setup(user=user, code=code)
+        if ok and plaintext_codes is not None:
             session["2fa_backup_codes_once"] = plaintext_codes
-            enable_2fa(user, backup_codes_issued=len(plaintext_codes))
-            db.session.commit()
             session["2fa_verified"] = False
             return redirect(url_for("auth.two_factor_backup_codes"))
-        audit_record(
-            "auth.2fa.setup_failed",
-            status=AuditStatus.FAILURE,
-            target_type="user",
-            target_id=user.id,
-            commit=True,
-        )
         flash("Virheellinen vahvistuskoodi.")
 
     provisioning_uri = pyotp.TOTP(user.totp_secret).provisioning_uri(
@@ -219,15 +174,7 @@ def two_factor_backup_codes():
         abort(403)
 
     if request.method == "POST":
-        plaintext_codes = user.generate_backup_codes()
-        audit_record(
-            "auth.2fa.backup_codes_regenerated",
-            status=AuditStatus.SUCCESS,
-            target_type="user",
-            target_id=user.id,
-            context={"count": len(plaintext_codes)},
-        )
-        db.session.commit()
+        plaintext_codes = regenerate_superadmin_backup_codes(user=user)
         session["2fa_backup_codes_once"] = plaintext_codes
         return redirect(url_for("auth.two_factor_backup_codes"))
 
@@ -255,43 +202,9 @@ def two_factor_verify():
 
     if request.method == "POST":
         code = (request.form.get("code") or "").replace(" ", "").strip()
-
-        totp = pyotp.TOTP(user.totp_secret)
-        if totp.verify(code, valid_window=1):
+        outcome = verify_superadmin_two_factor_code(user=user, code=code)
+        if outcome in {"totp", "backup", "email"}:
             session["2fa_verified"] = True
-            audit_record(
-                "auth.2fa.verified",
-                status=AuditStatus.SUCCESS,
-                target_type="user",
-                target_id=user.id,
-                commit=True,
-            )
-            next_url = _safe_next_url(session.pop("post_login_next", None))
-            return redirect(next_url or _default_post_login_url_for(user.role))
-
-        if user.consume_backup_code(code):
-            session["2fa_verified"] = True
-            audit_record(
-                "auth.2fa.backup_code_used",
-                status=AuditStatus.SUCCESS,
-                target_type="user",
-                target_id=user.id,
-                context={"codes_remaining": user.backup_codes_remaining},
-                commit=True,
-            )
-            next_url = _safe_next_url(session.pop("post_login_next", None))
-            return redirect(next_url or _default_post_login_url_for(user.role))
-
-        if TwoFactorEmailCode.consume_active_code(user_id=user.id, raw_code=code):
-            session["2fa_verified"] = True
-            audit_record(
-                "2fa.email_code_used",
-                status=AuditStatus.SUCCESS,
-                organization_id=user.organization_id,
-                target_type="user",
-                target_id=user.id,
-            )
-            db.session.commit()
             next_url = _safe_next_url(session.pop("post_login_next", None))
             return redirect(next_url or _default_post_login_url_for(user.role))
 
@@ -337,47 +250,7 @@ def forgot_password():
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         if email:
-            user = User.query.filter_by(email=email).first()
-            if user is not None and user.is_active:
-                token_row, raw_token = PasswordResetToken.issue(user_id=user.id)
-                db.session.add(token_row)
-                db.session.commit()
-
-                reset_url = url_for(
-                    "auth.reset_password",
-                    token=raw_token,
-                    _external=True,
-                )
-                try:
-                    send_template(
-                        TemplateKey.PASSWORD_RESET,
-                        to=user.email,
-                        context={
-                            "user_email": user.email,
-                            "reset_url": reset_url,
-                            "expires_minutes": int(PASSWORD_RESET_TTL.total_seconds() // 60),
-                        },
-                    )
-                except EmailTemplateNotFound:
-                    current_app.logger.warning("password_reset template not seeded")
-                audit_record(
-                    "auth.password.reset_requested",
-                    status=AuditStatus.SUCCESS,
-                    actor_type=ActorType.USER,
-                    actor_id=user.id,
-                    actor_email=user.email,
-                    target_type="user",
-                    target_id=user.id,
-                    commit=True,
-                )
-            else:
-                audit_record(
-                    "auth.password.reset_requested",
-                    status=AuditStatus.FAILURE,
-                    actor_type=ActorType.ANONYMOUS,
-                    actor_email=email,
-                    commit=True,
-                )
+            request_password_reset(email=email)
 
         flash("Jos osoitteelle löytyy käyttäjätili, palautuslinkki on lähetetty sähköpostiin.")
         return redirect(url_for("auth.login"))
@@ -397,21 +270,7 @@ def reset_password(token):
         form = ResetPasswordForm.from_request(request)
         ok, error = form.validate()
         if ok:
-            user = row.user
-            user.set_password(form.password)
-            row.mark_used()
-            audit_record(
-                "auth.password.changed",
-                status=AuditStatus.SUCCESS,
-                actor_type=ActorType.USER,
-                actor_id=user.id,
-                actor_email=user.email,
-                target_type="user",
-                target_id=user.id,
-                context={"via": "reset_token"},
-                commit=False,
-            )
-            db.session.commit()
+            complete_password_reset_after_validation(row=row, password=form.password)
             flash("Salasana päivitetty. Voit nyt kirjautua sisään.")
             return redirect(url_for("auth.login"))
 

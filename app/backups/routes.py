@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-import pyotp
 from functools import wraps
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user
 
-from app.audit import record as audit_record
-from app.audit.models import AuditStatus
 from app.auth.routes import require_superadmin_2fa
 from app.backups.models import Backup, BackupTrigger
-from app.backups.services import BackupError, create_backup, restore_backup
+from app.backups.services import (
+    BackupError,
+    create_backup,
+    list_backups_for_admin,
+    record_backup_download_audit,
+    restore_backup,
+    verify_backup_restore_credentials,
+)
 from app.users.models import User
 
 backups_admin_bp = Blueprint("backups_admin", __name__)
@@ -31,11 +35,7 @@ def check_impersonation_blocked(view_func):
 def backups_list():
     """Show recent backups, newest first."""
 
-    rows = (
-        Backup.query.order_by(Backup.created_at.desc())
-        .limit(100)
-        .all()
-    )
+    rows = list_backups_for_admin(limit=100)
     return render_template("admin_backups.html", rows=rows)
 
 
@@ -67,14 +67,7 @@ def backups_download(backup_id: int):
         abort(404)
 
     backup_dir = current_app.config.get("BACKUP_DIR", "/var/backups/pindora")
-    audit_record(
-        "backup.downloaded",
-        status=AuditStatus.SUCCESS,
-        target_type="backup",
-        target_id=backup.id,
-        context={"filename": backup.filename},
-        commit=True,
-    )
+    record_backup_download_audit(backup=backup)
     return send_from_directory(
         directory=backup_dir,
         path=backup.filename,
@@ -97,29 +90,16 @@ def backups_restore(backup_id: int):
     if request.method == "POST":
         password = request.form.get("password") or ""
         totp_code = (request.form.get("totp_code") or "").replace(" ", "").strip()
-        user: User = User.query.get(current_user.id)
-
-        if not user or not user.check_password(password):
-            audit_record(
-                "backup.restore.auth_failed",
-                status=AuditStatus.FAILURE,
-                target_type="backup",
-                target_id=backup.id,
-                context={"stage": "password"},
-                commit=True,
-            )
+        user: User | None = User.query.get(current_user.id)
+        auth = verify_backup_restore_credentials(
+            user=user,
+            password=password,
+            totp_code=totp_code,
+            backup_id=backup.id,
+        )
+        if auth == "password":
             error = "Salasana ei täsmännyt."
-        elif not user.totp_secret or not pyotp.TOTP(user.totp_secret).verify(
-            totp_code, valid_window=1
-        ):
-            audit_record(
-                "backup.restore.auth_failed",
-                status=AuditStatus.FAILURE,
-                target_type="backup",
-                target_id=backup.id,
-                context={"stage": "2fa"},
-                commit=True,
-            )
+        elif auth == "totp":
             error = "Vahvistuskoodi ei täsmännyt."
         else:
             try:

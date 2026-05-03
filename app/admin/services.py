@@ -913,3 +913,131 @@ def public_status_payload(*, window_days: int = 90) -> dict[str, Any]:
         ],
         "incidents": incidents,
     }
+
+
+def verify_fresh_2fa_code(*, user: User, code: str) -> bool:
+    """Match the admin settings reveal gate: TOTP, backup code, or email code."""
+
+    from app.auth.models import TwoFactorEmailCode
+
+    if not (code or "").strip():
+        return False
+    if user.verify_totp(code):
+        return True
+    if user.consume_backup_code(code):
+        db.session.commit()
+        return True
+    if TwoFactorEmailCode.consume_active_code(user_id=user.id, raw_code=code):
+        db.session.commit()
+        return True
+    return False
+
+
+def create_organization_superadmin(
+    *, name: str, actor_id: int, actor_email: str
+) -> tuple[Organization | None, str | None]:
+    """Create org or return ``(None, error_message)`` on duplicate name."""
+
+    from app.audit import record as audit_record
+    from app.audit.models import ActorType, AuditStatus
+
+    org_name = name.strip()
+    if Organization.query.filter_by(name=org_name).first() is not None:
+        return None, f"Organisaatio '{org_name}' on jo olemassa."
+    org = Organization(name=org_name)
+    db.session.add(org)
+    db.session.flush()
+    audit_record(
+        "organization.created",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.USER,
+        actor_id=actor_id,
+        actor_email=actor_email,
+        target_type="organization",
+        target_id=org.id,
+        context={"name": org.name},
+        commit=True,
+    )
+    return org, None
+
+
+def update_organization_superadmin(
+    *, org: Organization, new_name: str, actor_id: int, actor_email: str
+) -> None:
+    from app.audit import record as audit_record
+    from app.audit.models import ActorType, AuditStatus
+
+    old_name = org.name
+    org.name = new_name.strip()
+    audit_record(
+        "organization.updated",
+        status=AuditStatus.SUCCESS,
+        actor_type=ActorType.USER,
+        actor_id=actor_id,
+        actor_email=actor_email,
+        target_type="organization",
+        target_id=org.id,
+        context={"old_name": old_name, "new_name": org.name},
+        commit=True,
+    )
+
+
+def superadmin_toggle_user_active(*, user_id: int, actor_id: int, actor_email: str) -> User:
+    from app.audit.models import ActorType
+
+    target_user = User.query.get_or_404(user_id)
+    if target_user.is_active:
+        deactivate_user(
+            user_id=target_user.id,
+            actor_type=ActorType.USER,
+            actor_id=actor_id,
+            actor_email=actor_email,
+            commit=True,
+        )
+    else:
+        reactivate_user(
+            user_id=target_user.id,
+            actor_type=ActorType.USER,
+            actor_id=actor_id,
+            actor_email=actor_email,
+            commit=True,
+        )
+    db.session.refresh(target_user)
+    return target_user
+
+
+def apply_superadmin_status_post(*, form) -> list[str]:
+    """Apply POST actions on the superadmin status page; return flash messages."""
+
+    messages: list[str] = []
+    action = (form.get("action") or "").strip()
+    if action == "component_state":
+        comp = StatusComponent.query.filter_by(
+            key=(form.get("component_key") or "").strip()
+        ).first_or_404()
+        comp.current_state = (form.get("current_state") or "operational").strip()
+        comp.scheduled_maintenance = bool(form.get("scheduled_maintenance"))
+        db.session.commit()
+        messages.append("Komponentin tila päivitetty.")
+    elif action == "incident_create":
+        incident = StatusIncident(
+            title=(form.get("title") or "").strip() or "Nimeämätön häiriö",
+            body=(form.get("body") or "").strip(),
+            severity=(form.get("severity") or "minor").strip(),
+            component_keys=[
+                x.strip()
+                for x in (form.get("component_keys") or "").split(",")
+                if x.strip()
+            ],
+            status="open",
+        )
+        db.session.add(incident)
+        db.session.commit()
+        messages.append("Häiriö luotu.")
+    elif action == "incident_close":
+        incident = StatusIncident.query.get_or_404(int(form.get("incident_id")))
+        incident.status = "resolved"
+        incident.resolved_at = datetime.now(timezone.utc)
+        db.session.commit()
+        messages.append("Häiriö suljettu.")
+    return messages

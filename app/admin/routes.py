@@ -35,14 +35,14 @@ from app.admin.forms import (
 )
 from app.api.models import ApiKey, ApiKeyUsage
 from app.api.services import (
-    audit_admin_api_key_created,
-    audit_admin_api_key_deleted,
-    audit_admin_api_key_toggle,
+    ApiKeyAdminError,
+    create_api_key_admin,
+    delete_api_key_admin,
+    toggle_api_key_active_admin,
 )
 from app.api.schemas import json_error, json_ok
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditLog, AuditStatus
-from app.auth.models import TwoFactorEmailCode
 from app.auth.routes import require_superadmin_2fa
 from app.billing import services as billing_service
 from app.email.models import EmailTemplate
@@ -61,7 +61,6 @@ from app.reports import services as report_service
 from app.reservations import services as reservation_service
 from app.settings import services as settings_service
 from app.settings.models import SettingType
-from app.status.models import StatusComponent, StatusIncident
 from app.users.models import User, UserRole
 
 PAGE_SIZE_DEFAULT = 50
@@ -1917,7 +1916,7 @@ def settings_edit(key: str):
         post_action = (request.form.get("action") or "save").strip().lower()
         if post_action == "reveal":
             code = (request.form.get("reveal_code") or "").replace(" ", "").strip()
-            if not _verify_fresh_2fa_code(code):
+            if not admin_service.verify_fresh_2fa_code(user=current_user, code=code):
                 error = "Salaisuuden näyttämiseen vaaditaan kelvollinen tuore 2FA-koodi."
                 form.value.data = ""
             else:
@@ -1976,20 +1975,6 @@ def _coerce_form_value(raw: str, type_: str):
 
         return _json.loads(raw) if raw.strip() else None
     return raw
-
-
-def _verify_fresh_2fa_code(code: str) -> bool:
-    if not code:
-        return False
-    if current_user.verify_totp(code):
-        return True
-    if current_user.consume_backup_code(code):
-        db.session.commit()
-        return True
-    if TwoFactorEmailCode.consume_active_code(user_id=current_user.id, raw_code=code):
-        db.session.commit()
-        return True
-    return False
 
 
 # ---------------------------------------------------------------------------
@@ -2192,28 +2177,15 @@ def users_edit(user_id: int):
 @require_superadmin_2fa
 @check_impersonation_blocked
 def users_toggle_active(user_id: int):
-    target_user = User.query.get_or_404(user_id)
     try:
-        if target_user.is_active:
-            admin_service.deactivate_user(
-                user_id=target_user.id,
-                actor_type=ActorType.USER,
-                actor_id=current_user.id,
-                actor_email=current_user.email,
-                commit=True,
-            )
-        else:
-            admin_service.reactivate_user(
-                user_id=target_user.id,
-                actor_type=ActorType.USER,
-                actor_id=current_user.id,
-                actor_email=current_user.email,
-                commit=True,
-            )
+        target_user = admin_service.superadmin_toggle_user_active(
+            user_id=user_id,
+            actor_id=current_user.id,
+            actor_email=current_user.email,
+        )
     except admin_service.UserServiceError as err:
         flash(str(err))
         return redirect(url_for("admin.users_list"))
-    db.session.refresh(target_user)
     flash(
         f"Käyttäjä {target_user.email} on nyt "
         f"{'aktiivinen' if target_user.is_active else 'poistettu käytöstä'}."
@@ -2240,24 +2212,14 @@ def organizations_new():
     error: str | None = None
 
     if form.validate_on_submit():
-        org_name = form.name.data.strip()
-        if Organization.query.filter_by(name=org_name).first() is not None:
-            error = f"Organisaatio '{org_name}' on jo olemassa."
+        org, create_error = admin_service.create_organization_superadmin(
+            name=form.name.data.strip(),
+            actor_id=current_user.id,
+            actor_email=current_user.email,
+        )
+        if create_error:
+            error = create_error
         else:
-            org = Organization(name=org_name)
-            db.session.add(org)
-            db.session.flush()
-            audit_record(
-                "organization.created",
-                status=AuditStatus.SUCCESS,
-                actor_type=ActorType.USER,
-                actor_id=current_user.id,
-                actor_email=current_user.email,
-                target_type="organization",
-                target_id=org.id,
-                context={"name": org.name},
-                commit=True,
-            )
             flash(f"Organisaatio '{org.name}' luotu.")
             return redirect(url_for("admin.organizations_list"))
     elif request.method == "POST":
@@ -2280,18 +2242,11 @@ def organizations_edit(org_id: int):
     error: str | None = None
 
     if form.validate_on_submit():
-        old_name = org.name
-        org.name = form.name.data.strip()
-        audit_record(
-            "organization.updated",
-            status=AuditStatus.SUCCESS,
-            actor_type=ActorType.USER,
+        admin_service.update_organization_superadmin(
+            org=org,
+            new_name=form.name.data.strip(),
             actor_id=current_user.id,
             actor_email=current_user.email,
-            target_type="organization",
-            target_id=org.id,
-            context={"old_name": old_name, "new_name": org.name},
-            commit=True,
         )
         flash("Organisaation tiedot päivitetty.")
         return redirect(url_for("admin.organizations_list"))
@@ -2334,21 +2289,14 @@ def owners_new():
     error: str | None = None
     if request.method == "POST":
         try:
-            row = owners_service.create_owner(
+            owners_service.create_owner_with_optional_login_user_and_commit(
                 organization_id=current_user.organization_id,
                 name=(request.form.get("name") or "").strip(),
                 email=(request.form.get("email") or "").strip(),
                 phone=(request.form.get("phone") or "").strip() or None,
                 payout_iban=(request.form.get("payout_iban") or "").strip() or None,
+                password=(request.form.get("password") or "").strip() or None,
             )
-            password = (request.form.get("password") or "").strip()
-            if password:
-                owners_service.create_owner_user(
-                    owner_id=row.id,
-                    email=row.email,
-                    password=password,
-                )
-            db.session.commit()
             flash("Omistaja luotu.")
             return redirect(url_for("admin.owners_list"))
         except Exception:
@@ -2366,7 +2314,7 @@ def owners_assign_property(owner_id: int):
     try:
         valid_from = date.fromisoformat((request.form.get("valid_from") or "").strip())
         valid_to_raw = (request.form.get("valid_to") or "").strip()
-        owners_service.assign_property(
+        owners_service.assign_owner_property_and_commit(
             owner_id=owner_id,
             organization_id=current_user.organization_id,
             property_id=int(request.form.get("property_id")),
@@ -2375,7 +2323,6 @@ def owners_assign_property(owner_id: int):
             valid_from=valid_from,
             valid_to=date.fromisoformat(valid_to_raw) if valid_to_raw else None,
         )
-        db.session.commit()
         flash("Kohde liitetty omistajalle.")
     except Exception:
         db.session.rollback()
@@ -2406,30 +2353,21 @@ def api_keys_new():
             form.user_id.data if form.user_id.data and form.user_id.data > 0 else None
         )
         expires_at = form.expires_at.data
-        if selected_user_id is not None:
-            selected_user = User.query.get(selected_user_id)
-            if selected_user is None:
-                error = "Valittua käyttäjää ei ole olemassa."
-            elif selected_user.organization_id != form.organization_id.data:
-                error = "Valitun käyttäjän tulee kuulua valittuun organisaatioon."
         selected_scopes = list(form.scopes.data or [])
-        if "admin:*" in selected_scopes and not current_user.is_superadmin:
-            error = "Vain pääylläpitäjä voi luoda API-avaimia admin:* -laajuudella."
-        if error is None:
-            api_key, raw_key = ApiKey.issue(
+        try:
+            api_key, raw_key = create_api_key_admin(
                 name=form.name.data.strip(),
                 organization_id=form.organization_id.data,
                 user_id=selected_user_id,
-                scopes=",".join(selected_scopes),
+                scopes=selected_scopes,
                 expires_at=expires_at,
-            )
-            db.session.add(api_key)
-            db.session.flush()
-            audit_admin_api_key_created(
-                api_key=api_key,
                 actor_id=current_user.id,
                 actor_email=current_user.email,
+                actor_is_superadmin=current_user.is_superadmin,
             )
+        except ApiKeyAdminError as err:
+            error = err.message
+        else:
             flash("API-avain luotu. Selväkielinen avain näytetään alla vain kerran — kopioi se heti.")
             return redirect(url_for("admin.api_keys_list", show_raw=raw_key))
     elif request.method == "POST":
@@ -2447,12 +2385,8 @@ def api_keys_new():
 @admin_bp.post("/api-keys/<int:key_id>/toggle-active")
 @require_superadmin_2fa
 def api_keys_toggle_active(key_id: int):
-    api_key = ApiKey.query.get_or_404(key_id)
-    api_key.is_active = not api_key.is_active
-    audit_admin_api_key_toggle(
-        api_key=api_key,
-        actor_id=current_user.id,
-        actor_email=current_user.email,
+    api_key = toggle_api_key_active_admin(
+        key_id=key_id, actor_id=current_user.id, actor_email=current_user.email
     )
     flash(
         f"API-avain {api_key.key_prefix} on nyt "
@@ -2464,16 +2398,9 @@ def api_keys_toggle_active(key_id: int):
 @admin_bp.post("/api-keys/<int:key_id>/delete")
 @require_superadmin_2fa
 def api_keys_delete(key_id: int):
-    api_key = ApiKey.query.get_or_404(key_id)
-    prefix = api_key.key_prefix
-    audit_admin_api_key_deleted(
-        key_id=key_id,
-        prefix=prefix,
-        actor_id=current_user.id,
-        actor_email=current_user.email,
+    prefix = delete_api_key_admin(
+        key_id=key_id, actor_id=current_user.id, actor_email=current_user.email
     )
-    db.session.delete(api_key)
-    db.session.commit()
     flash(f"API-avain {prefix} poistettu.")
     return redirect(url_for("admin.api_keys_list"))
 
@@ -2508,35 +2435,7 @@ def tenant_debug(org_id: int):
 @require_superadmin_2fa
 def superadmin_status():
     if request.method == "POST":
-        action = (request.form.get("action") or "").strip()
-        if action == "component_state":
-            comp = StatusComponent.query.filter_by(
-                key=(request.form.get("component_key") or "").strip()
-            ).first_or_404()
-            comp.current_state = (request.form.get("current_state") or "operational").strip()
-            comp.scheduled_maintenance = bool(request.form.get("scheduled_maintenance"))
-            db.session.commit()
-            flash("Komponentin tila päivitetty.")
-        elif action == "incident_create":
-            incident = StatusIncident(
-                title=(request.form.get("title") or "").strip() or "Nimeämätön häiriö",
-                body=(request.form.get("body") or "").strip(),
-                severity=(request.form.get("severity") or "minor").strip(),
-                component_keys=[
-                    x.strip()
-                    for x in (request.form.get("component_keys") or "").split(",")
-                    if x.strip()
-                ],
-                status="open",
-            )
-            db.session.add(incident)
-            db.session.commit()
-            flash("Häiriö luotu.")
-        elif action == "incident_close":
-            incident = StatusIncident.query.get_or_404(int(request.form.get("incident_id")))
-            incident.status = "resolved"
-            incident.resolved_at = datetime.now(timezone.utc)
-            db.session.commit()
-            flash("Häiriö suljettu.")
+        for message in admin_service.apply_superadmin_status_post(form=request.form):
+            flash(message)
     payload = admin_service.public_status_payload(window_days=90)
     return render_template("admin/superadmin_status.html", payload=payload)

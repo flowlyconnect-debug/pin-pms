@@ -342,3 +342,49 @@ def payout_pdf_response(*, payout_id: int, owner_id: int) -> Response | None:
     response.headers["Content-Length"] = str(len(body))
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+def create_owner_with_optional_login_user_and_commit(
+    *,
+    organization_id: int,
+    name: str,
+    email: str,
+    phone: str | None,
+    payout_iban: str | None,
+    password: str | None,
+) -> PropertyOwner:
+    """Persist owner row, optional :class:`OwnerUser`, and commit once."""
+
+    row = create_owner(
+        organization_id=organization_id,
+        name=name,
+        email=email,
+        phone=phone,
+        payout_iban=payout_iban,
+    )
+    if (password or "").strip():
+        create_owner_user(owner_id=row.id, email=row.email, password=password.strip())
+    db.session.commit()
+    return row
+
+
+def assign_owner_property_and_commit(
+    *,
+    owner_id: int,
+    organization_id: int,
+    property_id: int,
+    ownership_pct: Decimal,
+    management_fee_pct: Decimal,
+    valid_from: date,
+    valid_to: date | None,
+) -> None:
+    assign_property(
+        owner_id=owner_id,
+        organization_id=organization_id,
+        property_id=property_id,
+        ownership_pct=ownership_pct,
+        management_fee_pct=management_fee_pct,
+        valid_from=valid_from,
+        valid_to=valid_to,
+    )
+    db.session.commit()

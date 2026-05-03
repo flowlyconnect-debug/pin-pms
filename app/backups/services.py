@@ -29,7 +29,7 @@ import subprocess
 import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import urlparse
 
 import boto3
@@ -772,3 +772,55 @@ def _notify_superadmins_of_restore(
             )
         except Exception:  # noqa: BLE001 — one bounce must not block the others
             logger.exception("Failed to notify %s about restore", sa.email)
+
+
+def list_backups_for_admin(*, limit: int = 100) -> list[Backup]:
+    return Backup.query.order_by(Backup.created_at.desc()).limit(limit).all()
+
+
+def record_backup_download_audit(*, backup: Backup) -> None:
+    audit_record(
+        "backup.downloaded",
+        status=AuditStatus.SUCCESS,
+        target_type="backup",
+        target_id=backup.id,
+        context={"filename": backup.filename},
+        commit=True,
+    )
+
+
+def verify_backup_restore_credentials(
+    *,
+    user,
+    password: str,
+    totp_code: str,
+    backup_id: int,
+) -> Literal["password", "totp", "ok"]:
+    """Validate operator password + TOTP before running a destructive restore."""
+
+    import pyotp
+
+    normalized_totp = (totp_code or "").replace(" ", "").strip()
+    if not user or not user.check_password(password):
+        audit_record(
+            "backup.restore.auth_failed",
+            status=AuditStatus.FAILURE,
+            target_type="backup",
+            target_id=backup_id,
+            context={"stage": "password"},
+            commit=True,
+        )
+        return "password"
+    if not user.totp_secret or not pyotp.TOTP(user.totp_secret).verify(
+        normalized_totp, valid_window=1
+    ):
+        audit_record(
+            "backup.restore.auth_failed",
+            status=AuditStatus.FAILURE,
+            target_type="backup",
+            target_id=backup_id,
+            context={"stage": "2fa"},
+            commit=True,
+        )
+        return "totp"
+    return "ok"

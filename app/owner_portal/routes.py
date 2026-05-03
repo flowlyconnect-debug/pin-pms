@@ -6,21 +6,13 @@ from functools import wraps
 from flask import abort, redirect, render_template, request, session, url_for
 
 from app.owner_portal import owner_portal_bp
-from app.owners.models import OwnerPayout, OwnerUser, PropertyOwnerAssignment
-from app.owners.services import (
-    authenticate_owner_user,
-    monthly_owner_dashboard,
-    payout_pdf_response,
-)
-from app.properties.models import Property, Unit
-from app.reservations.models import Reservation
+from app.owner_portal import services as owner_portal_service
+from app.owners.models import OwnerPayout, OwnerUser
+from app.owners.services import authenticate_owner_user, payout_pdf_response
 
 
 def _current_owner_user() -> OwnerUser | None:
-    user_id = session.get("owner_user_id")
-    if user_id is None:
-        return None
-    return OwnerUser.query.filter_by(id=user_id, is_active=True).first()
+    return owner_portal_service.owner_user_from_session(user_id=session.get("owner_user_id"))
 
 
 def require_owner_login(view_func):
@@ -77,18 +69,11 @@ def dashboard(owner_user):
         return redirect(url_for("owner_portal.two_factor"))
     today = date.today()
     period = f"{today.year:04d}-{today.month:02d}"
-    stats = monthly_owner_dashboard(owner_id=owner_user.owner_id, period_month=period)
-    assignment_rows = (
-        PropertyOwnerAssignment.query.join(
-            Property, PropertyOwnerAssignment.property_id == Property.id
-        )
-        .filter(PropertyOwnerAssignment.owner_id == owner_user.owner_id)
-        .order_by(Property.name.asc())
-        .all()
-    )
-    properties = [Property.query.get(a.property_id) for a in assignment_rows]
+    bundle = owner_portal_service.owner_dashboard_page(owner_user=owner_user, period=period)
     return render_template(
-        "owner/dashboard.html", stats=stats, properties=[p for p in properties if p is not None]
+        "owner/dashboard.html",
+        stats=bundle["stats"],
+        properties=bundle["properties"],
     )
 
 
@@ -97,17 +82,13 @@ def dashboard(owner_user):
 def property_calendar(owner_user, property_id: int):
     if not _require_2fa():
         return redirect(url_for("owner_portal.two_factor"))
-    assignment = PropertyOwnerAssignment.query.filter_by(
-        owner_id=owner_user.owner_id, property_id=property_id
-    ).first()
-    if assignment is None:
+    try:
+        rows = owner_portal_service.list_owner_property_reservations(
+            owner_id=owner_user.owner_id,
+            property_id=property_id,
+        )
+    except ValueError:
         abort(404)
-    rows = (
-        Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
-        .filter(Unit.property_id == property_id)
-        .order_by(Reservation.start_date.asc(), Reservation.id.asc())
-        .all()
-    )
     return render_template("owner/property_calendar.html", rows=rows, property_id=property_id)
 
 

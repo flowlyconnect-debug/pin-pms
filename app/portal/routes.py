@@ -5,10 +5,6 @@ from functools import wraps
 
 from flask import abort, current_app, flash, redirect, render_template, request, session, url_for
 
-from app.audit import record as audit_record
-from app.audit.models import ActorType, AuditStatus
-from app.email.models import TemplateKey
-from app.email.services import EmailTemplateNotFound, send_template
 from app.extensions import limiter
 from app.portal import portal_bp
 from app.portal import services as portal_service
@@ -44,28 +40,10 @@ def login():
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
-        user = portal_service.authenticate_portal_user(email=email, password=password)
+        user = portal_service.portal_login_with_audit(email=email, password=password)
         if user is None:
-            audit_record(
-                "portal.login.failure",
-                status=AuditStatus.FAILURE,
-                actor_type=ActorType.ANONYMOUS,
-                actor_email=email or None,
-                commit=True,
-            )
             return render_template("portal/login.html", error="Virheellinen sähköposti tai salasana.")
         session["portal_user_id"] = user.id
-        audit_record(
-            "portal.login.success",
-            status=AuditStatus.SUCCESS,
-            actor_type=ActorType.USER,
-            actor_id=user.id,
-            actor_email=user.email,
-            organization_id=user.organization_id,
-            target_type="user",
-            target_id=user.id,
-            commit=True,
-        )
         return redirect(url_for("portal.dashboard"))
     return render_template("portal/login.html", error=None)
 
@@ -78,55 +56,17 @@ def login():
 )
 def request_magic_link():
     email = (request.form.get("email") or "").strip().lower()
-    issued = portal_service.issue_magic_link(email=email)
-    if issued is not None:
-        row, raw_token = issued
-        magic_url = url_for("portal.magic_link_login", token=raw_token, _external=True)
-        try:
-            send_template(
-                TemplateKey.ADMIN_NOTIFICATION,
-                to=email,
-                context={
-                    "user_email": email,
-                    "subject_line": "Pindora-portaalin kirjautumislinkki",
-                    "message": f"Kirjaudu sisään tästä linkistä: {magic_url}",
-                },
-            )
-        except EmailTemplateNotFound:
-            current_app.logger.warning("Magic link email template missing for portal login.")
-        except Exception:  # noqa: BLE001
-            current_app.logger.exception("Failed sending portal magic link email.")
-        audit_record(
-            "portal.magic_link.issued",
-            status=AuditStatus.SUCCESS,
-            actor_type=ActorType.USER,
-            actor_id=row.user_id,
-            actor_email=email,
-            target_type="user",
-            target_id=row.user_id,
-            commit=True,
-        )
+    portal_service.send_portal_magic_link_email_and_audit(email=email)
     flash("Jos käyttäjätilisi on olemassa, sähköpostiisi lähetettiin kirjautumislinkki.")
     return redirect(url_for("portal.login"))
 
 
 @portal_bp.get("/magic/<token>")
 def magic_link_login(token: str):
-    user = portal_service.authenticate_by_magic_link(raw_token=token)
+    user = portal_service.complete_portal_magic_link_login(raw_token=token)
     if user is None:
         abort(404)
     session["portal_user_id"] = user.id
-    audit_record(
-        "portal.magic_link.login",
-        status=AuditStatus.SUCCESS,
-        actor_type=ActorType.USER,
-        actor_id=user.id,
-        actor_email=user.email,
-        organization_id=user.organization_id,
-        target_type="user",
-        target_id=user.id,
-        commit=True,
-    )
     return redirect(url_for("portal.dashboard"))
 
 

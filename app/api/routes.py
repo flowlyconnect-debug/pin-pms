@@ -17,7 +17,7 @@ from app.billing import services as billing_service
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
 from app.properties import services as property_service
-from app.properties.models import Property, Unit
+from app.api.services import get_unit_for_org_calendar_export
 from app.reservations import services as reservation_service
 from app.status.service import readiness_status
 
@@ -202,13 +202,9 @@ def create_unit(property_id: int):
 def export_unit_calendar_ics(unit_id: int):
     api_key = getattr(g, "api_key", None)
     if api_key is not None:
-        row = (
-            Unit.query.join(Property, Unit.property_id == Property.id)
-            .filter(
-                Unit.id == unit_id,
-                Property.organization_id == api_key.organization_id,
-            )
-            .first()
+        row = get_unit_for_org_calendar_export(
+            organization_id=api_key.organization_id,
+            unit_id=unit_id,
         )
         if row is None:
             return json_error("not_found", "Unit not found.", status=404)
