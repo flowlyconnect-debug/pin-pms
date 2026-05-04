@@ -6,18 +6,20 @@
   <h1>Omat laskut</h1>
   <table>
     <thead>
-      <tr><th>Lasku</th><th>Summa</th><th>Eräpäivä</th><th>Tila</th></tr>
+      <tr><th>Lasku</th><th>Veroton</th><th>ALV</th><th>Yhteensä</th><th>Eräpäivä</th><th>Tila</th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
         <tr>
           <td>{{ row.invoice_number or ("#" ~ row.id) }}</td>
-          <td>{{ row.amount }} {{ row.currency }}</td>
+          <td>{{ row.subtotal_excl_vat }} {{ row.currency }}</td>
+          <td>{{ row.vat_amount }} ({{ row.vat_rate }} %)</td>
+          <td>{{ row.total_incl_vat }} {{ row.currency }}</td>
           <td>{{ row.due_date }}</td>
           <td>{{ row.status }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="4"><em>Ei invoices.</em></td></tr>
+        <tr><td colspan="6"><em>Ei invoices.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -82,6 +82,10 @@ def test_lease_and_invoice_models_and_invoice_number_uniqueness(app, organizatio
         guest_id=admin_user.id,
         invoice_number=None,
         amount=Decimal("50.00"),
+        vat_rate=Decimal("0.00"),
+        vat_amount=Decimal("0.00"),
+        subtotal_excl_vat=Decimal("50.00"),
+        total_incl_vat=Decimal("50.00"),
         currency="EUR",
         due_date=date(2026, 5, 15),
         paid_at=None,
@@ -104,6 +108,10 @@ def test_lease_and_invoice_models_and_invoice_number_uniqueness(app, organizatio
         guest_id=None,
         invoice_number=inv.invoice_number,
         amount=Decimal("1.00"),
+        vat_rate=Decimal("0.00"),
+        vat_amount=Decimal("0.00"),
+        subtotal_excl_vat=Decimal("1.00"),
+        total_incl_vat=Decimal("1.00"),
         currency="EUR",
         due_date=date(2026, 6, 1),
         status="draft",
@@ -174,7 +182,7 @@ def test_invoice_service_mark_paid_and_overdue_and_audit(app, organization, admi
     )
     inv = billing_service.create_invoice(
         organization_id=organization.id,
-        amount_raw="200.00",
+        subtotal_excl_vat_raw="200.00",
         due_date_raw="2026-06-10",
         currency="EUR",
         description="Rent",
@@ -184,6 +192,7 @@ def test_invoice_service_mark_paid_and_overdue_and_audit(app, organization, admi
         status="open",
         metadata_json=None,
         actor_user_id=admin_user.id,
+        vat_rate_raw="0",
     )
     assert AuditLog.query.filter_by(action="lease.created").first() is not None
     assert AuditLog.query.filter_by(action="invoice.created").first() is not None
@@ -203,7 +212,7 @@ def test_invoice_service_mark_paid_and_overdue_and_audit(app, organization, admi
 
     inv2 = billing_service.create_invoice(
         organization_id=organization.id,
-        amount_raw="10.00",
+        subtotal_excl_vat_raw="10.00",
         due_date_raw=(date.today() - timedelta(days=2)).isoformat(),
         currency="EUR",
         description="Late",
@@ -213,6 +222,7 @@ def test_invoice_service_mark_paid_and_overdue_and_audit(app, organization, admi
         status="open",
         metadata_json=None,
         actor_user_id=admin_user.id,
+        vat_rate_raw="0",
     )
     n = billing_service.mark_overdue_invoices(organization_id=organization.id)
     assert n >= 1
@@ -267,7 +277,7 @@ def test_cannot_mark_invoice_paid_other_organization(app, organization, admin_us
     )
     inv_b = billing_service.create_invoice(
         organization_id=other_org.id,
-        amount_raw="50",
+        subtotal_excl_vat_raw="50",
         due_date_raw="2026-07-15",
         currency="EUR",
         description="Other",
@@ -277,6 +287,7 @@ def test_cannot_mark_invoice_paid_other_organization(app, organization, admin_us
         status="open",
         metadata_json=None,
         actor_user_id=other_admin.id,
+        vat_rate_raw="0",
     )
 
     with pytest.raises(billing_service.InvoiceServiceError) as exc:
@@ -320,7 +331,7 @@ def test_admin_can_list_leases_and_invoices(client, admin_user):
     )
     inv = billing_service.create_invoice(
         organization_id=admin_user.organization_id,
-        amount_raw="99",
+        subtotal_excl_vat_raw="99",
         due_date_raw="2026-08-10",
         currency="EUR",
         description="x",
@@ -330,6 +341,7 @@ def test_admin_can_list_leases_and_invoices(client, admin_user):
         status="open",
         metadata_json=None,
         actor_user_id=admin_user.id,
+        vat_rate_raw="0",
     )
 
     d = client.get(f"/admin/leases/{lease['id']}")
@@ -415,7 +427,7 @@ def test_admin_mark_invoice_paid_posts(client, admin_user):
     )
     inv = billing_service.create_invoice(
         organization_id=admin_user.organization_id,
-        amount_raw="40",
+        subtotal_excl_vat_raw="40",
         due_date_raw="2026-10-15",
         currency="EUR",
         description="Due",
@@ -425,6 +437,7 @@ def test_admin_mark_invoice_paid_posts(client, admin_user):
         status="open",
         metadata_json=None,
         actor_user_id=admin_user.id,
+        vat_rate_raw="0",
     )
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
@@ -464,7 +477,7 @@ def test_api_invoices_list_and_mark_paid(client, billing_api_key, organization, 
     )
     inv = billing_service.create_invoice(
         organization_id=organization.id,
-        amount_raw="120",
+        subtotal_excl_vat_raw="120",
         due_date_raw="2026-11-20",
         currency="EUR",
         description="API test",
@@ -474,6 +487,7 @@ def test_api_invoices_list_and_mark_paid(client, billing_api_key, organization, 
         status="open",
         metadata_json=None,
         actor_user_id=admin_user.id,
+        vat_rate_raw="0",
     )
 
     raw = billing_api_key.raw
@@ -537,7 +551,7 @@ def test_api_invoice_wrong_org_returns_404(client, billing_api_key, organization
     )
     inv = billing_service.create_invoice(
         organization_id=other.id,
-        amount_raw="5",
+        subtotal_excl_vat_raw="5",
         due_date_raw="2026-12-05",
         currency="EUR",
         description="x",
@@ -547,6 +561,7 @@ def test_api_invoice_wrong_org_returns_404(client, billing_api_key, organization
         status="open",
         metadata_json=None,
         actor_user_id=u2.id,
+        vat_rate_raw="0",
     )
 
     raw = billing_api_key.raw
@@ -555,3 +570,161 @@ def test_api_invoice_wrong_org_returns_404(client, billing_api_key, organization
     body = r.get_json()
     assert body["success"] is False
     assert body["error"]["code"] == "not_found"
+
+
+def test_invoice_calculates_vat_correctly(app, organization, admin_user):
+    from app.billing import services as billing_service
+
+    _property_unit_guest(organization_id=organization.id)
+    from app.properties.models import Property, Unit
+
+    unit = Unit.query.join(Property).filter(Property.organization_id == organization.id).first()
+    lease = billing_service.create_lease(
+        organization_id=organization.id,
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        reservation_id=None,
+        start_date_raw="2026-05-01",
+        end_date_raw=None,
+        rent_amount_raw="1",
+        deposit_amount_raw="0",
+        billing_cycle="monthly",
+        notes=None,
+        actor_user_id=admin_user.id,
+    )
+    inv = billing_service.create_invoice(
+        organization_id=organization.id,
+        subtotal_excl_vat_raw="100",
+        due_date_raw="2026-05-15",
+        currency="EUR",
+        description="VAT test",
+        lease_id=lease["id"],
+        reservation_id=None,
+        guest_id=None,
+        status="draft",
+        metadata_json=None,
+        actor_user_id=admin_user.id,
+        vat_rate_raw="24",
+    )
+    assert inv["subtotal_excl_vat"] == "100.00"
+    assert inv["vat_amount"] == "24.00"
+    assert inv["total_incl_vat"] == "124.00"
+    assert inv["amount"] == "124.00"
+
+
+def test_invoice_uses_default_vat_when_not_specified(app, organization, admin_user):
+    from app.billing import services as billing_service
+
+    _property_unit_guest(organization_id=organization.id)
+    from app.properties.models import Property, Unit
+
+    unit = Unit.query.join(Property).filter(Property.organization_id == organization.id).first()
+    lease = billing_service.create_lease(
+        organization_id=organization.id,
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        reservation_id=None,
+        start_date_raw="2026-05-01",
+        end_date_raw=None,
+        rent_amount_raw="1",
+        deposit_amount_raw="0",
+        billing_cycle="monthly",
+        notes=None,
+        actor_user_id=admin_user.id,
+    )
+    inv = billing_service.create_invoice(
+        organization_id=organization.id,
+        subtotal_excl_vat_raw="100",
+        due_date_raw="2026-05-20",
+        currency="EUR",
+        description="Default VAT",
+        lease_id=lease["id"],
+        reservation_id=None,
+        guest_id=None,
+        status="draft",
+        metadata_json=None,
+        actor_user_id=admin_user.id,
+        vat_rate_raw=None,
+    )
+    assert inv["vat_rate"] == "24.00"
+    assert inv["vat_amount"] == "24.00"
+    assert inv["total_incl_vat"] == "124.00"
+
+
+def test_invoice_zero_vat(app, organization, admin_user):
+    from app.billing import services as billing_service
+
+    _property_unit_guest(organization_id=organization.id)
+    from app.properties.models import Property, Unit
+
+    unit = Unit.query.join(Property).filter(Property.organization_id == organization.id).first()
+    lease = billing_service.create_lease(
+        organization_id=organization.id,
+        unit_id=unit.id,
+        guest_id=admin_user.id,
+        reservation_id=None,
+        start_date_raw="2026-05-01",
+        end_date_raw=None,
+        rent_amount_raw="1",
+        deposit_amount_raw="0",
+        billing_cycle="monthly",
+        notes=None,
+        actor_user_id=admin_user.id,
+    )
+    inv = billing_service.create_invoice(
+        organization_id=organization.id,
+        subtotal_excl_vat_raw="250.00",
+        due_date_raw="2026-05-21",
+        currency="EUR",
+        description="Zero VAT",
+        lease_id=lease["id"],
+        reservation_id=None,
+        guest_id=None,
+        status="draft",
+        metadata_json=None,
+        actor_user_id=admin_user.id,
+        vat_rate_raw="0",
+    )
+    assert inv["vat_amount"] == "0.00"
+    assert inv["total_incl_vat"] == "250.00"
+
+
+def test_legacy_invoice_migration_shape(app, organization, admin_user):
+    """Row matching post-migration backfill (legacy ``amount`` was incl. 24 % VAT)."""
+
+    from app.billing import services as billing_service
+    from app.billing.models import Invoice
+    from app.extensions import db
+
+    row = Invoice(
+        organization_id=organization.id,
+        lease_id=None,
+        reservation_id=None,
+        guest_id=None,
+        invoice_number="BIL-LEG-124",
+        amount=Decimal("124.00"),
+        vat_rate=Decimal("24.00"),
+        vat_amount=Decimal("24.00"),
+        subtotal_excl_vat=Decimal("100.00"),
+        total_incl_vat=Decimal("124.00"),
+        currency="EUR",
+        due_date=date(2026, 6, 1),
+        paid_at=None,
+        status="open",
+        description=None,
+        metadata_json=None,
+        created_by_id=admin_user.id,
+        updated_by_id=None,
+    )
+    db.session.add(row)
+    db.session.commit()
+
+    out = billing_service.get_invoice_for_org(
+        organization_id=organization.id,
+        invoice_id=row.id,
+    )
+    assert out["subtotal_excl_vat"] == "100.00"
+    assert out["vat_amount"] == "24.00"
+    assert out["total_incl_vat"] == "124.00"
+    assert out["total"] == "124.00"
+    assert out["amount"] == "124.00"

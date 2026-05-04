@@ -9,7 +9,10 @@
   <h1>Lasku {{ row.invoice_number or "#" ~ (row.id|string) }}</h1>
   <div class="card">
     <p><strong>Tila:</strong> {{ row.status }}</p>
-    <p><strong>Summa:</strong> {{ row.amount }} {{ row.currency }}</p>
+    <p><strong>Veroton:</strong> {{ row.subtotal_excl_vat }} {{ row.currency }}</p>
+    <p><strong>ALV-kanta:</strong> {{ row.vat_rate }} %</p>
+    <p><strong>ALV-summa:</strong> {{ row.vat_amount }} {{ row.currency }}</p>
+    <p><strong>Yhteensä (sis. ALV):</strong> {{ row.total_incl_vat }} {{ row.currency }}</p>
     <p><strong>Eräpäivä:</strong> {{ row.due_date }}</p>
     {% if row.paid_at %}<p><strong>Maksettu:</strong> {{ row.paid_at }}</p>{% endif %}
     {% if row.lease_id %}<p><strong>Vuokrasopimus:</strong> <a href="{{ url_for('admin.leases_detail', lease_id=row.lease_id) }}">#{{ row.lease_id }}</a></p>{% endif %}

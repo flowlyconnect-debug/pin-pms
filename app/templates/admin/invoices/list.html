@@ -16,7 +16,10 @@
     <thead>
       <tr>
         <th>Numero</th>
-        <th>Summa</th>
+        <th>Veroton</th>
+        <th>ALV %</th>
+        <th>ALV €</th>
+        <th>Yhteensä (sis. ALV)</th>
         <th>Erä</th>
         <th>Tila</th>
         <th>Vuokrasopimus</th>
@@ -27,7 +30,10 @@
       {% for row in rows %}
         <tr class="table-row-link" data-href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">
           <td>{{ row.invoice_number or "—" }}</td>
-          <td>{{ row.amount }} {{ row.currency }}</td>
+          <td>{{ row.subtotal_excl_vat }} {{ row.currency }}</td>
+          <td>{{ row.vat_rate }}</td>
+          <td>{{ row.vat_amount }} {{ row.currency }}</td>
+          <td>{{ row.total_incl_vat }} {{ row.currency }}</td>
           <td>{{ row.due_date }}</td>
           <td>
             {% if row.status == "paid" %}
@@ -44,7 +50,7 @@
           <td><a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">Näytä</a></td>
         </tr>
       {% else %}
-        <tr><td colspan="6" class="empty-state"><em>Ei laskuja vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
+        <tr><td colspan="9" class="empty-state"><em>Ei laskuja vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

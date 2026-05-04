@@ -315,8 +315,10 @@ def app():
     # ``db.create_all()`` does not run Alembic data seeds; several flows (e.g.
     # password reset) expect default email template rows.
     from app.email.services import ensure_seed_templates
+    from app.settings.services import ensure_seed_settings
 
     ensure_seed_templates()
+    ensure_seed_settings()
 
     yield application
 

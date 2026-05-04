@@ -2,8 +2,29 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
+from sqlalchemy import event
+from sqlalchemy.ext.hybrid import hybrid_property
+
 from app.extensions import db
 from app.models import TimestampMixin
+
+
+def _invoice_coerce_legacy_amount_only(target: "Invoice") -> None:
+    """If only legacy ``amount`` was provided, treat it as a zero-VAT gross total."""
+
+    amt = target.amount
+    if amt is None:
+        return
+    total = target.total_incl_vat
+    if total is None or Decimal(str(total)) == Decimal("0.00"):
+        a = Decimal(str(amt)).quantize(Decimal("0.01"))
+        target.amount = a
+        target.total_incl_vat = a
+        target.subtotal_excl_vat = a
+        target.vat_amount = Decimal("0.00")
+        target.vat_rate = Decimal("0.00")
 
 
 class Lease(TimestampMixin, db.Model):
@@ -102,6 +123,10 @@ class Invoice(TimestampMixin, db.Model):
     )
     invoice_number = db.Column(db.String(64), nullable=True, index=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
+    vat_rate = db.Column(db.Numeric(5, 2), nullable=False, default=24.00)
+    vat_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
+    subtotal_excl_vat = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
+    total_incl_vat = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
     currency = db.Column(db.String(3), nullable=False, default="EUR")
     due_date = db.Column(db.Date, nullable=False, index=True)
     paid_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -126,5 +151,20 @@ class Invoice(TimestampMixin, db.Model):
     created_by = db.relationship("User", foreign_keys=[created_by_id], lazy="joined")
     updated_by = db.relationship("User", foreign_keys=[updated_by_id], lazy="joined")
 
+    @hybrid_property
+    def total(self):
+        """Backward-compatible gross total (ALV sisällä)."""
+
+        return self.total_incl_vat
+
+    @total.expression  # type: ignore[no-redef]
+    def total(cls):
+        return cls.total_incl_vat
+
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Invoice {self.id} org={self.organization_id}>"
+
+
+@event.listens_for(Invoice, "before_insert")
+def _invoice_before_insert(_mapper, _connection, target: Invoice) -> None:
+    _invoice_coerce_legacy_amount_only(target)

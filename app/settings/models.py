@@ -35,8 +35,9 @@ class SettingType:
     INT = "int"
     BOOL = "bool"
     JSON = "json"
+    DECIMAL = "decimal"
 
-    ALL = (STRING, INT, BOOL, JSON)
+    ALL = (STRING, INT, BOOL, JSON, DECIMAL)
 
 
 class Setting(db.Model):

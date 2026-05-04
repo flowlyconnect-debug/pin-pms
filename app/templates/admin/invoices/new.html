@@ -22,10 +22,13 @@
       {% endfor %}
     </select>
 
-    <p class="meta">Jos vuokraa ei valita, summa ja eräpäivä ovat pakolliset. Asiakas ja varaus ovat valinnaisia erilliselle laskulle.</p>
+    <p class="meta">Jos vuokraa ei valita, veroton summa ja eräpäivä ovat pakolliset. ALV lasketaan palvelimella. Asiakas ja varaus ovat valinnaisia erilliselle laskulle.</p>
 
-    <label for="amount">Summa</label>
-    <input id="amount" name="amount" type="number" min="0" step="0.01" value="{{ form.amount }}">
+    <label for="subtotal_excl_vat">Veroton summa (ALV erikseen)</label>
+    <input id="subtotal_excl_vat" name="subtotal_excl_vat" type="number" min="0" step="0.01" value="{{ form.subtotal_excl_vat }}">
+
+    <label for="vat_rate">ALV-% (tyhjä = järjestelmän oletus)</label>
+    <input id="vat_rate" name="vat_rate" type="number" min="0" max="100" step="0.01" value="{{ form.vat_rate }}">
 
     <label for="currency">Valuutta</label>
     <input id="currency" name="currency" type="text" maxlength="3" value="{{ form.currency or 'EUR' }}">

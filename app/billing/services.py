@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Mapping
 
 from app.audit import record as audit_record
@@ -14,6 +14,7 @@ from app.extensions import db
 from app.guests.models import Guest
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
+from app.settings import services as settings_services
 
 
 @dataclass
@@ -91,6 +92,50 @@ def _parse_optional_amount(raw: Any, *, error_cls: type) -> Decimal:
     if raw is None or str(raw).strip() == "":
         return Decimal("0.00")
     return _parse_amount(raw, error_cls=error_cls)
+
+
+def _quantize_money(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _compute_vat_lines(subtotal_excl_vat: Decimal, vat_rate: Decimal) -> tuple[Decimal, Decimal, Decimal]:
+    """Return (subtotal, vat_amount, total_incl_vat), each rounded to cents."""
+
+    sub = _quantize_money(subtotal_excl_vat)
+    vat_amt = _quantize_money(sub * vat_rate / Decimal("100"))
+    total = _quantize_money(sub + vat_amt)
+    return sub, vat_amt, total
+
+
+def _default_vat_rate_decimal() -> Decimal:
+    raw = settings_services.get("billing.default_vat_rate", Decimal("24.00"))
+    if isinstance(raw, Decimal):
+        return raw.quantize(Decimal("0.01"))
+    try:
+        return Decimal(str(raw)).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return Decimal("24.00")
+
+
+def _parse_vat_rate_optional(raw: Any, *, error_cls: type) -> Decimal | None:
+    if raw is None or str(raw).strip() == "":
+        return None
+    text = str(raw).strip()
+    try:
+        rate = Decimal(text).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        raise error_cls(
+            code="validation_error",
+            message="vat_rate must be a valid decimal number.",
+            status=400,
+        ) from None
+    if rate < Decimal("0") or rate > Decimal("100"):
+        raise error_cls(
+            code="validation_error",
+            message="vat_rate must be between 0 and 100.",
+            status=400,
+        )
+    return rate
 
 
 def _parse_currency(raw: Any) -> str:
@@ -186,6 +231,7 @@ def _serialize_lease(row: Lease) -> dict:
 
 
 def _serialize_invoice(row: Invoice) -> dict:
+    total_gross = row.total_incl_vat
     return {
         "id": row.id,
         "organization_id": row.organization_id,
@@ -193,7 +239,12 @@ def _serialize_invoice(row: Invoice) -> dict:
         "reservation_id": row.reservation_id,
         "guest_id": row.guest_id,
         "invoice_number": row.invoice_number,
-        "amount": str(row.amount),
+        "amount": str(total_gross),
+        "vat_rate": str(row.vat_rate),
+        "vat_amount": str(row.vat_amount),
+        "subtotal_excl_vat": str(row.subtotal_excl_vat),
+        "total_incl_vat": str(total_gross),
+        "total": str(total_gross),
         "currency": row.currency,
         "due_date": row.due_date.isoformat(),
         "paid_at": row.paid_at.isoformat() if row.paid_at else None,
@@ -564,7 +615,7 @@ def cancel_lease(*, organization_id: int, lease_id: int, actor_user_id: int) -> 
 def create_invoice(
     *,
     organization_id: int,
-    amount_raw: Any,
+    subtotal_excl_vat_raw: Any,
     due_date_raw: str,
     currency: str | None = None,
     description: str | None = None,
@@ -574,6 +625,7 @@ def create_invoice(
     status: str = "draft",
     metadata_json: Mapping[str, Any] | list[Any] | None = None,
     actor_user_id: int | None,
+    vat_rate_raw: Any | None = None,
 ) -> dict:
     if actor_user_id is None:
         raise InvoiceServiceError(
@@ -596,7 +648,10 @@ def create_invoice(
             status=400,
         )
 
-    amount = _parse_amount(amount_raw, error_cls=InvoiceServiceError)
+    subtotal_excl_vat = _parse_amount(subtotal_excl_vat_raw, error_cls=InvoiceServiceError)
+    opt_rate = _parse_vat_rate_optional(vat_rate_raw, error_cls=InvoiceServiceError)
+    vat_rate = opt_rate if opt_rate is not None else _default_vat_rate_decimal()
+    sub_q, vat_amt, total_incl = _compute_vat_lines(subtotal_excl_vat, vat_rate)
     due = _parse_iso_date_invoice(due_date_raw, "due_date")
     cur = _parse_currency(currency)
 
@@ -639,7 +694,11 @@ def create_invoice(
         reservation_id=rid,
         guest_id=gid,
         invoice_number=None,
-        amount=amount,
+        amount=total_incl,
+        vat_rate=vat_rate,
+        vat_amount=vat_amt,
+        subtotal_excl_vat=sub_q,
+        total_incl_vat=total_incl,
         currency=cur,
         due_date=due,
         paid_at=None,
@@ -660,7 +719,13 @@ def create_invoice(
         organization_id=organization_id,
         target_type="invoice",
         target_id=row.id,
-        context={"invoice_number": row.invoice_number, "amount": str(amount)},
+        context={
+            "invoice_number": row.invoice_number,
+            "vat_rate": str(vat_rate),
+            "total": str(total_incl),
+            "subtotal_excl_vat": str(sub_q),
+            "vat_amount": str(vat_amt),
+        },
         commit=True,
     )
     return _serialize_invoice(row)
@@ -670,12 +735,13 @@ def create_invoice_for_lease(
     *,
     organization_id: int,
     lease_id: int,
-    amount_raw: Any | None,
+    subtotal_excl_vat_raw: Any | None,
     due_date_raw: str,
     currency: str | None = None,
     description: str | None = None,
     status: str = "open",
     actor_user_id: int | None,
+    vat_rate_raw: Any | None = None,
 ) -> dict:
     lease = _get_lease_row(organization_id=organization_id, lease_id=lease_id)
     if lease is None:
@@ -684,13 +750,13 @@ def create_invoice_for_lease(
             message="Lease not found in this organization.",
             status=400,
         )
-    amt = amount_raw if amount_raw is not None else lease.rent_amount
+    sub_raw = subtotal_excl_vat_raw if subtotal_excl_vat_raw is not None else lease.rent_amount
     desc = description
     if desc is None or not str(desc).strip():
         desc = f"Lease #{lease.id} ({lease.billing_cycle})"
     return create_invoice(
         organization_id=organization_id,
-        amount_raw=amt,
+        subtotal_excl_vat_raw=sub_raw,
         due_date_raw=due_date_raw,
         currency=currency,
         description=desc,
@@ -700,6 +766,7 @@ def create_invoice_for_lease(
         status=status,
         metadata_json=None,
         actor_user_id=actor_user_id,
+        vat_rate_raw=vat_rate_raw,
     )
 
 
@@ -771,9 +838,33 @@ def update_invoice_limited(
         m = data["metadata_json"]
         row.metadata_json = dict(m) if isinstance(m, Mapping) else m
 
+    financial_touch = False
     if row.status in {"draft", "open"}:
-        if "amount" in data:
-            row.amount = _parse_amount(data["amount"], error_cls=InvoiceServiceError)
+        sub_changed = False
+        new_sub: Decimal | None = None
+        if "subtotal_excl_vat" in data:
+            new_sub = _parse_amount(data["subtotal_excl_vat"], error_cls=InvoiceServiceError)
+            sub_changed = True
+        elif "amount" in data:
+            new_sub = _parse_amount(data["amount"], error_cls=InvoiceServiceError)
+            sub_changed = True
+
+        new_rate: Decimal | None = None
+        if "vat_rate" in data:
+            parsed = _parse_vat_rate_optional(data["vat_rate"], error_cls=InvoiceServiceError)
+            new_rate = parsed if parsed is not None else _default_vat_rate_decimal()
+
+        if sub_changed or new_rate is not None:
+            base_sub = new_sub if new_sub is not None else row.subtotal_excl_vat
+            base_rate = new_rate if new_rate is not None else Decimal(str(row.vat_rate))
+            sub_q, vat_amt, total_incl = _compute_vat_lines(base_sub, base_rate)
+            row.subtotal_excl_vat = sub_q
+            row.vat_rate = base_rate
+            row.vat_amount = vat_amt
+            row.total_incl_vat = total_incl
+            row.amount = total_incl
+            financial_touch = True
+
         if "currency" in data:
             row.currency = _parse_currency(data["currency"])
         if "due_date" in data:
@@ -821,6 +912,12 @@ def update_invoice_limited(
 
     row.updated_by_id = actor_user_id
     db.session.commit()
+    audit_ctx: dict[str, Any] | None = None
+    if financial_touch:
+        audit_ctx = {
+            "vat_rate": str(row.vat_rate),
+            "total": str(row.total_incl_vat),
+        }
     audit_record(
         "invoice.updated",
         status=AuditStatus.SUCCESS,
@@ -828,6 +925,7 @@ def update_invoice_limited(
         organization_id=organization_id,
         target_type="invoice",
         target_id=row.id,
+        context=audit_ctx,
         commit=True,
     )
     return _serialize_invoice(row)
@@ -961,3 +1059,17 @@ def list_invoices_for_org(*, organization_id: int) -> list[dict]:
         .all()
     )
     return [_serialize_invoice(r) for r in rows]
+
+
+def log_invoice_pdf_downloaded(*, invoice_id: int, organization_id: int) -> None:
+    """Write ``invoice.pdf_downloaded`` to the audit log (request IP/UA when available)."""
+
+    audit_record(
+        "invoice.pdf_downloaded",
+        status=AuditStatus.SUCCESS,
+        organization_id=organization_id,
+        target_type="invoice",
+        target_id=invoice_id,
+        metadata={},
+        commit=True,
+    )

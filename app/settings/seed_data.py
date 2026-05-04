@@ -45,4 +45,11 @@ SEED_SETTINGS: list[SettingSeed] = [
         "description": "Default IANA timezone for new users.",
         "is_secret": False,
     },
+    {
+        "key": "billing.default_vat_rate",
+        "value": "24.00",
+        "type": "decimal",
+        "description": "Oletus-ALV-kanta laskuille (%)",
+        "is_secret": False,
+    },
 ]

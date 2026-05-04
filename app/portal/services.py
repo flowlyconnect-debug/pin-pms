@@ -182,7 +182,11 @@ def list_invoices(*, organization_id: int, guest_id: int) -> list[dict]:
         {
             "id": row.id,
             "invoice_number": row.invoice_number,
-            "amount": str(row.amount),
+            "amount": str(row.total_incl_vat),
+            "subtotal_excl_vat": str(row.subtotal_excl_vat),
+            "vat_rate": str(row.vat_rate),
+            "vat_amount": str(row.vat_amount),
+            "total_incl_vat": str(row.total_incl_vat),
             "currency": row.currency,
             "due_date": row.due_date.isoformat(),
             "status": row.status,

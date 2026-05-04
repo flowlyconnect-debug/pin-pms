@@ -10,9 +10,36 @@ Route handlers should return the values produced by :func:`json_ok` and
 :func:`json_error` — never a bare ``jsonify`` — so the shape stays consistent.
 """
 
-from typing import Any
+from typing import Any, TypedDict
 
 from flask import jsonify
+
+
+class InvoiceSchema(TypedDict, total=False):
+    """JSON shape returned for invoice resources under ``/api/v1/invoices``."""
+
+    id: int
+    organization_id: int
+    lease_id: int | None
+    reservation_id: int | None
+    guest_id: int | None
+    invoice_number: str | None
+    amount: str
+    vat_rate: str
+    vat_amount: str
+    subtotal_excl_vat: str
+    total_incl_vat: str
+    total: str
+    currency: str
+    due_date: str
+    paid_at: str | None
+    status: str
+    description: str | None
+    metadata_json: Any
+    created_by_id: int
+    updated_by_id: int | None
+    created_at: str | None
+    updated_at: str | None
 
 
 def json_ok(data: Any = None, status: int = 200, meta: Any = None):

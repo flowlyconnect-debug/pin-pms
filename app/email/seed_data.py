@@ -233,16 +233,25 @@ SEED_TEMPLATES: list[TemplateSeed] = [
         "subject": "Invoice {{ invoice_number }}",
         "body_text": (
             "Hello,\n\n"
-            "Invoice {{ invoice_number }} for {{ amount }} {{ currency }} "
-            "is due on {{ due_date }}.\n"
+            "Invoice {{ invoice_number }} (due {{ due_date }})\n"
+            "Subtotal excl. VAT: {{ subtotal_excl_vat }} {{ currency }}\n"
+            "VAT ({{ vat_rate }}%): {{ vat_amount }} {{ currency }}\n"
+            "Total incl. VAT: {{ total_incl_vat }} {{ currency }}\n"
             "{{ description }}\n\n"
             "— {{ from_name }}\n"
         ),
         "body_html": (
             "<p>Hello,</p>"
-            "<p>Invoice <strong>{{ invoice_number }}</strong> for "
-            "<strong>{{ amount }} {{ currency }}</strong> is due on "
-            "<strong>{{ due_date }}</strong>.</p>"
+            "<p>Invoice <strong>{{ invoice_number }}</strong> — due "
+            "<strong>{{ due_date }}</strong></p>"
+            "<table style=\"border-collapse:collapse;margin:.5rem 0\">"
+            "<tr><td style=\"padding:.25rem .75rem .25rem 0\">Subtotal (excl. VAT)</td>"
+            "<td><strong>{{ subtotal_excl_vat }} {{ currency }}</strong></td></tr>"
+            "<tr><td style=\"padding:.25rem .75rem .25rem 0\">VAT ({{ vat_rate }}%)</td>"
+            "<td><strong>{{ vat_amount }} {{ currency }}</strong></td></tr>"
+            "<tr><td style=\"padding:.25rem .75rem .25rem 0\">Total (incl. VAT)</td>"
+            "<td><strong>{{ total_incl_vat }} {{ currency }}</strong></td></tr>"
+            "</table>"
             "<p>{{ description }}</p>"
             "<p>— {{ from_name }}</p>"
         ),
@@ -250,6 +259,10 @@ SEED_TEMPLATES: list[TemplateSeed] = [
         "available_variables": [
             "invoice_number",
             "amount",
+            "subtotal_excl_vat",
+            "vat_rate",
+            "vat_amount",
+            "total_incl_vat",
             "currency",
             "due_date",
             "description",

@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from flask import g, has_request_context
@@ -72,7 +73,9 @@ def _decode(stored: Optional[str], type_: str) -> Any:
 
     if stored is None:
         # NULL means "unset". Match the natural empty for each type.
-        return {"string": "", "int": 0, "bool": False, "json": None}.get(type_, "")
+        return {"string": "", "int": 0, "bool": False, "json": None, "decimal": Decimal("0.00")}.get(
+            type_, ""
+        )
 
     if type_ == SettingType.STRING:
         return stored
@@ -93,6 +96,11 @@ def _decode(stored: Optional[str], type_: str) -> Any:
             return json.loads(stored)
         except json.JSONDecodeError as err:
             raise SettingValueError(f"Setting value is not valid JSON: {err}") from err
+    if type_ == SettingType.DECIMAL:
+        try:
+            return Decimal(str(stored).strip()).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError) as err:
+            raise SettingValueError(f"Setting value is not a valid decimal: {stored!r}") from err
 
     raise SettingValueError(f"Unknown setting type: {type_!r}")
 
@@ -131,6 +139,12 @@ def _encode(value: Any, type_: str) -> Optional[str]:
             return json.dumps(value, ensure_ascii=False, sort_keys=True)
         except (TypeError, ValueError) as err:
             raise SettingValueError(f"Cannot encode {value!r} as JSON") from err
+    if type_ == SettingType.DECIMAL:
+        try:
+            dec = Decimal(str(value)).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError) as err:
+            raise SettingValueError(f"Cannot encode {value!r} as decimal") from err
+        return format(dec, "f")
 
     raise SettingValueError(f"Unhandled setting type: {type_!r}")  # pragma: no cover
 
@@ -335,6 +349,8 @@ def mask_for_display(setting: Setting) -> str:
         return json.dumps(value, ensure_ascii=False)
     if setting.type == SettingType.BOOL:
         return "true" if value else "false"
+    if setting.type == SettingType.DECIMAL:
+        return str(value)
     return str(value)
 
 
