@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import click
 from flask import Flask
@@ -15,6 +16,12 @@ from app.billing import services as billing_service
 from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import ensure_seed_templates, send_template_sync
 from app.extensions import db
+from app.gdpr.services import (
+    anonymize_user_data,
+    delete_user_data,
+    export_json_safe,
+    export_user_data,
+)
 from app.integrations.ical.service import IcalService
 from app.organizations.models import Organization
 from app.owners.models import OwnerPayout, OwnerPayoutStatus, PropertyOwner
@@ -527,3 +534,65 @@ def register_cli_commands(app: Flask) -> None:
             if send_payout_email(payout=row):
                 sent += 1
         click.echo(f"Sent {sent} owner payout email(s) for {period_month}.")
+
+    @app.cli.command("gdpr-export-user")
+    @click.option("--email", required=True, help="User email address.")
+    @click.option(
+        "--output",
+        default=None,
+        help="Optional file path to write JSON (otherwise printed to stdout).",
+    )
+    def gdpr_export_user(email: str, output: str | None) -> None:
+        """Export a portable JSON bundle for the given user (no secrets)."""
+
+        normalized_email = email.strip().lower()
+        user = User.query.filter_by(email=normalized_email).first()
+        if user is None:
+            click.echo(f"User '{normalized_email}' not found.", err=True)
+            raise click.Abort()
+        try:
+            data = export_user_data(user.id)
+        except Exception as err:  # noqa: BLE001
+            raise click.ClickException(str(err)) from err
+        text = export_json_safe(data)
+        if output:
+            path = Path(output).expanduser()
+            path.write_text(text, encoding="utf-8")
+            click.echo(f"Wrote GDPR export to {path}.")
+        else:
+            click.echo(text)
+
+    @app.cli.command("gdpr-anonymize-user")
+    @click.option("--email", required=True, help="User email address.")
+    @click.confirmation_option(prompt="Haluatko varmasti anonymisoida käyttäjän?")
+    def gdpr_anonymize_user(email: str) -> None:
+        """Replace PII with placeholders and deactivate the account."""
+
+        normalized_email = email.strip().lower()
+        user = User.query.filter_by(email=normalized_email).first()
+        if user is None:
+            click.echo(f"User '{normalized_email}' not found.", err=True)
+            raise click.Abort()
+        try:
+            anonymize_user_data(user.id)
+        except Exception as err:  # noqa: BLE001
+            raise click.ClickException(str(err)) from err
+        click.echo(f"User {user.id} anonymized.")
+
+    @app.cli.command("gdpr-delete-user")
+    @click.option("--email", required=True, help="User email address.")
+    @click.confirmation_option(prompt="POISTO ON LOPULLINEN. Haluatko varmasti?")
+    def gdpr_delete_user(email: str) -> None:
+        """Permanently remove the user row after anonymization (superadmin shell tool)."""
+
+        normalized_email = email.strip().lower()
+        user = User.query.filter_by(email=normalized_email).first()
+        if user is None:
+            click.echo(f"User '{normalized_email}' not found.", err=True)
+            raise click.Abort()
+        uid = user.id
+        try:
+            delete_user_data(uid, from_cli=True)
+        except Exception as err:  # noqa: BLE001
+            raise click.ClickException(str(err)) from err
+        click.echo(f"User id {uid} permanently deleted (GDPR).")

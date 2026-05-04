@@ -8,12 +8,16 @@ Minimum surface required by the project brief (section 6):
 
 from __future__ import annotations
 
-from flask import Response, current_app, g, request
+from io import BytesIO
+
+from flask import Response, current_app, g, request, send_file
 
 from app.api import api_bp
 from app.api.auth import require_api_key, scope_required
 from app.api.schemas import json_error, json_ok
 from app.billing import services as billing_service
+from app.billing.models import Invoice
+from app.billing.pdf import generate_invoice_pdf
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
 from app.properties import services as property_service
@@ -452,23 +456,28 @@ def create_invoice_api():
     lease_id = payload.get("lease_id")
     lid = int(lease_id) if lease_id not in (None, "") else None
     try:
+        sub_raw = payload.get("subtotal_excl_vat")
+        if sub_raw is None or str(sub_raw).strip() == "":
+            sub_raw = payload.get("amount")
+        vat_raw = payload.get("vat_rate")
         if lid is not None:
             data = billing_service.create_invoice_for_lease(
                 organization_id=_org_id(),
                 lease_id=lid,
-                amount_raw=payload.get("amount"),
+                subtotal_excl_vat_raw=sub_raw,
                 due_date_raw=str(payload.get("due_date", "")),
                 currency=str(payload.get("currency")) if payload.get("currency") else None,
                 description=str(payload.get("description")) if payload.get("description") else None,
                 status=str(payload.get("status", "open")),
                 actor_user_id=actor,
+                vat_rate_raw=vat_raw,
             )
         else:
             res_raw = payload.get("reservation_id")
             guest_raw = payload.get("guest_id")
             data = billing_service.create_invoice(
                 organization_id=_org_id(),
-                amount_raw=payload.get("amount"),
+                subtotal_excl_vat_raw=sub_raw,
                 due_date_raw=str(payload.get("due_date", "")),
                 currency=str(payload.get("currency")) if payload.get("currency") else None,
                 description=str(payload.get("description")) if payload.get("description") else None,
@@ -478,6 +487,7 @@ def create_invoice_api():
                 status=str(payload.get("status", "draft")),
                 metadata_json=payload.get("metadata_json"),
                 actor_user_id=actor,
+                vat_rate_raw=vat_raw,
             )
     except (TypeError, ValueError):
         return json_error("validation_error", "Invalid numeric id in payload.", status=400)
@@ -498,6 +508,32 @@ def get_invoice_api(invoice_id: int):
     except billing_service.InvoiceServiceError as err:
         return json_error(err.code, err.message, status=err.status)
     return json_ok(data)
+
+
+@api_bp.get("/invoices/<int:invoice_id>/pdf")
+@require_api_key
+@scope_required("invoices:read")
+def api_invoice_pdf(invoice_id: int):
+    inv = Invoice.query.get(invoice_id)
+    if inv is None:
+        return json_error("not_found", "Invoice not found.", status=404)
+    if inv.organization_id != _org_id():
+        return json_error("forbidden", "Invoice not found.", status=403)
+    try:
+        pdf_bytes = generate_invoice_pdf(invoice_id)
+    except billing_service.InvoiceServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    billing_service.log_invoice_pdf_downloaded(
+        invoice_id=invoice_id,
+        organization_id=inv.organization_id,
+    )
+    safe_name = (inv.invoice_number or f"INV-{inv.id}").replace("/", "-").replace("\\", "-")
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"lasku-{safe_name}.pdf",
+    )
 
 
 @api_bp.post("/invoices/<int:invoice_id>/mark-paid")
