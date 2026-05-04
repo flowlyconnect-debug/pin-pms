@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+
+{% block title %}GDPR · {{ target_user.email }} · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>GDPR — käyttäjä</h1>
+  <p><a href="{{ url_for('admin.users_list') }}">← Käyttäjät</a></p>
+  <div class="card">
+    <p><strong>ID:</strong> {{ target_user.id }}</p>
+    <p><strong>Sähköposti:</strong> <code>{{ target_user.email }}</code></p>
+    <p><strong>Organisaatio:</strong> {{ target_user.organization.name }}</p>
+  </div>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <h2>Vie data</h2>
+  <p>Lataa JSON-tiedosto ilman salaisuuksia (sama sisältö kuin CLI <code>gdpr-export-user</code>).</p>
+  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="export">
+    <button type="submit">Vie data</button>
+  </form>
+
+  <h2>Anonymisoi</h2>
+  <p>Korvaa henkilötiedot ja deaktivoi tili. Varaukset ja laskut säilyvät.</p>
+  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="anonymize">
+    <button type="submit">Anonymisoi</button>
+  </form>
+
+  <h2>Poista pysyvästi</h2>
+  <p class="error"><strong>Varoitus:</strong> poistaa käyttäjärivin anonymisoinnin jälkeen. Kirjaa audit-lokiin ennen poistoa.</p>
+  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="delete">
+    <label for="password">Salasanasi</label>
+    <input id="password" name="password" type="password" required autocomplete="current-password">
+    <label for="totp_code">Sovelluksen 2FA-koodi</label>
+    <input id="totp_code" name="totp_code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+    <div class="actions">
+      <button type="submit" class="btn-danger">Poista käyttäjä</button>
+    </div>
+  </form>
+{% endblock %}

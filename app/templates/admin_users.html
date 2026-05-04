@@ -26,6 +26,7 @@
           <td>{{ "päällä" if u.is_2fa_enabled else "pois" }}</td>
           <td>
             <a href="{{ url_for('admin.users_edit', user_id=u.id) }}">Muokkaa</a>
+            <a href="{{ url_for('admin.gdpr_user', user_id=u.id) }}">GDPR</a>
             <form method="post" action="{{ url_for('admin.users_toggle_active', user_id=u.id) }}" style="display:inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit">{{ "Poista käytöstä" if u.is_active else "Ota käyttöön" }}</button>

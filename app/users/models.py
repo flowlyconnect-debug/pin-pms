@@ -62,6 +62,11 @@ class User(TimestampMixin, UserMixin, db.Model):
         default=UserRole.USER.value,
     )
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    first_name = db.Column(db.String(120), nullable=True)
+    last_name = db.Column(db.String(120), nullable=True)
+    phone = db.Column(db.String(80), nullable=True)
+    address = db.Column(db.Text, nullable=True)
+    anonymized_at = db.Column(db.DateTime(timezone=True), nullable=True)
     totp_secret = db.Column(db.String(32), nullable=True)
     is_2fa_enabled = db.Column(db.Boolean, nullable=False, default=False)
     backup_codes = db.Column(db.JSON, nullable=False, default=list)

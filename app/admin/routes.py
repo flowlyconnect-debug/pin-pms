@@ -9,14 +9,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from functools import wraps
+from io import BytesIO
 
 from flask import (
+    Response,
     abort,
     flash,
     jsonify,
     redirect,
     render_template,
     request,
+    send_file,
     session,
     url_for,
 )
@@ -45,9 +48,18 @@ from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
 from app.billing import services as billing_service
+from app.billing.models import Invoice
+from app.billing.pdf import generate_invoice_pdf
 from app.email.models import EmailTemplate
 from app.email.services import EmailServiceError, update_email_template_admin
 from app.extensions import db
+from app.gdpr.services import (
+    GdprPermissionError,
+    anonymize_user_data,
+    delete_user_data,
+    export_json_safe,
+    export_user_data,
+)
 from app.guests import services as guest_service
 from app.integrations.ical.models import ImportedCalendarFeed
 from app.integrations.ical.service import IcalService, IcalServiceError
@@ -62,6 +74,7 @@ from app.reservations import services as reservation_service
 from app.settings import services as settings_service
 from app.settings.models import SettingType
 from app.users.models import User, UserRole
+from app.users.services import UserServiceError
 
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
@@ -1223,7 +1236,8 @@ def invoices_new():
     lease_rows = billing_service.list_leases_for_org(organization_id=org_id)
     form = {
         "lease_id": "",
-        "amount": "",
+        "subtotal_excl_vat": "",
+        "vat_rate": "",
         "currency": "EUR",
         "due_date": "",
         "description": "",
@@ -1235,7 +1249,8 @@ def invoices_new():
 
     if request.method == "POST":
         form["lease_id"] = (request.form.get("lease_id") or "").strip()
-        form["amount"] = (request.form.get("amount") or "").strip()
+        form["subtotal_excl_vat"] = (request.form.get("subtotal_excl_vat") or "").strip()
+        form["vat_rate"] = (request.form.get("vat_rate") or "").strip()
         form["currency"] = (request.form.get("currency") or "").strip().upper() or "EUR"
         form["due_date"] = (request.form.get("due_date") or "").strip()
         form["description"] = (request.form.get("description") or "").strip()
@@ -1250,12 +1265,13 @@ def invoices_new():
                 row = billing_service.create_invoice_for_lease(
                     organization_id=org_id,
                     lease_id=int(form["lease_id"]),
-                    amount_raw=form["amount"] or None,
+                    subtotal_excl_vat_raw=form["subtotal_excl_vat"] or None,
                     due_date_raw=form["due_date"],
                     currency=form["currency"],
                     description=form["description"] or None,
                     status=form["status"],
                     actor_user_id=current_user.id,
+                    vat_rate_raw=form["vat_rate"] or None,
                 )
             except (TypeError, ValueError):
                 error = "Vuokrasopimuksen tunnisteen tulee olla numero."
@@ -1265,15 +1281,15 @@ def invoices_new():
                 flash("Lasku luotu.")
                 return redirect(url_for("admin.invoices_detail", invoice_id=row["id"]))
         else:
-            if not form["amount"]:
-                error = "Summa on pakollinen, jos vuokrasopimusta ei ole valittu."
+            if not form["subtotal_excl_vat"]:
+                error = "Veroton summa on pakollinen, jos vuokrasopimusta ei ole valittu."
             else:
                 try:
                     res_id = int(form["reservation_id"]) if form["reservation_id"] else None
                     guest_id = int(form["guest_id"]) if form["guest_id"] else None
                     row = billing_service.create_invoice(
                         organization_id=org_id,
-                        amount_raw=form["amount"],
+                        subtotal_excl_vat_raw=form["subtotal_excl_vat"],
                         due_date_raw=form["due_date"],
                         currency=form["currency"],
                         description=form["description"] or None,
@@ -1283,6 +1299,7 @@ def invoices_new():
                         status=form["status"],
                         metadata_json=None,
                         actor_user_id=current_user.id,
+                        vat_rate_raw=form["vat_rate"] or None,
                     )
                 except (TypeError, ValueError):
                     error = "Asiakkaan ja varauksen tunnisteiden tulee olla numeroita, jos ne annetaan."
@@ -1311,6 +1328,33 @@ def invoices_detail(invoice_id: int):
     except billing_service.InvoiceServiceError:
         abort(404)
     return render_template("admin/invoices/detail.html", row=row)
+
+
+@admin_bp.get("/invoices/<int:invoice_id>/pdf")
+@require_admin_pms_access
+def invoices_pdf(invoice_id: int):
+    inv = Invoice.query.get(invoice_id)
+    if inv is None:
+        abort(404)
+    if not current_user.is_superadmin and inv.organization_id != current_user.organization_id:
+        abort(403)
+    try:
+        pdf_bytes = generate_invoice_pdf(invoice_id)
+    except billing_service.InvoiceServiceError as err:
+        if err.status == 404:
+            abort(404)
+        abort(400)
+    billing_service.log_invoice_pdf_downloaded(
+        invoice_id=invoice_id,
+        organization_id=inv.organization_id,
+    )
+    safe_name = (inv.invoice_number or f"INV-{inv.id}").replace("/", "-").replace("\\", "-")
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"lasku-{safe_name}.pdf",
+    )
 
 
 @admin_bp.post("/invoices/<int:invoice_id>/mark-paid")
@@ -2191,6 +2235,56 @@ def users_toggle_active(user_id: int):
         f"{'aktiivinen' if target_user.is_active else 'poistettu käytöstä'}."
     )
     return redirect(url_for("admin.users_list"))
+
+
+@admin_bp.route("/gdpr/<int:user_id>", methods=["GET", "POST"])
+@require_superadmin_2fa
+@check_impersonation_blocked
+def gdpr_user(user_id: int):
+    """Superadmin GDPR tools for a single user (export / anonymize / delete)."""
+
+    target_user = User.query.get_or_404(user_id)
+    error: str | None = None
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "").strip()
+        if action == "export":
+            data = export_user_data(target_user.id)
+            filename = f"gdpr-export-{target_user.id}.json"
+            return Response(
+                export_json_safe(data),
+                mimetype="application/json; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+        elif action == "anonymize":
+            try:
+                anonymize_user_data(target_user.id)
+            except UserServiceError as err:
+                error = str(err)
+            else:
+                flash("Käyttäjä anonymisoitu.")
+                return redirect(url_for("admin.gdpr_user", user_id=user_id))
+        elif action == "delete":
+            password = request.form.get("password") or ""
+            totp_code = (request.form.get("totp_code") or "").replace(" ", "").strip()
+            if not current_user.check_password(password):
+                error = "Virheellinen salasana."
+            elif not current_user.verify_totp(totp_code):
+                error = "Virheellinen 2FA-koodi."
+            else:
+                try:
+                    delete_user_data(target_user.id, from_cli=False)
+                except UserServiceError as err:
+                    error = str(err)
+                except GdprPermissionError:
+                    abort(403)
+                else:
+                    flash("Käyttäjä poistettu pysyvästi.")
+                    return redirect(url_for("admin.users_list"))
+        else:
+            error = "Tuntematon toiminto."
+
+    return render_template("admin_gdpr.html", target_user=target_user, error=error)
 
 
 # ---------------------------------------------------------------------------
