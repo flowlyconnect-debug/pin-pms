@@ -11,7 +11,7 @@ from flask_login import current_user
 
 # Log message redaction: key=value, key: value, and Authorization Bearer …
 # (?<![\w]) avoids matching e.g. ``secret`` inside unrelated identifiers.
-_PAIR_KEYS = r"(?:password|token|api[_-]?key|secret|x-api-key)"
+_PAIR_KEYS = r"(?:password|token|api[_-]?key|secret|x-api-key|signature)"
 _PAIR_RE = re.compile(
     rf"(?i)(?<![\w])(?P<key>{_PAIR_KEYS})\s*[:=]\s*(?P<val>[^\s,;]+)",
     re.IGNORECASE,
