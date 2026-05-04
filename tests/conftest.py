@@ -68,6 +68,8 @@ DEFAULT_TEST_API_SCOPES = ",".join(
         "maintenance:read",
         "maintenance:write",
         "reports:read",
+        "webhooks:read",
+        "webhooks:write",
     ]
 )
 

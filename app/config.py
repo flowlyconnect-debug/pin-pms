@@ -312,6 +312,22 @@ class BaseConfig:
     # Guest check-in document encryption (Fernet key, base64 urlsafe 32-byte key).
     CHECKIN_FERNET_KEY = os.getenv("CHECKIN_FERNET_KEY", "")
 
+    # Idempotency keys for POST retries and webhooks (non-secret TTL / schedule).
+    IDEMPOTENCY_KEY_TTL_SECONDS = int(os.getenv("IDEMPOTENCY_KEY_TTL_SECONDS", "86400"))
+    IDEMPOTENCY_PRUNE_SCHEDULER_ENABLED = os.getenv(
+        "IDEMPOTENCY_PRUNE_SCHEDULER_ENABLED", "1"
+    ).lower() in {"1", "true", "yes"}
+    IDEMPOTENCY_PRUNE_SCHEDULE_CRON = os.getenv("IDEMPOTENCY_PRUNE_SCHEDULE_CRON", "0 4 * * *")
+
+    # Outbound webhook delivery retries (APScheduler).
+    WEBHOOK_DELIVERY_SCHEDULER_ENABLED = os.getenv(
+        "WEBHOOK_DELIVERY_SCHEDULER_ENABLED", "0"
+    ).lower() in {"1", "true", "yes"}
+    WEBHOOK_DELIVERY_RETRY_INTERVAL_SECONDS = int(
+        os.getenv("WEBHOOK_DELIVERY_RETRY_INTERVAL_SECONDS", "60")
+    )
+    WEBHOOK_HTTP_TIMEOUT_SECONDS = float(os.getenv("WEBHOOK_HTTP_TIMEOUT_SECONDS", "4"))
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True
@@ -345,6 +361,12 @@ class TestConfig(BaseConfig):
     EMAIL_SCHEDULER_ENABLED = False
     BACKUP_SCHEDULER_ENABLED = False
     INVOICE_OVERDUE_SCHEDULER_ENABLED = False
+    IDEMPOTENCY_PRUNE_SCHEDULER_ENABLED = False
+    WEBHOOK_DELIVERY_SCHEDULER_ENABLED = False
+    CHECKIN_FERNET_KEY = os.getenv(
+        "CHECKIN_FERNET_KEY",
+        "1zakWgvYOaHtecRaBwIRHYuB8waN6MZPwAo5FGIx9Bg=",
+    )
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "TEST_DATABASE_URL",
         "postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/pindora_test",

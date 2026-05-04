@@ -15,7 +15,28 @@ def _build_openapi_spec() -> dict:
         info={
             "description": (
                 "Auto-generated OpenAPI description for `/api/v1` routes. "
-                "Tenant data is never embedded in this document."
+                "Tenant data is never embedded in this document.\n\n"
+                "**Idempotency:** Send `Idempotency-Key: <unique-string>` (or the "
+                "equivalent `X-Idempotency-Key`) on duplicate-sensitive POST requests "
+                "(including payment webhooks) so retries do not double-apply side effects. "
+                "The same key with the same JSON body returns the cached HTTP status and body; "
+                "the same key with a different JSON body returns **409 Conflict**. "
+                "If a duplicate request arrives before the first has finished, the server may "
+                "respond with **503** (`idempotency_request_in_progress`) — retry after a short backoff.\n\n"
+                "**Inbound webhooks** (`POST /api/v1/webhooks/{provider}` for `stripe`, `vismapay`, "
+                "`pindora_lock`): these endpoints **do not** use an API key. Authenticate with the "
+                "provider-specific signature header (`Stripe-Signature`, `X-VismaPay-Signature`, "
+                "or `X-Signature`). An invalid or missing signature yields **401 Unauthorized**. "
+                "A valid signature always yields **200 OK** once the event is accepted (including "
+                "duplicate `external_id` / provider replays).\n\n"
+                "**Outbound webhook subscriptions** (`GET`/`POST`/`DELETE /api/v1/webhooks/subscriptions`): "
+                "require API-key scopes `webhooks:read` and `webhooks:write`. On `POST`, the signing "
+                "secret is returned once in `data.secret`.\n\n"
+                "**Verifying outbound deliveries (receiver side):** read the raw HTTP body bytes, "
+                "compute `payload_sha256 = SHA256(JSON)` where JSON uses sorted object keys and "
+                "no insignificant whitespace (same canonicalization as the sender), then compute "
+                "`HMAC_SHA256(signing_secret, raw_body_bytes)` and compare hex digests to the "
+                "`X-Pindora-Signature` header using a constant-time comparison."
             )
         },
     )
@@ -27,6 +48,29 @@ def _build_openapi_spec() -> dict:
             "in": "header",
             "name": "X-API-Key",
             "description": ("You may also use `Authorization: Bearer pms_<key>`."),
+        },
+    )
+
+    spec.components.schema(
+        "WebhookSubscription",
+        {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer"},
+                "organization_id": {"type": "integer"},
+                "url": {"type": "string"},
+                "events": {"type": "array", "items": {"type": "string"}},
+                "is_active": {"type": "boolean"},
+                "failure_count": {"type": "integer"},
+                "last_delivery_status": {"type": "integer", "nullable": True},
+                "created_at": {"type": "string", "format": "date-time"},
+                "updated_at": {"type": "string", "format": "date-time"},
+                "secret": {
+                    "type": "string",
+                    "description": "Returned only once on POST /webhooks/subscriptions.",
+                    "nullable": True,
+                },
+            },
         },
     )
 
@@ -70,7 +114,7 @@ def _build_openapi_spec() -> dict:
                     "required": False,
                     "content": {"application/json": {"schema": {"type": "object"}}},
                 }
-            if rule.endpoint not in {"api.api_health"}:
+            if rule.endpoint not in {"api.api_health", "webhooks.inbound_webhook"}:
                 operation["security"] = [{"ApiKeyAuth": []}]
             operations[method.lower()] = operation
 

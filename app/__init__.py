@@ -68,12 +68,14 @@ def create_app(config_object: str = "default") -> Flask:
     register_slow_query_logging(app)
     register_error_handlers(app)
     _maybe_start_backup_scheduler(app)
+    _maybe_start_idempotency_prune_scheduler(app)
     _maybe_start_email_scheduler(app)
     _maybe_start_portal_scheduler(app)
     _maybe_start_ical_scheduler(app)
     _maybe_start_api_scheduler(app)
     _maybe_start_owner_scheduler(app)
     _maybe_start_status_scheduler(app)
+    _maybe_start_webhook_delivery_scheduler(app)
     init_tracing(app)
 
     return app
@@ -104,7 +106,13 @@ def _init_cors(app):
         app,
         resources={r"/api/*": {"origins": origins}},
         supports_credentials=False,
-        allow_headers=["Authorization", "X-API-Key", "Content-Type"],
+        allow_headers=[
+            "Authorization",
+            "X-API-Key",
+            "Content-Type",
+            "Idempotency-Key",
+            "X-Idempotency-Key",
+        ],
         methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     )
 
@@ -134,6 +142,15 @@ def _maybe_start_portal_scheduler(app):
 
     scheduler = init_scheduler(app)
     _register_scheduler(app, "portal", scheduler)
+
+
+def _maybe_start_idempotency_prune_scheduler(app):
+    if _scheduler_should_skip(app):
+        return
+    from app.idempotency.scheduler import init_scheduler
+
+    scheduler = init_scheduler(app)
+    _register_scheduler(app, "idempotency_prune", scheduler)
 
 
 def _maybe_start_email_scheduler(app):
@@ -179,6 +196,16 @@ def _maybe_start_status_scheduler(app):
 
     scheduler = init_scheduler(app)
     _register_scheduler(app, "status", scheduler)
+
+
+def _maybe_start_webhook_delivery_scheduler(app):
+    if _scheduler_should_skip(app):
+        return
+    from app.webhooks.scheduler import init_scheduler
+
+    scheduler = init_scheduler(app)
+    if scheduler is not None:
+        _register_scheduler(app, "webhook_delivery", scheduler)
 
 
 def _register_scheduler(app, name: str, scheduler) -> None:
@@ -235,6 +262,7 @@ def register_models():
     from app.backups.models import Backup
     from app.email.models import EmailTemplate, OutgoingEmail
     from app.guests.models import Guest
+    from app.idempotency.models import IdempotencyKey
     from app.organizations.models import Organization
     from app.owners.models import OwnerPayout, OwnerUser, PropertyOwner, PropertyOwnerAssignment
     from app.properties.models import Property, Unit
@@ -272,11 +300,19 @@ def register_models():
         from app.status.models import StatusCheck, StatusComponent, StatusIncident  # noqa: F401
     except Exception:
         pass
-
+    try:
+        from app.webhooks.models import (  # noqa: F401
+            WebhookDelivery,
+            WebhookEvent,
+            WebhookSubscription,
+        )
+    except Exception:
+        pass
     _ = (
         ApiKey,
         ApiKeyUsage,
         AuditLog,
+        IdempotencyKey,
         Backup,
         EmailTemplate,
         Guest,
@@ -310,12 +346,14 @@ def register_blueprints(app):
     from app.core import core_bp
     from app.email import email_bp
     from app.users import users_bp
+    from app.webhooks import webhooks_bp
 
     app.register_blueprint(core_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(backups_admin_bp, url_prefix="/admin/backups")
     app.register_blueprint(api_bp, url_prefix="/api/v1")
+    app.register_blueprint(webhooks_bp, url_prefix="/api/v1/webhooks")
     app.register_blueprint(users_bp, url_prefix="/users")
     app.register_blueprint(email_bp, url_prefix="/email")
     app.register_blueprint(backups_bp, url_prefix="/backups")
@@ -334,6 +372,7 @@ def register_blueprints(app):
         app.logger.warning("owner portal blueprint not registered: %s", exc)
 
     csrf.exempt(api_bp)
+    csrf.exempt(webhooks_bp)
     limiter.limit(resolve_api_rate_limit)(api_bp)
 
 
