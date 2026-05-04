@@ -2512,6 +2512,92 @@ def api_keys_usage(key_id: int):
     return render_template("admin/api_key_usage.html", api_key=api_key, rows=rows)
 
 
+# ---------------------------------------------------------------------------
+# Outbound webhooks (tenant-scoped; superadmin + 2FA)
+# ---------------------------------------------------------------------------
+
+
+@admin_bp.get("/webhooks")
+@require_superadmin_2fa
+def webhooks_list():
+    from app.webhooks.services import list_recent_deliveries, list_subscriptions_for_org
+
+    org_id = _pms_org_id()
+    subs = list_subscriptions_for_org(organization_id=org_id)
+    deliveries_by_sub = {
+        s.id: list_recent_deliveries(subscription_id=s.id, limit=10) for s in subs
+    }
+    raw_secret = (request.args.get("show_webhook_secret") or "").strip() or None
+    return render_template(
+        "admin_webhooks.html",
+        subscriptions=subs,
+        deliveries_by_sub=deliveries_by_sub,
+        raw_secret=raw_secret,
+    )
+
+
+@admin_bp.route("/webhooks/new", methods=["GET", "POST"])
+@require_superadmin_2fa
+def webhooks_new():
+    from app.webhooks.services import create_outbound_subscription
+
+    error: str | None = None
+    if request.method == "POST":
+        url = (request.form.get("url") or "").strip()
+        events_raw = (request.form.get("events") or "").strip()
+        events = [e.strip() for e in events_raw.replace("\n", ",").split(",") if e.strip()]
+        if not url or not events:
+            error = "URL ja vähintään yksi tapahtumatunniste (pilkuilla erotettu) vaaditaan."
+        else:
+            sub, raw = create_outbound_subscription(
+                organization_id=_pms_org_id(),
+                url=url,
+                events=events,
+                created_by_user_id=current_user.id,
+            )
+            audit_record(
+                "webhook.subscription_created",
+                status=AuditStatus.SUCCESS,
+                actor_id=current_user.id,
+                organization_id=_pms_org_id(),
+                target_type="webhook_subscription",
+                target_id=sub.id,
+                metadata={"url": url, "events": events},
+                commit=True,
+            )
+            flash(
+                "Webhook-tilaus luotu. Allekirjoitusavain näytetään vain kerran — kopioi se heti.",
+                "success",
+            )
+            return redirect(url_for("admin.webhooks_list", show_webhook_secret=raw))
+    return render_template("admin_webhooks_new.html", error=error)
+
+
+@admin_bp.post("/webhooks/<int:subscription_id>/deactivate")
+@require_superadmin_2fa
+def webhooks_deactivate(subscription_id: int):
+    from app.webhooks.services import deactivate_outbound_subscription
+
+    ok = deactivate_outbound_subscription(
+        subscription_id=subscription_id,
+        organization_id=_pms_org_id(),
+    )
+    if not ok:
+        flash("Tilausta ei löytynyt tai se kuuluu toiselle organisaatiolle.", "error")
+    else:
+        audit_record(
+            "webhook.subscription_deactivated",
+            status=AuditStatus.SUCCESS,
+            actor_id=current_user.id,
+            organization_id=_pms_org_id(),
+            target_type="webhook_subscription",
+            target_id=subscription_id,
+            commit=True,
+        )
+        flash("Webhook-tilaus poistettu käytöstä.", "success")
+    return redirect(url_for("admin.webhooks_list"))
+
+
 @admin_bp.get("/superadmin/tenants/<int:org_id>/debug")
 @require_superadmin_2fa
 def tenant_debug(org_id: int):

@@ -1,0 +1,62 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Webhook-tilaukset · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Webhook-tilaukset (outbound)</h1>
+  <p>Organisaation <code>{{ current_user.organization_id }}</code> tilaukset.</p>
+
+  {% if raw_secret %}
+    <div class="card" style="border:2px solid #c00; padding:1rem; margin:1rem 0;">
+      <h2>Tallenna allekirjoitusavain nyt</h2>
+      <p><strong>Tämä on ainoa kerta, kun avain näytetään selväkielisenä.</strong></p>
+      <pre><code>{{ raw_secret }}</code></pre>
+    </div>
+  {% endif %}
+
+  <p><a href="{{ url_for('admin.webhooks_new') }}">+ Luo uusi tilaus</a></p>
+
+  {% for s in subscriptions %}
+    <section class="card" style="margin:1rem 0; padding:1rem;">
+      <h2>Tilaus #{{ s.id }}</h2>
+      <p><strong>URL:</strong> <code>{{ s.url }}</code></p>
+      <p><strong>Tapahtumat:</strong> {{ (s.events or [])|join(', ') }}</p>
+      <p><strong>Aktiivinen:</strong> {{ "kyllä" if s.is_active else "ei" }}</p>
+      <p><strong>Epäonnistumiset:</strong> {{ s.failure_count }}</p>
+      <form method="post" action="{{ url_for('admin.webhooks_deactivate', subscription_id=s.id) }}" style="display:inline" onsubmit="return confirm('Poistetaanko tilaus #{{ s.id }} käytöstä?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" {% if not s.is_active %}disabled{% endif %}>Poista käytöstä</button>
+      </form>
+
+      <h3>Viimeisimmät lähetykset (10)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Tapahtuma</th>
+            <th>HTTP</th>
+            <th>Allekirjoitus (maskattu)</th>
+            <th>Yritys</th>
+            <th>Seuraava uudelleenlähetys</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in deliveries_by_sub.get(s.id, []) %}
+            <tr>
+              <td>{{ d.id }}</td>
+              <td><code>{{ d.event_type }}</code></td>
+              <td>{{ d.response_status if d.response_status is not none else '—' }}</td>
+              <td><code>{{ (d.signature or '')[:8] }}…</code></td>
+              <td>{{ d.attempt_number }}</td>
+              <td>{{ d.next_retry_at.strftime('%Y-%m-%d %H:%M') if d.next_retry_at else '—' }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6">Ei lähetyksiä.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% else %}
+    <p>Ei webhook-tilauksia.</p>
+  {% endfor %}
+{% endblock %}

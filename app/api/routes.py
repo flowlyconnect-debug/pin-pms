@@ -12,6 +12,8 @@ from io import BytesIO
 
 from flask import Response, current_app, g, request, send_file
 
+from app.audit import record as audit_record
+from app.audit.models import AuditStatus
 from app.api import api_bp
 from app.api.auth import require_api_key, scope_required
 from app.api.schemas import json_error, json_ok
@@ -744,3 +746,104 @@ def cancel_maintenance_request_api(request_id: int):
     except maintenance_service.MaintenanceServiceError as err:
         return json_error(err.code, err.message, status=err.status)
     return json_ok(data)
+
+
+def _webhook_subscription_dict(row) -> dict:
+    return {
+        "id": row.id,
+        "organization_id": row.organization_id,
+        "url": row.url,
+        "events": row.events if isinstance(row.events, list) else [],
+        "is_active": row.is_active,
+        "failure_count": row.failure_count,
+        "last_delivery_at": row.last_delivery_at.isoformat() if row.last_delivery_at else None,
+        "last_delivery_status": row.last_delivery_status,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+@api_bp.get("/webhooks/subscriptions")
+@require_api_key
+@scope_required("webhooks:read")
+def list_webhook_subscriptions_api():
+    from app.webhooks.services import list_subscriptions_for_org
+
+    rows = list_subscriptions_for_org(organization_id=_org_id())
+    audit_record(
+        "webhook.subscriptions_listed",
+        status=AuditStatus.SUCCESS,
+        organization_id=_org_id(),
+        target_type="webhook_subscription",
+        target_id=None,
+        metadata={"count": len(rows)},
+        commit=True,
+    )
+    return json_ok([_webhook_subscription_dict(r) for r in rows])
+
+
+@api_bp.post("/webhooks/subscriptions")
+@require_api_key
+@scope_required("webhooks:write")
+def create_webhook_subscription_api():
+    from app.webhooks.services import create_outbound_subscription
+
+    body = _payload()
+    url = str(body.get("url") or "").strip()
+    events_raw = body.get("events")
+    if not url:
+        return json_error("validation_error", "Field 'url' is required.", status=400)
+    if not isinstance(events_raw, list) or not events_raw:
+        return json_error(
+            "validation_error",
+            "Field 'events' must be a non-empty JSON array of strings.",
+            status=400,
+        )
+    events = [str(x).strip() for x in events_raw if str(x).strip()]
+    if not events:
+        return json_error(
+            "validation_error",
+            "Field 'events' must contain at least one non-empty string.",
+            status=400,
+        )
+    sub, raw_secret = create_outbound_subscription(
+        organization_id=_org_id(),
+        url=url,
+        events=events,
+        created_by_user_id=_actor_user_id(),
+    )
+    audit_record(
+        "webhook.subscription_created",
+        status=AuditStatus.SUCCESS,
+        organization_id=_org_id(),
+        target_type="webhook_subscription",
+        target_id=sub.id,
+        metadata={"url": url, "events": events},
+        commit=True,
+    )
+    data = _webhook_subscription_dict(sub)
+    data["secret"] = raw_secret
+    return json_ok(data, status=201)
+
+
+@api_bp.delete("/webhooks/subscriptions/<int:subscription_id>")
+@require_api_key
+@scope_required("webhooks:write")
+def delete_webhook_subscription_api(subscription_id: int):
+    from app.webhooks.services import deactivate_outbound_subscription
+
+    ok = deactivate_outbound_subscription(
+        subscription_id=subscription_id,
+        organization_id=_org_id(),
+    )
+    if not ok:
+        return json_error("not_found", "Subscription not found.", status=404)
+    audit_record(
+        "webhook.subscription_deactivated",
+        status=AuditStatus.SUCCESS,
+        organization_id=_org_id(),
+        target_type="webhook_subscription",
+        target_id=subscription_id,
+        commit=True,
+    )
+    return json_ok({"id": subscription_id, "is_active": False})

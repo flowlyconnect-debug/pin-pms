@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
 from typing import Any
 
 import requests
 from flask import current_app
 
 from app.core.telemetry import trace_http_call
+from app.webhooks.signature import verify_hmac_sha256_hex
 
 
 class PindoraLockClient:
@@ -52,11 +51,19 @@ class PindoraLockClient:
         return self._request("DELETE", f"/devices/{provider_device_id}/codes/{provider_code_id}")
 
     def verify_webhook_signature(self, *, payload: bytes, signature: str) -> bool:
-        secret = (current_app.config.get("PINDORA_LOCK_WEBHOOK_SECRET") or "").encode("utf-8")
+        secret = (current_app.config.get("PINDORA_LOCK_WEBHOOK_SECRET") or "").strip()
         if not secret:
-            return False
-        digest = hmac.new(secret, payload, hashlib.sha256).hexdigest()
-        return hmac.compare_digest(digest, (signature or "").strip())
+            try:
+                from app.webhooks.services import get_inbound_webhook_secret
+
+                secret = get_inbound_webhook_secret("pindora_lock")
+            except Exception:  # noqa: BLE001
+                secret = ""
+        return verify_hmac_sha256_hex(
+            secret=secret,
+            payload_bytes=payload,
+            signature_header=signature or "",
+        )
 
     def _request(
         self, method: str, path: str, json_payload: dict[str, Any] | None = None
