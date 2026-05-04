@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, render_template
+from flask import Blueprint, current_app, redirect, render_template, url_for
 from flask_login import current_user
 from sqlalchemy import inspect, text
 
@@ -9,6 +9,20 @@ core_bp = Blueprint("core", __name__)
 
 @core_bp.get("/")
 def index():
+    """Landing page.
+
+    Authenticated users are redirected to the role-appropriate dashboard so
+    they get the full chrome (sidebar, burger menu, styles) instead of the
+    bare landing fallback. Anonymous visitors see the styled login link.
+    """
+
+    if current_user.is_authenticated:
+        role = getattr(current_user, "role", None)
+        role_value = getattr(role, "value", role)
+        if role_value in ("admin", "superadmin"):
+            return redirect(url_for("admin.admin_home"))
+        return redirect(url_for("portal.dashboard"))
+
     return render_template("index.html", current_user=current_user)
 
 
