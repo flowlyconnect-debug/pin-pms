@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import click
 from flask import Flask
@@ -35,6 +36,21 @@ from app.users.models import User, UserRole
 
 
 def register_cli_commands(app: Flask) -> None:
+    @app.cli.command("sentry-test")
+    def sentry_test() -> None:
+        """Send a test message to Sentry without exposing DSN secrets."""
+
+        dsn = (app.config.get("SENTRY_DSN") or "").strip()
+        if not dsn:
+            click.echo("SENTRY_DSN is not configured. Set it and retry.", err=True)
+            raise SystemExit(1)
+        try:
+            import sentry_sdk
+        except Exception as err:
+            raise click.ClickException(f"Sentry SDK is not available: {err}") from err
+        sentry_sdk.capture_message("Sentry test from Pin PMS CLI")
+        click.echo(f"Sent test event to Sentry. Check your project at {_safe_sentry_project_url(dsn)}.")
+
     @app.cli.command("create-superadmin")
     @click.option("--email", prompt=True, help="Superadmin email address")
     @click.option(
@@ -596,3 +612,14 @@ def register_cli_commands(app: Flask) -> None:
         except Exception as err:  # noqa: BLE001
             raise click.ClickException(str(err)) from err
         click.echo(f"User id {uid} permanently deleted (GDPR).")
+
+
+def _safe_sentry_project_url(dsn: str) -> str:
+    try:
+        parsed = urlparse(dsn)
+        host = parsed.hostname or "sentry.io"
+        path_parts = [part for part in parsed.path.split("/") if part]
+        project_id = path_parts[-1] if path_parts else "project"
+        return f"https://{host}/organizations/<org>/projects/<project>/?project={project_id}"
+    except Exception:
+        return "https://sentry.io/"

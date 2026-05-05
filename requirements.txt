@@ -25,4 +25,4 @@ opentelemetry-distro
 opentelemetry-instrumentation-flask
 opentelemetry-instrumentation-sqlalchemy
 opentelemetry-exporter-otlp
-sentry-sdk[flask]
+sentry-sdk[flask]>=1.40

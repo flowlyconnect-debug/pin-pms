@@ -1,5 +1,6 @@
 import os
 import socket
+import subprocess
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -218,6 +219,23 @@ def _resolved_database_url() -> str:
     return _apply_postgres_port_env(raw)
 
 
+def get_git_revision_or_default(default: str = "development") -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        revision = (result.stdout or "").strip()
+        if revision:
+            return revision
+    except Exception:
+        pass
+    return default
+
+
 class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = _resolved_database_url()
@@ -308,6 +326,8 @@ class BaseConfig:
     OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
     SENTRY_DSN = os.getenv("SENTRY_DSN", "")
     SENTRY_TRACES_SAMPLE_RATE = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+    SENTRY_ENVIRONMENT = os.getenv("SENTRY_ENVIRONMENT") or os.getenv("FLASK_ENV")
+    SENTRY_RELEASE = os.getenv("SENTRY_RELEASE") or get_git_revision_or_default("development")
 
     # Guest check-in document encryption (Fernet key, base64 urlsafe 32-byte key).
     CHECKIN_FERNET_KEY = os.getenv("CHECKIN_FERNET_KEY", "")
@@ -327,6 +347,11 @@ class BaseConfig:
         os.getenv("WEBHOOK_DELIVERY_RETRY_INTERVAL_SECONDS", "60")
     )
     WEBHOOK_HTTP_TIMEOUT_SECONDS = float(os.getenv("WEBHOOK_HTTP_TIMEOUT_SECONDS", "4"))
+    WEBHOOK_PUBLISH_ASYNC = os.getenv("WEBHOOK_PUBLISH_ASYNC", "0").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
 
 class DevelopmentConfig(BaseConfig):

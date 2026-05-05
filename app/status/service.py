@@ -5,12 +5,16 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import current_app
+from sqlalchemy import text
 
+from app.audit import record as audit_record
+from app.audit.models import AuditStatus
 from app.backups.models import Backup, BackupStatus
+from app.email.models import EmailQueueItem, OutgoingEmailStatus
 from app.extensions import db
 from app.status.models import StatusCheck, StatusComponent
 
-_MAILGUN_CACHE_TTL_SECONDS = 60
+_MAILGUN_CACHE_TTL_SECONDS = 30
 _mailgun_cache: dict[str, object] = {"checked_at": 0.0, "ok": False, "detail": "uninitialized"}
 
 
@@ -24,6 +28,12 @@ DEFAULT_COMPONENTS = [
     ("airbnb", "Airbnb"),
     ("pindora", "Pindora"),
 ]
+
+
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def ensure_default_components() -> None:
@@ -106,7 +116,7 @@ def _check_backups() -> None:
     if latest_success is None:
         _record("backups", False, None, "No successful backup found")
         return
-    age = datetime.now(timezone.utc) - latest_success.created_at
+    age = datetime.now(timezone.utc) - _as_utc(latest_success.created_at)
     _record(
         "backups",
         age < timedelta(hours=36),
@@ -120,55 +130,112 @@ def _check_simple(component_key: str) -> None:
 
 
 def readiness_status(app) -> dict[str, object]:
-    checks = {
-        "db": _check_db_ready(),
-        "mailgun": _check_mailgun_ready(app),
-        "backups": _check_backup_recency(),
-        "scheduler": _check_scheduler_running(app),
-    }
-    ok = all(bool(item["ok"]) for item in checks.values())
+    db_check = _check_db_ready()
+    mailgun_check = _check_mailgun_ready(app)
+    scheduler_check = _check_scheduler_running(app)
+    backup_check = _check_backup_recency()
+    email_queue_check = _check_email_queue_ready()
+    checks = [db_check, mailgun_check, scheduler_check, backup_check, email_queue_check]
+    ok = bool(db_check.get("ok")) and bool(scheduler_check.get("ok")) and bool(email_queue_check.get("ok"))
+    if not ok:
+        audit_record(
+            "monitoring.health_check_failed",
+            status=AuditStatus.FAILURE,
+            target_type="monitoring",
+            target_id=None,
+            metadata={"checks": _safe_checks_for_audit(checks)},
+        )
     return {"ok": ok, "checks": checks}
 
 
+def _check_email_queue_ready() -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    pending = EmailQueueItem.query.filter(EmailQueueItem.status == OutgoingEmailStatus.PENDING).count()
+    failed = EmailQueueItem.query.filter(EmailQueueItem.status == OutgoingEmailStatus.FAILED).count()
+    oldest_pending = (
+        EmailQueueItem.query.filter(EmailQueueItem.status == OutgoingEmailStatus.PENDING)
+        .order_by(EmailQueueItem.created_at.asc())
+        .first()
+    )
+    oldest_pending_age_minutes = 0
+    if oldest_pending is not None and oldest_pending.created_at is not None:
+        created_at = _as_utc(oldest_pending.created_at)
+        oldest_pending_age_minutes = max(
+            0,
+            int((now - created_at).total_seconds() // 60),
+        )
+    check: dict[str, object] = {
+        "name": "email_queue",
+        "ok": True,
+        "pending": pending,
+        "failed": failed,
+        "oldest_pending_age_minutes": oldest_pending_age_minutes,
+    }
+    if oldest_pending_age_minutes > 30:
+        check["warning"] = "Oldest pending email is older than 30 minutes"
+    if failed > 10:
+        check["ok"] = False
+        check["warning"] = "Too many failed emails in queue"
+    return check
+
+
 def _check_db_ready() -> dict[str, object]:
+    started = time.perf_counter()
     try:
-        db.session.execute(db.text("SELECT 1"))
-        return {"ok": True}
+        db.session.execute(text("SELECT 1"))
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        if latency_ms > 500:
+            return {"name": "db", "ok": False, "latency_ms": latency_ms, "error": "DB latency too high"}
+        return {"name": "db", "ok": True, "latency_ms": latency_ms}
     except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "detail": f"{type(exc).__name__}: {exc}"}
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return {"name": "db", "ok": False, "latency_ms": latency_ms, "error": _truncate_error(exc)}
 
 
 def _check_mailgun_ready(app) -> dict[str, object]:
     now = time.monotonic()
     checked_at = float(_mailgun_cache.get("checked_at", 0.0) or 0.0)
     if now - checked_at < _MAILGUN_CACHE_TTL_SECONDS:
-        return {
-            "ok": bool(_mailgun_cache["ok"]),
-            "detail": _mailgun_cache.get("detail"),
-            "cached": True,
-        }
+        check = {"name": "mailgun", "ok": bool(_mailgun_cache["ok"]), "cached": True}
+        detail = _mailgun_cache.get("detail")
+        if detail:
+            check["error"] = detail
+        return check
 
     api_key = (app.config.get("MAILGUN_API_KEY") or "").strip()
     domain = (app.config.get("MAILGUN_DOMAIN") or "").strip()
     if not api_key or not domain:
-        result = {"ok": False, "detail": "MAILGUN_API_KEY or MAILGUN_DOMAIN missing"}
+        return {"name": "mailgun", "ok": True, "disabled": True}
     else:
         try:
             base_url = (app.config.get("MAILGUN_BASE_URL") or "https://api.mailgun.net/v3").rstrip(
                 "/"
             )
             resp = requests.get(
-                f"{base_url}/domains/{domain}",
+                f"{base_url}/{domain}/log",
                 auth=("api", api_key),
-                timeout=5,
+                params={"limit": 1},
+                timeout=2,
             )
-            result = {"ok": resp.status_code < 300, "detail": f"HTTP {resp.status_code}"}
+            if resp.status_code == 200:
+                result = {"ok": True}
+            else:
+                result = {"ok": False, "detail": f"HTTP {resp.status_code}"}
         except Exception as exc:  # noqa: BLE001
-            result = {"ok": False, "detail": f"{type(exc).__name__}: {exc}"}
+            result = {"ok": False, "detail": _truncate_error(exc)}
 
     _mailgun_cache.update({"checked_at": now, "ok": result["ok"], "detail": result.get("detail")})
-    result["cached"] = False
-    return result
+    check = {"name": "mailgun", "ok": bool(result["ok"]), "cached": False}
+    if not result["ok"]:
+        check["error"] = result.get("detail")
+        audit_record(
+            "monitoring.mailgun_unreachable",
+            status=AuditStatus.FAILURE,
+            target_type="mailgun",
+            target_id=None,
+            metadata={"error": str(result.get("detail") or "unknown")[:200]},
+        )
+    return check
 
 
 def _check_backup_recency() -> dict[str, object]:
@@ -178,17 +245,81 @@ def _check_backup_recency() -> dict[str, object]:
         .first()
     )
     if latest_success is None:
-        return {"ok": False, "detail": "No successful backup found"}
-    age = datetime.now(timezone.utc) - latest_success.created_at
-    return {"ok": age < timedelta(hours=36), "age_hours": round(age.total_seconds() / 3600, 2)}
+        return {"name": "backup", "ok": True, "warning": "No successful backup found"}
+    latest_success_at = _as_utc(latest_success.created_at)
+    age = datetime.now(timezone.utc) - latest_success_at
+    age_hours = round(age.total_seconds() / 3600, 2)
+    check: dict[str, object] = {"name": "backup", "ok": True, "age_hours": age_hours}
+    if age > timedelta(hours=25):
+        check["warning"] = "Last successful backup is older than 25h"
+    if age > timedelta(hours=36):
+        check["warning"] = "Last successful backup is older than 36h"
+        _capture_backup_overdue_sentry()
+        audit_record(
+            "monitoring.backup_overdue",
+            status=AuditStatus.FAILURE,
+            target_type="backup",
+            target_id=None,
+            metadata={"last_success_at": latest_success_at.isoformat()},
+        )
+    return check
 
 
 def _check_scheduler_running(app) -> dict[str, object]:
     registry = app.extensions.get("apscheduler_instances", {}) if hasattr(app, "extensions") else {}
+    jobs_issues: list[str] = []
     running = []
     for name, scheduler in registry.items():
-        if scheduler is not None and getattr(scheduler, "running", False):
-            running.append(name)
-    if not running:
-        return {"ok": False, "detail": "No running APScheduler instance detected"}
-    return {"ok": True, "running": running}
+        if scheduler is None or not getattr(scheduler, "running", False):
+            continue
+        running.append(name)
+        for job in scheduler.get_jobs():
+            if job.next_run_time is None:
+                jobs_issues.append(f"{name}:{job.id}")
+    if running and not jobs_issues:
+        return {"name": "scheduler", "ok": True, "running": running}
+    scheduler_enabled = any(
+        bool(app.config.get(key))
+        for key in (
+            "EMAIL_SCHEDULER_ENABLED",
+            "BACKUP_SCHEDULER_ENABLED",
+            "INVOICE_OVERDUE_SCHEDULER_ENABLED",
+            "IDEMPOTENCY_PRUNE_SCHEDULER_ENABLED",
+            "STATUS_SCHEDULER_ENABLED",
+            "WEBHOOK_DELIVERY_SCHEDULER_ENABLED",
+            "ICAL_SYNC_ENABLED",
+        )
+    )
+    if not running and not scheduler_enabled:
+        return {"name": "scheduler", "ok": True, "disabled": True}
+    if jobs_issues:
+        return {"name": "scheduler", "ok": False, "error": f"jobs without next_run_time: {jobs_issues}"}
+    return {"name": "scheduler", "ok": False, "error": "No running APScheduler instance detected"}
+
+
+def _safe_checks_for_audit(checks: list[dict[str, object]]) -> list[dict[str, object]]:
+    safe_checks: list[dict[str, object]] = []
+    for check in checks:
+        safe_checks.append(
+            {
+                "name": check.get("name"),
+                "ok": bool(check.get("ok")),
+                "latency_ms": check.get("latency_ms"),
+                "warning": check.get("warning"),
+                "error": str(check.get("error") or "")[:120],
+            }
+        )
+    return safe_checks
+
+
+def _truncate_error(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {str(exc)[:180]}"
+
+
+def _capture_backup_overdue_sentry() -> None:
+    try:
+        import sentry_sdk
+
+        sentry_sdk.capture_message("backup_overdue", level="warning")
+    except Exception:
+        return

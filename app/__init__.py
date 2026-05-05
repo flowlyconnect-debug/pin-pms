@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+from typing import Any, Mapping, Sequence
 
 try:
     from dotenv import load_dotenv
@@ -17,7 +18,7 @@ from sqlalchemy.orm.exc import DetachedInstanceError, ObjectDeletedError
 from app.cli import register_cli_commands
 from app.config import config_by_name
 from app.core.errors import copy_for as error_copy_for
-from app.core.logging import configure_logging
+from app.core.logging import _SECRET_KEYS, configure_logging, record_slow_query_observation
 from app.core.security_headers import register_security_headers
 from app.core.telemetry import init_tracing
 from app.extensions import cors, csrf, db, limiter, login_manager, migrate
@@ -48,7 +49,8 @@ def create_app(config_object: str = "default") -> Flask:
 
         app.config["SQLALCHEMY_DATABASE_URI"] = _resolved_database_url()
 
-    _init_sentry(app)
+    if app.config.get("SENTRY_DSN"):
+        init_sentry(app)
     configure_logging(app)
 
     db.init_app(app)
@@ -81,20 +83,85 @@ def create_app(config_object: str = "default") -> Flask:
     return app
 
 
-def _init_sentry(app: Flask) -> None:
+_SENTRY_BASE_SENSITIVE_KEYS = {
+    "password",
+    "token",
+    "api_key",
+    "api-key",
+    "secret",
+    "authorization",
+    "x-api-key",
+    "cookie",
+    "cookies",
+}
+SENSITIVE_KEYS = _SENTRY_BASE_SENSITIVE_KEYS.union(
+    {key.replace("_", "-") for key in _SECRET_KEYS}
+).union(_SECRET_KEYS)
+
+
+def _redact_value(_: Any) -> str:
+    return "***"
+
+
+def _is_sensitive_key(key: Any) -> bool:
+    key_lower = str(key).strip().lower()
+    if key_lower in SENSITIVE_KEYS:
+        return True
+    sensitive_fragments = ("password", "token", "api_key", "api-key", "secret", "authorization", "cookie")
+    return any(fragment in key_lower for fragment in sensitive_fragments)
+
+
+def _redact_mapping(obj: Any) -> Any:
+    if isinstance(obj, Mapping):
+        redacted: dict[Any, Any] = {}
+        for key, value in obj.items():
+            if _is_sensitive_key(key):
+                redacted[key] = _redact_value(value)
+            else:
+                redacted[key] = _redact_mapping(value)
+        return redacted
+    if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes, bytearray)):
+        return [_redact_mapping(item) for item in obj]
+    return obj
+
+
+def _redact_sentry_event(event: dict[str, Any], hint: Any) -> dict[str, Any]:
+    _ = hint
+    redacted_event = _redact_mapping(event)
+    if not isinstance(redacted_event, dict):
+        return event
+    request_data = redacted_event.get("request") or {}
+    if isinstance(request_data, dict):
+        headers = request_data.get("headers")
+        if isinstance(headers, dict):
+            for header_key in list(headers.keys()):
+                if _is_sensitive_key(header_key):
+                    headers[header_key] = "***"
+        if "data" in request_data:
+            request_data["data"] = "[redacted]"
+        redacted_event["request"] = request_data
+    return redacted_event
+
+
+def init_sentry(app: Flask) -> None:
     dsn = (app.config.get("SENTRY_DSN") or "").strip()
     if not dsn:
         return
     try:
         import sentry_sdk
         from sentry_sdk.integrations.flask import FlaskIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
     except Exception:
         app.logger.warning("Sentry SDK not available; skipping Sentry init")
         return
     sentry_sdk.init(
         dsn=dsn,
-        integrations=[FlaskIntegration()],
+        integrations=[FlaskIntegration(), SqlalchemyIntegration()],
         traces_sample_rate=float(app.config.get("SENTRY_TRACES_SAMPLE_RATE", 0.1)),
+        environment=app.config.get("SENTRY_ENVIRONMENT") or app.config.get("FLASK_ENV"),
+        release=app.config.get("SENTRY_RELEASE"),
+        send_default_pii=False,
+        before_send=_redact_sentry_event,
     )
 
 
@@ -220,6 +287,10 @@ def register_request_context_hooks(app):
     def assign_request_id():
         g.request_id = request.headers.get("X-Request-Id") or str(uuid.uuid4())
 
+    @app.context_processor
+    def _csp_nonce_ctx():
+        return {"csp_nonce": getattr(g, "csp_nonce", "")}
+
     @app.after_request
     def include_request_id_header(response):
         response.headers["X-Request-Id"] = getattr(g, "request_id", "")
@@ -253,9 +324,11 @@ def register_slow_query_logging(app):
                     "sql_parameters": str(parameters)[:300],
                 },
             )
+            record_slow_query_observation(app=app, duration_ms=elapsed_ms, threshold_ms=threshold_ms)
 
 
 def register_models():
+    from app.admin.models import SavedFilter
     from app.api.models import ApiKey, ApiKeyUsage
     from app.audit.models import AuditLog
     from app.auth.models import PasswordResetToken, TwoFactorEmailCode
@@ -263,6 +336,7 @@ def register_models():
     from app.email.models import EmailTemplate, OutgoingEmail
     from app.guests.models import Guest
     from app.idempotency.models import IdempotencyKey
+    from app.notifications.models import Notification
     from app.organizations.models import Organization
     from app.owners.models import OwnerPayout, OwnerUser, PropertyOwner, PropertyOwnerAssignment
     from app.properties.models import Property, Unit
@@ -270,6 +344,8 @@ def register_models():
     from app.settings.models import Setting
     from app.subscriptions.models import SubscriptionPlan
     from app.users.models import User
+    from app.tags.models import GuestTag, PropertyTag, ReservationTag, Tag
+    from app.comments.models import Comment
 
     try:
         from app.billing.models import Invoice, Lease  # noqa: F401
@@ -309,10 +385,12 @@ def register_models():
     except Exception:
         pass
     _ = (
+        SavedFilter,
         ApiKey,
         ApiKeyUsage,
         AuditLog,
         IdempotencyKey,
+        Notification,
         Backup,
         EmailTemplate,
         Guest,
@@ -325,6 +403,11 @@ def register_models():
         TwoFactorEmailCode,
         Unit,
         User,
+        Tag,
+        GuestTag,
+        ReservationTag,
+        PropertyTag,
+        Comment,
     )
     _ = OutgoingEmail
     _ = (OwnerPayout, OwnerUser, PropertyOwner, PropertyOwnerAssignment)
