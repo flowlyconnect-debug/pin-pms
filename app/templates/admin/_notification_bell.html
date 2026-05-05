@@ -1,0 +1,27 @@
+<div class="admin-notifications" data-admin-notifications>
+  <button
+    type="button"
+    class="btn btn-ghost btn-icon admin-notifications-toggle"
+    aria-label="Ilmoitukset"
+    aria-expanded="false"
+    aria-controls="admin-notifications-panel"
+    data-notifications-toggle
+  >
+    🔔
+    <span class="admin-notifications-badge" data-notifications-badge hidden>0</span>
+  </button>
+  <div
+    id="admin-notifications-panel"
+    class="admin-notifications-panel"
+    data-notifications-panel
+    hidden
+  >
+    <div class="admin-notifications-header">
+      <strong>Ilmoitukset</strong>
+      <a href="{{ url_for('admin.notifications_list') }}">Nayta kaikki</a>
+    </div>
+    <ul class="admin-notifications-list" data-notifications-list>
+      <li class="admin-notifications-empty">Ei lukemattomia ilmoituksia.</li>
+    </ul>
+  </div>
+</div>

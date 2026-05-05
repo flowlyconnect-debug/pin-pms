@@ -1,0 +1,52 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Ilmoitukset · Pin PMS{% endblock %}
+{% block page_title %}Ilmoituskeskus{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <form method="post" action="{{ url_for('admin.notifications_mark_all_read') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-secondary">Merkitse kaikki luetuksi</button>
+    </form>
+  </div>
+
+  {% if grouped_rows %}
+    {% for day_group in grouped_rows %}
+      <h2>{{ day_group.day }}</h2>
+      <div class="admin-table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Tila</th>
+              <th>Otsikko</th>
+              <th>Viesti</th>
+              <th>Aika</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in day_group.items %}
+              <tr class="table-row-link" data-href="{{ row.link or '#' }}">
+                <td>
+                  <span class="badge badge-{{ row.severity if row.severity in ['info', 'warning', 'danger', 'success'] else 'info' }}">
+                    {{ "Luettu" if row.is_read else "Uusi" }}
+                  </span>
+                </td>
+                <td>
+                  <form method="post" action="{{ url_for('admin.notifications_mark_read', notification_id=row.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="admin-notification-row-btn">{{ row.title }}</button>
+                  </form>
+                </td>
+                <td>{{ row.body or "-" }}</td>
+                <td>{{ row.created_at[:16].replace("T", " ") if row.created_at else "-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="meta">Ei ilmoituksia.</p>
+  {% endif %}
+{% endblock %}
