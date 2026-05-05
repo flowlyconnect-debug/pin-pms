@@ -99,17 +99,26 @@ class TemplateKey:
 
 class OutgoingEmailStatus:
     PENDING = "pending"
+    SENDING = "sending"
     SENT = "sent"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
-    ALL = (PENDING, SENT, FAILED)
+    ALL = (PENDING, SENDING, SENT, FAILED, CANCELLED)
 
 
 class OutgoingEmail(db.Model):
     __tablename__ = "outgoing_emails"
 
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organizations.id"),
+        nullable=True,
+        index=True,
+    )
     to = db.Column(db.String(255), nullable=False, index=True)
+    recipient_email = db.Column(db.String(255), nullable=True, index=True)
     template_key = db.Column(db.String(64), nullable=False, index=True)
     context_json = db.Column(db.JSON, nullable=False, default=dict)
     subject_snapshot = db.Column(db.String(255), nullable=True)
@@ -120,6 +129,7 @@ class OutgoingEmail(db.Model):
         index=True,
     )
     attempts = db.Column(db.Integer, nullable=False, default=0)
+    attempt_count = db.Column(db.Integer, nullable=True)
     last_error = db.Column(db.Text, nullable=True)
     scheduled_at = db.Column(
         db.DateTime(timezone=True),
@@ -127,9 +137,32 @@ class OutgoingEmail(db.Model):
         default=lambda: datetime.now(timezone.utc),
         index=True,
     )
+    next_attempt_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
     sent_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+    @property
+    def effective_recipient_email(self) -> str:
+        return (self.recipient_email or self.to or "").strip()
+
+    @property
+    def effective_attempt_count(self) -> int:
+        if self.attempt_count is not None:
+            return int(self.attempt_count)
+        return int(self.attempts or 0)
+
+    def sync_compat_fields(self) -> None:
+        if not self.recipient_email:
+            self.recipient_email = self.to
+        if self.attempt_count is None:
+            self.attempt_count = int(self.attempts or 0)
+        self.attempts = int(self.attempt_count or 0)
+        if self.next_attempt_at is None and self.status == OutgoingEmailStatus.PENDING:
+            self.next_attempt_at = self.scheduled_at
+
+
+EmailQueueItem = OutgoingEmail

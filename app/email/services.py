@@ -26,6 +26,7 @@ Design choices
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
@@ -35,7 +36,7 @@ from flask import current_app
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
 from app.core.telemetry import trace_http_call, traced
-from app.email.models import EmailTemplate, OutgoingEmail, OutgoingEmailStatus
+from app.email.models import EmailQueueItem, EmailTemplate, OutgoingEmailStatus
 from app.email.templates import (
     EmailTemplateNotFound,
     RenderedEmail,
@@ -45,6 +46,7 @@ from app.email.templates import (
 from app.extensions import db
 
 logger = logging.getLogger(__name__)
+_CONTEXT_SECRET_KEYS = ("password", "token", "api_key", "secret", "authorization")
 
 
 class EmailServiceError(Exception):
@@ -110,6 +112,32 @@ def _is_valid_email(value: str) -> bool:
     return bool(local and domain and "." in domain)
 
 
+def _mask_email(value: str) -> str:
+    addr = (value or "").strip()
+    if "@" not in addr:
+        return "***"
+    local, _, domain = addr.partition("@")
+    if len(local) <= 2:
+        visible_local = local[:1] + "*"
+    else:
+        visible_local = local[:2] + "***"
+    return f"{visible_local}@{domain}"
+
+
+def _safe_error_text(err: object) -> str:
+    return str(err or "")[:240]
+
+
+def _sanitize_context(context: Mapping[str, Any]) -> dict[str, Any]:
+    safe: dict[str, Any] = {}
+    for key, value in dict(context or {}).items():
+        lowered = str(key).strip().lower()
+        if any(part in lowered for part in _CONTEXT_SECRET_KEYS):
+            continue
+        safe[key] = value
+    return safe
+
+
 def render_template(template_key: str, context: Mapping[str, Any]) -> RenderedEmail:
     missing = validate_context(template_key, dict(context))
     if missing:
@@ -156,7 +184,25 @@ def send_test_template_email(template_key: str, to: str, actor_user) -> EmailSer
 @traced("email.send_template")
 def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = None) -> bool:
     """Queue an outbound email row and return immediately."""
-    context = dict(context or {})
+    cfg = current_app.config
+    context = _sanitize_context(context or {})
+    if bool(cfg.get("MAIL_DEV_LOG_ONLY")):
+        try:
+            rendered = render_template_for(key, context)
+        except EmailTemplateNotFound:
+            raise
+        except Exception as err:  # noqa: BLE001
+            logger.exception("Failed to render email template %s in dev-log-only mode", key)
+            audit_record(
+                "email.failed",
+                status=AuditStatus.FAILURE,
+                target_type="email_template",
+                context={"key": key, "to": _mask_email(to), "stage": "render", "error": _safe_error_text(err)},
+                commit=True,
+            )
+            return False
+        return _send_rendered(key=key, to=to, rendered=rendered)
+
     try:
         rendered = render_template_for(key, context)
     except EmailTemplateNotFound:
@@ -167,21 +213,36 @@ def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = N
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": to, "stage": "render", "error": str(err)},
+            context={"key": key, "to": _mask_email(to), "stage": "render", "error": _safe_error_text(err)},
             commit=True,
         )
         return False
 
-    queued = OutgoingEmail(
+    queued = EmailQueueItem(
         to=to,
+        recipient_email=to,
+        organization_id=context.get("organization_id"),
         template_key=key,
         context_json=context,
         subject_snapshot=rendered.subject,
         status=OutgoingEmailStatus.PENDING,
+        attempts=0,
+        attempt_count=0,
+        scheduled_at=datetime.now(timezone.utc),
+        next_attempt_at=datetime.now(timezone.utc),
     )
     try:
         db.session.add(queued)
         db.session.commit()
+        audit_record(
+            "email.queued",
+            status=AuditStatus.SUCCESS,
+            organization_id=queued.organization_id,
+            target_type="email_queue",
+            target_id=queued.id,
+            metadata={"template_key": key, "recipient_email": _mask_email(to), "status": queued.status},
+            commit=True,
+        )
         return True
     except Exception as err:  # noqa: BLE001
         db.session.rollback()
@@ -190,10 +251,35 @@ def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = N
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": to, "stage": "queue", "error": str(err)},
+            context={"key": key, "to": _mask_email(to), "stage": "queue", "error": _safe_error_text(err)},
             commit=True,
         )
         return False
+
+
+@traced("email.send_template_now")
+def send_template_now(
+    key: str,
+    *,
+    to: str,
+    context: Optional[Mapping[str, Any]] = None,
+) -> bool:
+    context = _sanitize_context(context or {})
+    try:
+        rendered = render_template_for(key, context)
+    except EmailTemplateNotFound:
+        raise
+    except Exception as err:  # noqa: BLE001
+        logger.exception("Failed to render email template %s for immediate send", key)
+        audit_record(
+            "email.failed",
+            status=AuditStatus.FAILURE,
+            target_type="email_template",
+            context={"key": key, "to": _mask_email(to), "stage": "render", "error": _safe_error_text(err)},
+            commit=True,
+        )
+        return False
+    return _send_rendered(key=key, to=to, rendered=rendered)
 
 
 @traced("email.send_template_sync")
@@ -204,10 +290,9 @@ def send_template_sync(
     context: Optional[Mapping[str, Any]] = None,
 ) -> bool:
     """Render and send ``key`` to ``to`` in the current thread."""
-    context = dict(context or {})
+    context = _sanitize_context(context or {})
     try:
-        send_template_email(key, to, context)
-        return True
+        return send_template_now(key, to=to, context=context)
     except EmailTemplateNotFound:
         raise
     except EmailServiceError as err:
@@ -216,7 +301,7 @@ def send_template_sync(
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": to, "stage": "service", "error": err.public_message},
+            context={"key": key, "to": _mask_email(to), "stage": "service", "error": err.public_message},
             commit=True,
         )
         return False

@@ -1,0 +1,56 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Email Queue · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Email queue</h1>
+  <p class="meta">Taustalähetykset, retry-tilanne ja virheet.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Vastaanottaja</th>
+        <th>Pohja</th>
+        <th>Tila</th>
+        <th>Yritykset</th>
+        <th>Virhe</th>
+        <th>Seuraava yritys</th>
+        <th>Luotu</th>
+        <th>Lahetetty</th>
+        <th>Toiminnot</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.effective_recipient_email }}</td>
+          <td><code>{{ row.template_key }}</code></td>
+          <td>{{ row.status }}</td>
+          <td>{{ row.effective_attempt_count }}</td>
+          <td class="meta">{{ row.last_error or "-" }}</td>
+          <td class="meta">{{ row.next_attempt_at.strftime('%Y-%m-%d %H:%M') if row.next_attempt_at else "-" }}</td>
+          <td class="meta">{{ row.created_at.strftime('%Y-%m-%d %H:%M') if row.created_at else "-" }}</td>
+          <td class="meta">{{ row.sent_at.strftime('%Y-%m-%d %H:%M') if row.sent_at else "-" }}</td>
+          <td>
+            {% if row.status == "failed" %}
+              <form method="post" action="{{ url_for('admin.email_queue_retry', item_id=row.id) }}" data-loading="Lähetetään uudelleen…">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" data-loading-button>Yrita uudelleen</button>
+              </form>
+            {% elif row.status == "pending" %}
+              <form method="post" action="{{ url_for('admin.email_queue_cancel', item_id=row.id) }}" data-loading="Peruutetaan lähetys…" data-confirm='{{ {"title": "Peruuta lähetys?", "message": "Poistetaanko jonossa oleva sähköposti lähetyksestä?", "confirmLabel": "Peruuta lähetys", "cancelLabel": "Takaisin", "dangerous": true}|tojson }}'>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" data-loading-button>Peruuta</button>
+              </form>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="9" class="meta">Ei jonossa olevia sähköposteja.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

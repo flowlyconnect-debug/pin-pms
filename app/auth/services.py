@@ -16,7 +16,7 @@ from app.auth.models import (
     TwoFactorEmailCode,
 )
 from app.email.models import TemplateKey
-from app.email.services import EmailTemplateNotFound, send_template
+from app.email.services import EmailTemplateNotFound, send_template, send_template_sync
 from app.extensions import db
 from app.users.models import User
 
@@ -410,11 +410,15 @@ def request_password_reset(*, email: str) -> None:
         db.session.add(token_row)
         db.session.commit()
 
-        from flask import url_for
+        from flask import has_request_context, url_for
 
-        reset_url = url_for("auth.reset_password", token=raw_token, _external=True)
+        if has_request_context():
+            reset_url = url_for("auth.reset_password", token=raw_token, _external=True)
+        else:
+            base_url = (current_app.config.get("APP_BASE_URL") or "http://127.0.0.1:5000").rstrip("/")
+            reset_url = f"{base_url}/reset-password/{raw_token}"
         try:
-            send_template(
+            send_template_sync(
                 TemplateKey.PASSWORD_RESET,
                 to=user.email,
                 context={
