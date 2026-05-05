@@ -11,6 +11,53 @@
 (function () {
   "use strict";
 
+  function initCollapse() {
+    var sidebar = document.getElementById("admin-sidebar");
+    var collapseBtn = document.querySelector("[data-collapse-sidebar]");
+    if (!sidebar || !collapseBtn) return;
+
+    var STORAGE_KEY = "admin-sidebar-collapsed";
+
+    function setCollapsed(collapsed) {
+      sidebar.classList.toggle("admin-sidebar--collapsed", collapsed);
+      document.body.classList.toggle("admin-sidebar-collapsed", collapsed);
+      collapseBtn.setAttribute("aria-label", collapsed ? "Laajenna valikko" : "Kutista valikko");
+      try { localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0"); } catch (e) {}
+    }
+
+    // Restore state from localStorage
+    try {
+      if (localStorage.getItem(STORAGE_KEY) === "1") {
+        setCollapsed(true);
+      }
+    } catch (e) {}
+
+    collapseBtn.addEventListener("click", function () {
+      setCollapsed(!sidebar.classList.contains("admin-sidebar--collapsed"));
+    });
+
+    // Tooltip on nav links when collapsed
+    var tooltip = document.createElement("div");
+    tooltip.className = "admin-sidebar-tooltip";
+    document.body.appendChild(tooltip);
+
+    document.querySelectorAll(".admin-nav-link").forEach(function (link) {
+      link.addEventListener("mouseenter", function () {
+        if (!sidebar.classList.contains("admin-sidebar--collapsed")) return;
+        var textEl = link.querySelector(".admin-nav-text");
+        if (!textEl) return;
+        var rect = link.getBoundingClientRect();
+        tooltip.textContent = textEl.textContent.trim();
+        tooltip.style.top = Math.round(rect.top + (rect.height - 28) / 2) + "px";
+        tooltip.style.left = Math.round(rect.right + 10) + "px";
+        tooltip.style.display = "block";
+      });
+      link.addEventListener("mouseleave", function () {
+        tooltip.style.display = "none";
+      });
+    });
+  }
+
   function init() {
     var toggle = document.querySelector(".admin-menu-toggle");
     var backdrop = document.querySelector(".admin-sidebar-backdrop");
@@ -63,6 +110,8 @@
         window.location.href = row.getAttribute("data-href");
       });
     });
+
+    initCollapse();
 
     var themeSelect = document.querySelector("[data-theme-select]");
     if (themeSelect && themeSelect.form) {

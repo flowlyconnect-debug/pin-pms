@@ -29,8 +29,13 @@
         <div class="admin-sidebar-head">
           <a class="admin-brand" href="{{ url_for('admin.admin_home') }}">
             <span class="admin-brand-mark" aria-hidden="true"></span>
-            <span>Pin PMS</span>
+            <span class="admin-brand-text">Pin PMS</span>
           </a>
+          <button type="button" class="admin-sidebar-collapse-btn" aria-label="Kutista valikko" data-collapse-sidebar>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7M18 19l-7-7 7-7"/>
+            </svg>
+          </button>
         </div>
         <nav class="admin-sidebar-nav">
           <div class="admin-nav-group" role="group" aria-labelledby="admin-nav-grp-primary">

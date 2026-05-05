@@ -71,6 +71,7 @@
     0 10px 28px rgba(31, 27, 27, 0.07);
   --admin-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --admin-sidebar-w: 268px;
+  --admin-sidebar-w-collapsed: 64px;
   --dashboard-chart-line: #4f46e5;
   --dashboard-chart-area: rgba(79, 70, 229, 0.2);
   --dashboard-chart-revenue: #16a34a;
@@ -188,12 +189,18 @@ body.admin-sidebar-open {
   flex-direction: column;
   border-right: 1px solid rgba(255, 246, 237, 0.12);
   box-shadow: 18px 0 45px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  transition: width 220ms ease;
 }
 
 .admin-sidebar-head {
   flex-shrink: 0;
   padding: 1rem 1rem 0.85rem;
   border-bottom: 1px solid rgba(255, 246, 237, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .admin-brand {
@@ -453,6 +460,123 @@ body.admin-sidebar-open {
   outline-offset: 2px;
 }
 
+/* —— Sidebar collapse toggle button —— */
+.admin-sidebar-collapse-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: rgba(255, 246, 237, 0.07);
+  border-radius: 6px;
+  color: var(--admin-nav-muted);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.admin-sidebar-collapse-btn:hover {
+  background: rgba(255, 246, 237, 0.13);
+  color: var(--admin-nav-text);
+}
+
+.admin-sidebar-collapse-btn:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+}
+
+.admin-sidebar-collapse-btn svg {
+  display: block;
+  transition: transform 220ms ease;
+}
+
+/* —— Sidebar collapsed state —— */
+.admin-sidebar--collapsed {
+  width: var(--admin-sidebar-w-collapsed);
+}
+
+body.admin-sidebar-collapsed .admin-main-wrap {
+  margin-left: var(--admin-sidebar-w-collapsed);
+}
+
+.admin-sidebar--collapsed .admin-sidebar-collapse-btn svg {
+  transform: rotate(180deg);
+}
+
+.admin-sidebar--collapsed .admin-brand-text {
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 150ms ease, width 150ms ease;
+  white-space: nowrap;
+}
+
+.admin-sidebar--collapsed .admin-nav-group-title {
+  height: 0;
+  padding-top: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.admin-sidebar--collapsed .admin-sidebar-nav {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.admin-sidebar--collapsed .admin-nav-link {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.admin-sidebar--collapsed .admin-nav-text {
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.admin-sidebar--collapsed .admin-theme-label {
+  display: none;
+}
+
+.admin-sidebar--collapsed .admin-theme-form {
+  padding: 0.4rem;
+  align-items: center;
+}
+
+.admin-sidebar--collapsed .admin-theme-form select {
+  font-size: 0.7rem;
+  padding: 0.3rem 0.25rem;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .admin-sidebar-collapse-btn {
+    display: none;
+  }
+}
+
+/* Floating tooltip shown via JS when sidebar is collapsed */
+.admin-sidebar-tooltip {
+  position: fixed;
+  background: #2d2926;
+  border: 1px solid rgba(255, 246, 237, 0.14);
+  color: var(--admin-nav-text);
+  font-family: var(--admin-font);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.38rem 0.8rem;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+  pointer-events: none;
+  z-index: 300;
+  white-space: nowrap;
+  display: none;
+}
+
 /* —— Main column —— */
 .admin-main-wrap {
   flex: 1;
@@ -462,6 +586,7 @@ body.admin-sidebar-open {
   display: flex;
   flex-direction: column;
   background: transparent;
+  transition: margin-left 220ms ease;
 }
 
 .admin-topbar {
