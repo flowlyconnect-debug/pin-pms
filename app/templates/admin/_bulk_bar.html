@@ -1,0 +1,17 @@
+{% macro render_bulk_bar(resource) %}
+<div class="actions" data-bulk-bar data-resource="{{ resource }}" hidden>
+  <select name="action" data-bulk-action>
+    <option value="">Valitse toiminto</option>
+    {% if resource == "reservations" %}
+      <option value="cancel">Peruuta valitut</option>
+    {% elif resource == "invoices" %}
+      <option value="mark_paid">Merkitse maksetuksi</option>
+    {% elif resource == "guests" %}
+      <option value="tag">Tagaa</option>
+      <option value="delete">Poista (superadmin)</option>
+    {% endif %}
+  </select>
+  <button type="button" class="btn btn-secondary" data-bulk-submit>Toteuta</button>
+</div>
+{% endmacro %}
+
