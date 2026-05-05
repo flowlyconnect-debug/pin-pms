@@ -7,7 +7,9 @@ so the 2FA gate stays in a single place.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import hashlib
+import json
+from datetime import date, datetime, timezone
 from functools import wraps
 from io import BytesIO
 
@@ -50,7 +52,7 @@ from app.auth.routes import require_superadmin_2fa
 from app.billing import services as billing_service
 from app.billing.models import Invoice
 from app.billing.pdf import generate_invoice_pdf
-from app.email.models import EmailTemplate
+from app.email.models import EmailQueueItem, EmailTemplate, OutgoingEmailStatus
 from app.email.services import EmailServiceError, update_email_template_admin
 from app.extensions import db
 from app.gdpr.services import (
@@ -64,6 +66,8 @@ from app.guests import services as guest_service
 from app.integrations.ical.models import ImportedCalendarFeed
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
+from app.notifications import routes as notification_routes
+from app.notifications import services as notification_service
 from app.organizations.models import Organization
 from app.owners import services as owners_service
 from app.owners.models import PropertyOwner
@@ -75,6 +79,10 @@ from app.settings import services as settings_service
 from app.settings.models import SettingType
 from app.users.models import User, UserRole
 from app.users.services import UserServiceError
+from app.email.services import send_template
+from app.email.models import TemplateKey
+from app.tags.services import TagService, TagServiceError
+from app.comments.services import CommentService, CommentServiceError
 
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
@@ -124,18 +132,184 @@ def _pms_pagination() -> tuple[int, int]:
     return page, per_page
 
 
+def _parse_optional_date(name: str) -> date | None:
+    raw = (request.args.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _list_filters() -> dict:
+    return {
+        "status": (request.args.get("status") or "").strip() or None,
+        "date_from": _parse_optional_date("from"),
+        "date_to": _parse_optional_date("to"),
+        "q": (request.args.get("q") or "").strip() or None,
+        "sort": (request.args.get("sort") or "created_at").strip(),
+        "direction": (request.args.get("dir") or "desc").strip().lower(),
+    }
+
+
+def _sanitize_ui_theme(raw: str | None) -> str:
+    value = (raw or "").strip().lower()
+    if value in {"light", "dark"}:
+        return value
+    return "auto"
+
+
+def _ui_theme_setting_key() -> str:
+    return "ui.theme"
+
+
+def _notification_scope_org_id() -> int:
+    requested_org_id = _pms_org_id()
+    if current_user.role == UserRole.SUPERADMIN.value:
+        return requested_org_id
+    return current_user.organization_id
+
+
 @admin_bp.get("")
 @admin_bp.get("/")
 @admin_bp.get("/dashboard")
 @require_admin_pms_access
 def admin_home():
+    selected_org_id = current_user.organization_id
+    org_options: list[Organization] = []
+    if current_user.is_superadmin:
+        org_options = Organization.query.order_by(Organization.name.asc(), Organization.id.asc()).all()
+        requested_org_id_raw = (request.args.get("organization_id") or "").strip()
+        if requested_org_id_raw:
+            try:
+                requested_org_id = int(requested_org_id_raw)
+            except ValueError:
+                requested_org_id = None
+            if requested_org_id is not None and any(org.id == requested_org_id for org in org_options):
+                selected_org_id = requested_org_id
     selected_range = admin_service.normalize_dashboard_range(request.args.get("range"))
     summary = admin_service.get_dashboard_stats(
-        organization_id=_pms_org_id(),
-        viewer_is_superadmin=bool(current_user.is_superadmin),
+        organization_id=selected_org_id,
+        viewer_is_superadmin=current_user.is_superadmin,
         range_key=selected_range,
     )
-    return render_template("admin/dashboard.html", summary=summary)
+    modern_summary = admin_service.dashboard_summary(organization_id=selected_org_id)
+    dashboard_chart_data = {
+        "trend_revenue_30d": modern_summary.get("trend_revenue_30d", []),
+        "trend_occupancy_30d": modern_summary.get("trend_occupancy_30d", []),
+        "timezone": (modern_summary.get("meta") or {}).get("timezone", "Europe/Helsinki"),
+        "insufficient_chart_data": (modern_summary.get("meta") or {}).get(
+            "insufficient_chart_data", False
+        ),
+        "week_overview": summary.get("week_overview", []),
+        "unit_status_overview": summary.get("unit_status_overview", []),
+        "range_key": summary.get("range_key", selected_range),
+    }
+    return render_template(
+        "admin/dashboard.html",
+        summary=summary,
+        organization_options=org_options,
+        selected_organization_id=selected_org_id,
+        dashboard_chart_data=dashboard_chart_data,
+        selected_range=selected_range,
+    )
+
+
+@admin_bp.post("/theme")
+@require_admin_pms_access
+def set_theme():
+    theme = _sanitize_ui_theme(request.form.get("theme"))
+    settings_service.set_value(
+        _ui_theme_setting_key(),
+        theme,
+        type_=SettingType.STRING,
+        description="Admin UI theme preference (light/dark/auto).",
+        actor_user_id=current_user.id,
+    )
+    response = redirect(request.referrer or url_for("admin.admin_home"))
+    response.set_cookie(
+        "ui_theme",
+        theme,
+        max_age=60 * 60 * 24 * 365,
+        secure=bool(request.is_secure),
+        httponly=True,
+        samesite="Lax",
+    )
+    return response
+
+
+@admin_bp.get("/notifications")
+@require_admin_pms_access
+def notifications_list():
+    rows = notification_service.list_all_for_user(
+        user_id=current_user.id,
+        organization_id=_notification_scope_org_id(),
+        limit=200,
+    )
+    return render_template(
+        "admin/notifications.html",
+        rows=rows,
+        grouped_rows=notification_routes.group_by_day(rows),
+    )
+
+
+@admin_bp.post("/notifications/<int:notification_id>/read")
+@require_admin_pms_access
+def notifications_mark_read(notification_id: int):
+    try:
+        row = notification_service.mark_read(notification_id=notification_id, user_id=current_user.id)
+    except notification_service.NotificationServiceError as err:
+        if err.status == 404:
+            abort(404)
+        if err.status == 403:
+            abort(403)
+        abort(400)
+    db.session.commit()
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "notification": notification_routes.to_payload(row)})
+    destination = row.link or url_for("admin.notifications_list")
+    return redirect(destination)
+
+
+@admin_bp.post("/notifications/read-all")
+@require_admin_pms_access
+def notifications_mark_all_read():
+    try:
+        marked = notification_service.mark_all_read(
+            user_id=current_user.id,
+            organization_id=_notification_scope_org_id(),
+        )
+    except notification_service.NotificationServiceError as err:
+        if err.status == 403:
+            abort(403)
+        abort(400)
+    db.session.commit()
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "count": marked})
+    flash("Ilmoitukset merkitty luetuiksi.")
+    return redirect(url_for("admin.notifications_list"))
+
+
+@admin_bp.get("/notifications/unread_count")
+@require_admin_pms_access
+def notifications_unread_count():
+    count = notification_service.unread_count(
+        user_id=current_user.id,
+        organization_id=_notification_scope_org_id(),
+    )
+    return jsonify({"count": count})
+
+
+@admin_bp.get("/notifications/unread")
+@require_admin_pms_access
+def notifications_unread():
+    rows = notification_service.list_unread(
+        user_id=current_user.id,
+        organization_id=_notification_scope_org_id(),
+        limit=20,
+    )
+    return jsonify({"items": [notification_routes.to_payload(row) for row in rows]})
 
 
 def _parse_optional_calendar_filter_int(name: str) -> int | None:
@@ -235,12 +409,17 @@ def _reservation_edit_form_context(*, organization_id: int) -> tuple[list[Proper
 @require_admin_pms_access
 def guests_list():
     page, per_page = _pms_pagination()
-    search = (request.args.get("search") or "").strip() or None
-    rows, total = guest_service.list_guests(
+    f = _list_filters()
+    rows, total = admin_service.list_admin_guests(
         organization_id=_pms_org_id(),
-        search=search,
+        status=f["status"],
+        date_from=f["date_from"],
+        date_to=f["date_to"],
+        q=f["q"],
         page=page,
         per_page=per_page,
+        sort=f["sort"],
+        direction=f["direction"],
     )
     return render_template(
         "admin/guests/list.html",
@@ -248,7 +427,9 @@ def guests_list():
         total=total,
         page=page,
         per_page=per_page,
-        search=search or "",
+        search=f["q"] or "",
+        filters=f,
+        saved_filters=admin_service.list_saved_filters(user_id=current_user.id, view_type="guests"),
     )
 
 
@@ -285,7 +466,18 @@ def guests_detail(guest_id: int):
         reservations = guest_service.get_guest_reservations(guest_id, _pms_org_id())
     except guest_service.GuestServiceError:
         abort(404)
-    return render_template("admin/guests/detail.html", row=row, reservations=reservations)
+    tags = TagService.list_for_target(_pms_org_id(), "guest", guest_id)
+    all_tags = TagService.list_for_org(_pms_org_id())
+    comments = CommentService.list_for_target(_pms_org_id(), "guest", guest_id, include_internal=True)
+    return render_template(
+        "admin/guests/detail.html",
+        row=row,
+        reservations=reservations,
+        tags=tags,
+        all_tags=all_tags,
+        comments=comments,
+        target_type="guest",
+    )
 
 
 @admin_bp.get("/api/guests/search")
@@ -311,6 +503,196 @@ def api_guests_search():
         ]
     )
 
+
+@admin_bp.get("/api/tags")
+@require_admin_pms_access
+def admin_tags_list():
+    rows = TagService.list_for_org(_pms_org_id())
+    return json_ok(
+        [
+            {"id": row.id, "name": row.name, "color": row.color, "organization_id": row.organization_id}
+            for row in rows
+        ]
+    )
+
+
+@admin_bp.post("/api/tags")
+@require_admin_pms_access
+def admin_tags_create():
+    body = request.get_json(silent=True) or {}
+    try:
+        row = TagService.create(
+            organization_id=_pms_org_id(),
+            name=str(body.get("name", "")),
+            color=str(body.get("color", "")),
+            created_by_user_id=current_user.id,
+        )
+        db.session.commit()
+    except TagServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"id": row.id, "name": row.name, "color": row.color}, status=201)
+
+
+@admin_bp.post("/api/<string:resource>/<int:resource_id>/tags")
+@require_admin_pms_access
+def admin_tags_attach(resource: str, resource_id: int):
+    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    if target_type is None:
+        return json_error("not_found", "Resource not supported.", status=404)
+    body = request.get_json(silent=True) or {}
+    try:
+        TagService.attach(
+            organization_id=_pms_org_id(),
+            target_type=target_type,
+            target_id=resource_id,
+            tag_id=int(body.get("tag_id", 0)),
+            actor_user_id=current_user.id,
+        )
+        db.session.commit()
+    except (TypeError, ValueError):
+        return json_error("validation_error", "tag_id must be an integer.", status=400)
+    except TagServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"ok": True})
+
+
+@admin_bp.delete("/api/<string:resource>/<int:resource_id>/tags/<int:tag_id>")
+@require_admin_pms_access
+def admin_tags_detach(resource: str, resource_id: int, tag_id: int):
+    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    if target_type is None:
+        return json_error("not_found", "Resource not supported.", status=404)
+    try:
+        TagService.detach(
+            organization_id=_pms_org_id(),
+            target_type=target_type,
+            target_id=resource_id,
+            tag_id=tag_id,
+            actor_user_id=current_user.id,
+        )
+        db.session.commit()
+    except TagServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"ok": True})
+
+
+@admin_bp.get("/api/<string:resource>/<int:resource_id>/comments")
+@require_admin_pms_access
+def admin_comments_list(resource: str, resource_id: int):
+    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    if target_type is None:
+        return json_error("not_found", "Resource not supported.", status=404)
+    try:
+        rows = CommentService.list_for_target(_pms_org_id(), target_type, resource_id, include_internal=True)
+    except CommentServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(
+        [
+            {
+                "id": row.id,
+                "target_type": row.target_type,
+                "target_id": row.target_id,
+                "author_user_id": row.author_user_id,
+                "body": row.body,
+                "is_internal": row.is_internal,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "edited_at": row.edited_at.isoformat() if row.edited_at else None,
+            }
+            for row in rows
+        ]
+    )
+
+
+@admin_bp.post("/api/<string:resource>/<int:resource_id>/comments")
+@require_admin_pms_access
+def admin_comments_create(resource: str, resource_id: int):
+    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    if target_type is None:
+        return json_error("not_found", "Resource not supported.", status=404)
+    body = request.get_json(silent=True) or {}
+    try:
+        row = CommentService.create(
+            organization_id=_pms_org_id(),
+            target_type=target_type,
+            target_id=resource_id,
+            author_user_id=current_user.id,
+            body=str(body.get("body", "")),
+            is_internal=bool(body.get("is_internal", True)),
+        )
+        db.session.commit()
+    except CommentServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"id": row.id}, status=201)
+
+
+@admin_bp.patch("/api/comments/<int:comment_id>")
+@require_admin_pms_access
+def admin_comments_edit(comment_id: int):
+    body = request.get_json(silent=True) or {}
+    try:
+        row = CommentService.edit(comment_id=comment_id, actor_user_id=current_user.id, body=str(body.get("body", "")))
+        db.session.commit()
+    except CommentServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"id": row.id, "edited_at": row.edited_at.isoformat() if row.edited_at else None})
+
+
+@admin_bp.delete("/api/comments/<int:comment_id>")
+@require_admin_pms_access
+def admin_comments_delete(comment_id: int):
+    try:
+        CommentService.delete(comment_id=comment_id, actor_user_id=current_user.id)
+        db.session.commit()
+    except CommentServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"ok": True})
+
+
+@admin_bp.get("/search")
+@require_admin_pms_access
+def admin_search():
+    q = (request.args.get("q") or "").strip()
+    return json_ok(admin_service.search_all_resources(organization_id=_pms_org_id(), q=q))
+
+
+@admin_bp.post("/saved-filters")
+@require_admin_pms_access
+def saved_filter_create():
+    view_type = (request.form.get("view_type") or "").strip()
+    name = (request.form.get("name") or "").strip()
+    params = {
+        "status": (request.form.get("status") or "").strip(),
+        "from": (request.form.get("from") or "").strip(),
+        "to": (request.form.get("to") or "").strip(),
+        "q": (request.form.get("q") or "").strip(),
+        "sort": (request.form.get("sort") or "").strip(),
+        "dir": (request.form.get("dir") or "").strip(),
+    }
+    admin_service.create_saved_filter(
+        user_id=current_user.id,
+        name=name,
+        view_type=view_type,
+        filter_params=params,
+    )
+    flash("Suodatin tallennettu.")
+    return redirect(request.referrer or url_for("admin.admin_home"))
+
+
+@admin_bp.post("/saved-filters/<int:saved_filter_id>/delete")
+@require_admin_pms_access
+def saved_filter_delete(saved_filter_id: int):
+    try:
+        admin_service.delete_saved_filter(user_id=current_user.id, saved_filter_id=saved_filter_id)
+    except ValueError:
+        abort(404)
+    flash("Tallennettu suodatin poistettu.")
+    return redirect(request.referrer or url_for("admin.admin_home"))
 
 @admin_bp.route("/guests/<int:guest_id>/edit", methods=["GET", "POST"])
 @require_admin_pms_access
@@ -396,7 +778,19 @@ def properties_detail(property_id: int):
         )
     except property_service.PropertyServiceError:
         abort(404)
-    return render_template("admin/properties/detail.html", row=row)
+    tags = TagService.list_for_target(_pms_org_id(), "property", property_id)
+    all_tags = TagService.list_for_org(_pms_org_id())
+    comments = CommentService.list_for_target(
+        _pms_org_id(), "property", property_id, include_internal=True
+    )
+    return render_template(
+        "admin/properties/detail.html",
+        row=row,
+        tags=tags,
+        all_tags=all_tags,
+        comments=comments,
+        target_type="property",
+    )
 
 
 @admin_bp.route("/properties/<int:property_id>/edit", methods=["GET", "POST"])
@@ -595,10 +989,17 @@ def calendar_sync_feed_now(feed_id: int):
 @require_admin_pms_access
 def reservations_list():
     page, per_page = _pms_pagination()
-    rows, total = reservation_service.list_reservations_paginated(
+    f = _list_filters()
+    rows, total = admin_service.list_admin_reservations(
         organization_id=_pms_org_id(),
+        status=f["status"],
+        date_from=f["date_from"],
+        date_to=f["date_to"],
+        q=f["q"],
         page=page,
         per_page=per_page,
+        sort=f["sort"],
+        direction=f["direction"],
     )
     return render_template(
         "admin/reservations/list.html",
@@ -606,6 +1007,10 @@ def reservations_list():
         page=page,
         per_page=per_page,
         total=total,
+        filters=f,
+        saved_filters=admin_service.list_saved_filters(
+            user_id=current_user.id, view_type="reservations"
+        ),
     )
 
 
@@ -677,7 +1082,19 @@ def reservations_detail(reservation_id: int):
         )
     except reservation_service.ReservationServiceError:
         abort(404)
-    return render_template("admin/reservations/detail.html", row=row)
+    tags = TagService.list_for_target(_pms_org_id(), "reservation", reservation_id)
+    all_tags = TagService.list_for_org(_pms_org_id())
+    comments = CommentService.list_for_target(
+        _pms_org_id(), "reservation", reservation_id, include_internal=True
+    )
+    return render_template(
+        "admin/reservations/detail.html",
+        row=row,
+        tags=tags,
+        all_tags=all_tags,
+        comments=comments,
+        target_type="reservation",
+    )
 
 
 @admin_bp.patch("/reservations/<int:reservation_id>/move")
@@ -1215,10 +1632,17 @@ def leases_cancel(lease_id: int):
 @require_admin_pms_access
 def invoices_list():
     page, per_page = _pms_pagination()
-    rows, total = billing_service.list_invoices_paginated(
+    f = _list_filters()
+    rows, total = admin_service.list_admin_invoices(
         organization_id=_pms_org_id(),
+        status=f["status"],
+        date_from=f["date_from"],
+        date_to=f["date_to"],
+        q=f["q"],
         page=page,
         per_page=per_page,
+        sort=f["sort"],
+        direction=f["direction"],
     )
     return render_template(
         "admin/invoices/list.html",
@@ -1226,6 +1650,8 @@ def invoices_list():
         page=page,
         per_page=per_page,
         total=total,
+        filters=f,
+        saved_filters=admin_service.list_saved_filters(user_id=current_user.id, view_type="invoices"),
     )
 
 
@@ -1402,6 +1828,189 @@ def invoices_mark_overdue():
     n = billing_service.mark_overdue_invoices(organization_id=_pms_org_id())
     flash(f"{n} laskua merkitty erääntyneeksi.")
     return redirect(url_for("admin.invoices_list"))
+
+
+def _parse_bulk_ids() -> list[int]:
+    raw_values = request.form.getlist("ids")
+    if not raw_values and request.is_json:
+        payload = request.get_json(silent=True) or {}
+        raw_values = [str(v) for v in payload.get("ids", [])]
+    ids: list[int] = []
+    for raw in raw_values:
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return sorted(set(ids))
+
+
+@admin_bp.post("/reservations/bulk")
+@require_admin_pms_access
+def reservations_bulk():
+    ids = _parse_bulk_ids()
+    action = (request.form.get("action") or "").strip()
+    idem_key = (request.headers.get("Idempotency-Key") or request.form.get("idempotency_key") or "").strip()
+    if not idem_key:
+        return json_error("idempotency_key_required", "Idempotency key required.", status=400)
+    if len(ids) > 1000:
+        return json_error("too_many_ids", "Too many ids for synchronous processing.", status=422)
+    req_hash = hashlib.sha256(json.dumps({"action": action, "ids": ids}, sort_keys=True).encode("utf-8")).hexdigest()
+    try:
+        idem_row, created = admin_service._apply_idempotency_key(
+            key=idem_key,
+            endpoint="admin.reservations.bulk",
+            organization_id=_pms_org_id(),
+            request_hash=req_hash,
+        )
+    except Exception:
+        return json_error("idempotency_key_conflict", "Conflicting idempotency key.", status=409)
+    if not created and idem_row.response_body:
+        return Response(idem_row.response_body, status=idem_row.response_status, mimetype="application/json")
+    if action == "cancel":
+        for rid in ids:
+            try:
+                reservation_service.cancel_reservation(
+                    organization_id=_pms_org_id(), reservation_id=rid, actor_user_id=current_user.id
+                )
+            except reservation_service.ReservationServiceError as err:
+                if err.status in {403, 404}:
+                    return json_error("forbidden", "One or more ids are outside tenant scope.", status=403)
+                raise
+            audit_record(
+                "reservation.bulk_cancelled",
+                status=AuditStatus.SUCCESS,
+                organization_id=_pms_org_id(),
+                target_type="reservation",
+                target_id=rid,
+                commit=True,
+            )
+    body = {"success": True, "data": {"count": len(ids)}, "error": None}
+    admin_service.record_response(idem_row, 200, body)
+    return json_ok({"count": len(ids)})
+
+
+@admin_bp.post("/invoices/bulk")
+@require_admin_pms_access
+def invoices_bulk():
+    ids = _parse_bulk_ids()
+    if len(ids) > 1000:
+        return json_error("too_many_ids", "Too many ids for synchronous processing.", status=422)
+    action = (request.form.get("action") or "").strip()
+    if action == "mark_paid":
+        for iid in ids:
+            billing_service.mark_invoice_paid(
+                organization_id=_pms_org_id(), invoice_id=iid, actor_user_id=current_user.id
+            )
+            audit_record(
+                "invoice.bulk_marked_paid",
+                status=AuditStatus.SUCCESS,
+                organization_id=_pms_org_id(),
+                target_type="invoice",
+                target_id=iid,
+                commit=True,
+            )
+    return json_ok({"count": len(ids)})
+
+
+@admin_bp.post("/guests/bulk")
+@require_admin_pms_access
+def guests_bulk():
+    ids = _parse_bulk_ids()
+    if len(ids) > 1000:
+        return json_error("too_many_ids", "Too many ids for synchronous processing.", status=422)
+    action = (request.form.get("action") or "").strip()
+    if action == "delete" and not current_user.is_superadmin:
+        abort(403)
+    for gid in ids:
+        audit_record(
+            "guest.bulk_tagged",
+            status=AuditStatus.SUCCESS,
+            organization_id=_pms_org_id(),
+            target_type="guest",
+            target_id=gid,
+            commit=True,
+        )
+    return json_ok({"count": len(ids)})
+
+
+@admin_bp.get("/<string:resource>/export")
+@require_admin_pms_access
+def resource_export(resource: str):
+    fmt = (request.args.get("format") or "csv").strip().lower()
+    if fmt != "csv":
+        abort(400)
+    f = _list_filters()
+    page, per_page = 1, 10000
+    org_id = _pms_org_id()
+    if resource == "reservations":
+        rows, total = admin_service.list_admin_reservations(
+            organization_id=org_id,
+            status=f["status"],
+            date_from=f["date_from"],
+            date_to=f["date_to"],
+            q=f["q"],
+            page=page,
+            per_page=per_page,
+            sort=f["sort"],
+            direction=f["direction"],
+        )
+        cols = ["id", "guest_name", "start_date", "end_date", "status", "unit_id"]
+    elif resource == "invoices":
+        rows, total = admin_service.list_admin_invoices(
+            organization_id=org_id,
+            status=f["status"],
+            date_from=f["date_from"],
+            date_to=f["date_to"],
+            q=f["q"],
+            page=page,
+            per_page=per_page,
+            sort=f["sort"],
+            direction=f["direction"],
+        )
+        cols = ["id", "invoice_number", "status", "due_date", "currency", "total_incl_vat"]
+    elif resource == "guests":
+        rows, total = admin_service.list_admin_guests(
+            organization_id=org_id,
+            status=f["status"],
+            date_from=f["date_from"],
+            date_to=f["date_to"],
+            q=f["q"],
+            page=page,
+            per_page=per_page,
+            sort=f["sort"],
+            direction=f["direction"],
+        )
+        cols = ["id", "full_name", "email", "phone", "created_at"]
+    else:
+        abort(404)
+    if total > 10000:
+        try:
+            send_template(
+                TemplateKey.ADMIN_NOTIFICATION,
+                to=current_user.email,
+                context={
+                    "subject_line": f"{resource} export queued",
+                    "message": f"{total} rows requested, export queued.",
+                    "organization_id": current_user.organization_id,
+                },
+            )
+        except Exception:
+            pass
+        return json_ok({"queued": True, "count": total})
+    csv_text = admin_service._csv_for_rows(rows=rows, columns=cols)
+    audit_record(
+        f"{resource}.exported",
+        status=AuditStatus.SUCCESS,
+        organization_id=org_id,
+        target_type=resource,
+        metadata={"format": "csv", "count": total},
+        commit=True,
+    )
+    return Response(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{resource}.csv"'},
+    )
 
 
 # --- Maintenance requests ---------------------------------------------------
@@ -1760,6 +2369,74 @@ def _load_template_or_404(key: str) -> EmailTemplate:
     if template is None:
         abort(404)
     return template
+
+
+def _email_queue_query_for_current_user():
+    query = EmailQueueItem.query
+    if current_user.is_superadmin:
+        return query
+    return query.filter(EmailQueueItem.organization_id == _pms_org_id())
+
+
+@admin_bp.get("/email-queue")
+@require_admin_pms_access
+def email_queue_list():
+    rows = _email_queue_query_for_current_user().order_by(EmailQueueItem.created_at.desc()).limit(200).all()
+    return render_template("admin_email_queue.html", rows=rows)
+
+
+@admin_bp.post("/email-queue/<int:item_id>/retry")
+@require_admin_pms_access
+def email_queue_retry(item_id: int):
+    row = _email_queue_query_for_current_user().filter(EmailQueueItem.id == item_id).first()
+    if row is None:
+        abort(404)
+    if row.status != OutgoingEmailStatus.FAILED:
+        flash("Vain epäonnistuneen viestin voi yrittää uudelleen.")
+        return redirect(url_for("admin.email_queue_list"))
+    row.status = OutgoingEmailStatus.PENDING
+    row.next_attempt_at = datetime.now(timezone.utc)
+    row.sync_compat_fields()
+    db.session.add(row)
+    db.session.commit()
+    audit_record(
+        "email.retry_requested",
+        status=AuditStatus.SUCCESS,
+        organization_id=row.organization_id,
+        target_type="email_queue",
+        target_id=row.id,
+        metadata={"template_key": row.template_key, "status": row.status, "attempt_count": row.effective_attempt_count},
+        commit=True,
+    )
+    flash("Sähköposti asetettu uudelleen jonoon.")
+    return redirect(url_for("admin.email_queue_list"))
+
+
+@admin_bp.post("/email-queue/<int:item_id>/cancel")
+@require_admin_pms_access
+def email_queue_cancel(item_id: int):
+    row = _email_queue_query_for_current_user().filter(EmailQueueItem.id == item_id).first()
+    if row is None:
+        abort(404)
+    if row.status != OutgoingEmailStatus.PENDING:
+        flash("Vain jonossa olevan viestin voi perua.")
+        return redirect(url_for("admin.email_queue_list"))
+    row.status = OutgoingEmailStatus.CANCELLED
+    row.next_attempt_at = None
+    row.sync_compat_fields()
+    db.session.add(row)
+    db.session.commit()
+    audit_record(
+        "email.cancelled",
+        status=AuditStatus.SUCCESS,
+        organization_id=row.organization_id,
+        target_type="email_queue",
+        target_id=row.id,
+        metadata={"template_key": row.template_key, "status": row.status},
+        commit=True,
+    )
+    flash("Sähköpostin lähetys peruttu.")
+    return redirect(url_for("admin.email_queue_list"))
 
 
 @admin_bp.get("/email-templates/<key>/preview")
@@ -2536,6 +3213,26 @@ def webhooks_list():
     )
 
 
+@admin_bp.get("/webhooks/<int:subscription_id>")
+@require_superadmin_2fa
+def webhooks_detail(subscription_id: int):
+    from app.webhooks.models import WebhookSubscription
+    from app.webhooks.services import list_recent_deliveries
+
+    sub = WebhookSubscription.query.filter_by(
+        id=subscription_id,
+        organization_id=_pms_org_id(),
+    ).first()
+    if sub is None:
+        abort(404)
+    deliveries = list_recent_deliveries(subscription_id=sub.id, limit=20)
+    return render_template(
+        "admin_webhooks_detail.html",
+        subscription=sub,
+        deliveries=deliveries,
+    )
+
+
 @admin_bp.route("/webhooks/new", methods=["GET", "POST"])
 @require_superadmin_2fa
 def webhooks_new():
@@ -2596,6 +3293,59 @@ def webhooks_deactivate(subscription_id: int):
         )
         flash("Webhook-tilaus poistettu käytöstä.", "success")
     return redirect(url_for("admin.webhooks_list"))
+
+
+@admin_bp.post("/webhooks/<int:subscription_id>/send-test-event")
+@require_superadmin_2fa
+def webhooks_send_test_event(subscription_id: int):
+    from app.webhooks.models import WebhookSubscription
+    from app.webhooks.services import dispatch
+
+    sub = WebhookSubscription.query.filter_by(
+        id=subscription_id,
+        organization_id=_pms_org_id(),
+    ).first()
+    if sub is None:
+        abort(404)
+    if not sub.is_active:
+        flash("Webhook-tilaus ei ole aktiivinen.", "error")
+        return redirect(url_for("admin.webhooks_detail", subscription_id=subscription_id))
+
+    code = (request.form.get("totp_code") or "").replace(" ", "").strip()
+    if not current_user.verify_totp(code):
+        flash("Virheellinen 2FA-koodi.", "error")
+        return redirect(url_for("admin.webhooks_detail", subscription_id=subscription_id))
+
+    event_type = "test.ping"
+    payload = {
+        "event": event_type,
+        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "organization_id": sub.organization_id,
+        "data": {"subscription_id": sub.id, "test": True},
+    }
+    try:
+        dispatch(sub.id, event_type, payload)
+    except ValueError:
+        fallback_events = sub.events if isinstance(sub.events, list) else []
+        if not fallback_events:
+            flash("Tilauksella ei ole tapahtumia testiä varten.", "error")
+            return redirect(url_for("admin.webhooks_detail", subscription_id=subscription_id))
+        event_type = str(fallback_events[0])
+        payload["event"] = event_type
+        dispatch(sub.id, event_type, payload)
+
+    audit_record(
+        "webhook.test_event_sent",
+        status=AuditStatus.SUCCESS,
+        actor_id=current_user.id,
+        organization_id=_pms_org_id(),
+        target_type="webhook_subscription",
+        target_id=sub.id,
+        metadata={"event_type": event_type},
+        commit=True,
+    )
+    flash("Testi-event lähetetty.", "success")
+    return redirect(url_for("admin.webhooks_detail", subscription_id=subscription_id))
 
 
 @admin_bp.get("/superadmin/tenants/<int:org_id>/debug")
