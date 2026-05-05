@@ -20,10 +20,22 @@ from app.email.services import send_template
 from app.extensions import db
 from app.guests.models import Guest
 from app.maintenance.models import MaintenanceRequest
+from app.notifications import services as notification_service
 from app.portal import services as portal_services
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
+from app.webhooks.events import (
+    RESERVATION_CANCELLED,
+    RESERVATION_CREATED,
+    RESERVATION_UPDATED,
+)
+from app.webhooks.publisher import publish as publish_webhook_event
+from app.webhooks.schemas import (
+    build_reservation_cancelled_payload,
+    build_reservation_created_payload,
+    build_reservation_updated_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -701,6 +713,11 @@ def update_reservation(
             actor_user_id=actor_user_id,
             reason="reservation_resized",
         )
+    publish_webhook_event(
+        RESERVATION_UPDATED,
+        organization_id,
+        build_reservation_updated_payload(row),
+    )
     return _serialize_reservation(row)
 
 
@@ -790,6 +807,15 @@ def create_reservation(
         payment_status="pending",
     )
     db.session.add(row)
+    db.session.flush()
+    notification_service.create(
+        organization_id=organization_id,
+        type="reservation.created",
+        title="Uusi varaus luotu",
+        body=f"Varaus #{row.id} luotiin ajalle {row.start_date.isoformat()} - {row.end_date.isoformat()}.",
+        link=f"/admin/reservations/{row.id}",
+        severity="info",
+    )
     db.session.commit()
     audit_record(
         "reservation_created",
@@ -828,6 +854,11 @@ def create_reservation(
             )
         except Exception:
             logger.exception("Failed to issue lock access code for reservation %s", row.id)
+    publish_webhook_event(
+        RESERVATION_CREATED,
+        organization_id,
+        build_reservation_created_payload(row),
+    )
     return _serialize_reservation(row)
 
 
@@ -1119,6 +1150,11 @@ def cancel_reservation(
         )
     except Exception:
         logger.exception("Failed revoking lock access code for reservation %s", row.id)
+    publish_webhook_event(
+        RESERVATION_CANCELLED,
+        organization_id,
+        build_reservation_cancelled_payload(row),
+    )
     return _serialize_reservation(row)
 
 

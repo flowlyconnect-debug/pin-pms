@@ -1,0 +1,50 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Webhook-tilaus #{{ subscription.id }} · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Webhook-tilaus #{{ subscription.id }}</h1>
+  <p><strong>URL:</strong> <code>{{ subscription.url }}</code></p>
+  <p><strong>Tapahtumat:</strong> {{ (subscription.events or [])|join(', ') }}</p>
+  <p><strong>Aktiivinen:</strong> {{ "kyllä" if subscription.is_active else "ei" }}</p>
+  <p><strong>Viimeisin toimitus:</strong> {{ subscription.last_delivery_at.strftime('%Y-%m-%d %H:%M') if subscription.last_delivery_at else "—" }}</p>
+  <p><strong>Viimeisin HTTP-tila:</strong> {{ subscription.last_delivery_status if subscription.last_delivery_status is not none else "—" }}</p>
+  <p><strong>Epäonnistumiset:</strong> {{ subscription.failure_count }}</p>
+
+  <form method="post" action="{{ url_for('admin.webhooks_send_test_event', subscription_id=subscription.id) }}" style="margin: 1rem 0;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="totp_code">2FA-koodi</label>
+    <input id="totp_code" name="totp_code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+    <button type="submit">Lähetä testi-event</button>
+  </form>
+
+  <h2>Viimeisimmät toimitukset (20)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Tapahtuma</th>
+        <th>HTTP</th>
+        <th>Yritys</th>
+        <th>Toimitettu</th>
+        <th>Seuraava uudelleenlähetys</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in deliveries %}
+        <tr>
+          <td>{{ d.id }}</td>
+          <td><code>{{ d.event_type }}</code></td>
+          <td>{{ d.response_status if d.response_status is not none else "—" }}</td>
+          <td>{{ d.attempt_number }}</td>
+          <td>{{ d.delivered_at.strftime('%Y-%m-%d %H:%M') if d.delivered_at else "—" }}</td>
+          <td>{{ d.next_retry_at.strftime('%Y-%m-%d %H:%M') if d.next_retry_at else "—" }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6">Ei toimituksia.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p><a href="{{ url_for('admin.webhooks_list') }}">Takaisin listaan</a></p>
+{% endblock %}

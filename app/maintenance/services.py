@@ -11,9 +11,13 @@ from app.audit.models import AuditStatus
 from app.extensions import db
 from app.guests.models import Guest
 from app.maintenance.models import MaintenanceRequest
+from app.notifications import services as notification_service
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
 from app.users.models import User
+from app.webhooks.events import MAINTENANCE_REQUESTED
+from app.webhooks.publisher import publish as publish_webhook_event
+from app.webhooks.schemas import build_maintenance_requested_payload
 
 
 @dataclass
@@ -281,7 +285,20 @@ def create_maintenance_request(
             "unit_id": row.unit_id,
         },
     )
+    notification_service.create(
+        organization_id=organization_id,
+        type="maintenance.requested",
+        title="Uusi huoltopyynto",
+        body=row.title,
+        link=f"/admin/maintenance-requests/{row.id}",
+        severity="warning" if row.priority in {"high", "urgent"} else "info",
+    )
     db.session.commit()
+    publish_webhook_event(
+        MAINTENANCE_REQUESTED,
+        organization_id,
+        build_maintenance_requested_payload(row),
+    )
     return _serialize(row)
 
 

@@ -12,9 +12,13 @@ from app.audit.models import ActorType, AuditStatus
 from app.billing.models import Invoice, Lease
 from app.extensions import db
 from app.guests.models import Guest
+from app.notifications import services as notification_service
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
 from app.settings import services as settings_services
+from app.webhooks.events import INVOICE_CREATED
+from app.webhooks.publisher import publish as publish_webhook_event
+from app.webhooks.schemas import build_invoice_created_payload
 
 
 @dataclass
@@ -728,6 +732,11 @@ def create_invoice(
         },
         commit=True,
     )
+    publish_webhook_event(
+        INVOICE_CREATED,
+        organization_id,
+        build_invoice_created_payload(row),
+    )
     return _serialize_invoice(row)
 
 
@@ -992,6 +1001,14 @@ def mark_overdue_invoices(*, organization_id: int | None = None) -> int:
     for row in rows:
         row.status = "overdue"
         row.updated_by_id = None
+        notification_service.create(
+            organization_id=row.organization_id,
+            type="invoice.overdue",
+            title="Lasku eraantynyt",
+            body=f"Lasku {row.invoice_number or '#' + str(row.id)} on eraantynyt.",
+            link=f"/admin/invoices/{row.id}",
+            severity="warning",
+        )
         count += 1
     if count:
         db.session.commit()

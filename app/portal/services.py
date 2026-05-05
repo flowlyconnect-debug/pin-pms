@@ -27,6 +27,9 @@ from app.portal.models import (
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
+from app.webhooks.events import GUEST_CHECKED_IN, GUEST_CHECKED_OUT
+from app.webhooks.publisher import publish as publish_webhook_event
+from app.webhooks.schemas import build_guest_checked_in_payload, build_guest_checked_out_payload
 
 
 @dataclass
@@ -538,6 +541,11 @@ def complete_checkin(
         commit=False,
     )
     db.session.commit()
+    publish_webhook_event(
+        GUEST_CHECKED_IN,
+        reservation.unit.property.organization_id,
+        build_guest_checked_in_payload(row, reservation),
+    )
     if reservation.guest is not None and reservation.guest.email:
         try:
             send_template(
@@ -587,6 +595,14 @@ def auto_revoke_expired_access_codes(*, now: datetime | None = None) -> int:
             commit=False,
         )
     db.session.commit()
+    for row in rows:
+        if row.reservation is None or row.reservation.unit is None or row.reservation.unit.property is None:
+            continue
+        publish_webhook_event(
+            GUEST_CHECKED_OUT,
+            row.reservation.unit.property.organization_id,
+            build_guest_checked_out_payload(row),
+        )
     return count
 
 
