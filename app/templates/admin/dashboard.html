@@ -11,7 +11,6 @@
   {% set revenue = summary.revenue or {} %}
 
   <div class="dashboard-modern-header">
-    <h1>Hallintapaneeli</h1>
     {% if current_user.is_superadmin and organization_options %}
       <form method="get" class="dashboard-org-switcher">
         <label for="organization_id">Organisaatio</label>
@@ -27,36 +26,36 @@
   </div>
 
   {% if (summary.total_properties or 0) == 0 %}
-    <section class="card dashboard-empty-message">
+    <section class="card dashboard-empty-message empty-state-banner">
       <p>Lisää kohteet ensin</p>
     </section>
   {% elif dashboard_chart_data.insufficient_chart_data %}
-    <section class="card dashboard-empty-message">
+    <section class="card dashboard-empty-message empty-state-banner empty-state-banner-info">
       <p>Liian vähän dataa graafiin</p>
     </section>
   {% endif %}
 
   <section class="dashboard-kpi-modern-grid">
-    <article class="dashboard-kpi-modern-card">
+    <article class="dashboard-kpi-modern-card kpi-card">
       <p class="dashboard-kpi-modern-label">Käyttöaste</p>
       <p class="dashboard-kpi-modern-value">{{ "%.1f"|format(summary.occupancy_percent or 0) }} %</p>
       <p class="dashboard-kpi-modern-delta">
         Tämän hetken vieraita: {{ summary.current_guests or 0 }}
       </p>
     </article>
-    <article class="dashboard-kpi-modern-card">
+    <article class="dashboard-kpi-modern-card kpi-card">
       <p class="dashboard-kpi-modern-label">Tulot (kk)</p>
       <p class="dashboard-kpi-modern-value">{{ revenue.month_to_date_fi or "0,00 €" }}</p>
       <p class="dashboard-kpi-modern-delta">
         Avoimet saatavat: {{ revenue.open_receivables_fi or "0,00 €" }}
       </p>
     </article>
-    <article class="dashboard-kpi-modern-card">
+    <article class="dashboard-kpi-modern-card kpi-card">
       <p class="dashboard-kpi-modern-label">Aktiiviset varaukset</p>
       <p class="dashboard-kpi-modern-value">{{ summary.active_reservations or 0 }}</p>
       <p class="dashboard-kpi-modern-delta">Tänään saapuu: {{ summary.arrivals_today or 0 }} · Tänään lähtee: {{ summary.departures_today or 0 }}</p>
     </article>
-    <article class="dashboard-kpi-modern-card">
+    <article class="dashboard-kpi-modern-card kpi-card">
       <p class="dashboard-kpi-modern-label">Avoimet laskut</p>
       <p class="dashboard-kpi-modern-value">{{ summary.open_invoices or 0 }}</p>
       <p class="dashboard-kpi-modern-delta">

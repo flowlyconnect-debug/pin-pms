@@ -11,13 +11,16 @@
     <script src="{{ url_for('static', filename='js/admin-toast.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-confirm.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-loading.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/admin-search.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-filters.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-bulk.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-notifications.js') }}" defer></script>
     {% block head_extra %}{% endblock %}
   </head>
   {% set ep = request.endpoint or '' %}
+  {% set user_email = current_user.email if current_user.is_authenticated else "Käyttäjä" %}
+  {% set user_org = current_user.organization.name if current_user.is_authenticated and current_user.organization else "Organisaatio" %}
+  {% set user_initials = (user_email[:2] if current_user.is_authenticated else "PM")|upper %}
+  {% set current_page_title %}{% block page_title %}Hallinta{% endblock %}{% endset %}
   <body class="admin">
     <div class="admin-sidebar-backdrop" aria-hidden="true"></div>
     <div class="admin-shell">
@@ -51,14 +54,6 @@
           <a href="{{ url_for('admin.superadmin_status') }}" class="admin-nav-link{% if ep == 'admin.superadmin_status' %} is-active{% endif %}"{% if ep == 'admin.superadmin_status' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🟢</span><span class="admin-nav-text">Tilannehallinta</span></a>
         </nav>
         <div class="admin-sidebar-foot">
-          <div class="admin-sidebar-user">
-            <div class="admin-sidebar-user-name">{{ current_user.email if current_user.is_authenticated else "Käyttäjä" }}</div>
-            <div class="admin-sidebar-user-org">{{ current_user.organization.name if current_user.is_authenticated and current_user.organization else "Organisaatio" }}</div>
-            <div class="admin-sidebar-user-actions">
-              <a href="{{ url_for('admin.settings_list') }}" class="admin-link">Asetukset</a>
-              <a href="{{ url_for('auth.logout') }}" class="admin-link">Kirjaudu ulos</a>
-            </div>
-          </div>
           <form method="post" action="{{ url_for('admin.set_theme') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label for="theme-select" class="admin-nav-text">Teema</label>
@@ -72,25 +67,55 @@
       </aside>
       <div class="admin-main-wrap">
         <header class="admin-topbar">
-          <button type="button" class="admin-menu-toggle" aria-controls="admin-sidebar" aria-expanded="false" aria-label="Avaa valikko">
-            <span class="admin-menu-bars" aria-hidden="true"></span>
-          </button>
-          <span class="admin-topbar-title">Pin PMS</span>
+          <div class="admin-topbar-left">
+            <button type="button" class="admin-menu-toggle" aria-controls="admin-sidebar" aria-expanded="false" aria-label="Avaa valikko">
+              <span class="admin-menu-bars" aria-hidden="true"></span>
+            </button>
+          </div>
+          <span class="admin-topbar-title">{{ current_page_title|trim }}</span>
+          <div class="admin-topbar-right">
+            {% set notification_panel_id = "admin-notifications-panel-mobile" %}
+            {% include "admin/_notification_bell.html" %}
+            <details class="admin-avatar-menu">
+              <summary class="admin-avatar admin-avatar-toggle" aria-label="Käyttäjävalikko">{{ user_initials }}</summary>
+              <div class="admin-avatar-dropdown">
+                <div class="admin-avatar-meta">
+                  <p class="admin-avatar-email">{{ user_email }}</p>
+                  <p class="admin-avatar-org">{{ user_org }}</p>
+                </div>
+                <nav class="admin-avatar-links" aria-label="Käyttäjävalikko">
+                  <a href="{{ url_for('admin.settings_list') }}">Asetukset</a>
+                  <a href="{{ url_for('auth.logout') }}">Kirjaudu ulos</a>
+                </nav>
+              </div>
+            </details>
+          </div>
         </header>
         <main class="admin-main">
           <header class="admin-desktop-topbar">
-            <h1 class="admin-desktop-title">{% block page_title %}Hallinta{% endblock %}</h1>
-            <input type="search" class="admin-search-input" placeholder="Etsi..." id="admin-global-search" role="combobox" aria-expanded="false" aria-controls="admin-global-search-results">
-            <div id="admin-global-search-results" role="listbox" hidden></div>
+            <h1 class="admin-desktop-title">{{ current_page_title|trim }}</h1>
             <div class="admin-topbar-actions">
+              {% set notification_panel_id = "admin-notifications-panel-desktop" %}
               {% include "admin/_notification_bell.html" %}
-              <span class="admin-avatar" aria-hidden="true">{{ (current_user.email[:2] if current_user.is_authenticated else "PM")|upper }}</span>
+              <details class="admin-avatar-menu">
+                <summary class="admin-avatar admin-avatar-toggle" aria-label="Käyttäjävalikko">{{ user_initials }}</summary>
+                <div class="admin-avatar-dropdown">
+                  <div class="admin-avatar-meta">
+                    <p class="admin-avatar-email">{{ user_email }}</p>
+                    <p class="admin-avatar-org">{{ user_org }}</p>
+                  </div>
+                  <nav class="admin-avatar-links" aria-label="Käyttäjävalikko">
+                    <a href="{{ url_for('admin.settings_list') }}">Asetukset</a>
+                    <a href="{{ url_for('auth.logout') }}">Kirjaudu ulos</a>
+                  </nav>
+                </div>
+              </details>
             </div>
           </header>
           {% if impersonation_active %}
-            <div style="background:#fde68a;color:#111827;padding:.6rem .8rem;border:1px solid #f59e0b;border-radius:8px;margin-bottom:.75rem;">
+            <div class="admin-impersonation-banner">
               Esiinnyt käyttäjänä {{ current_user.email }}.
-              <form method="post" action="{{ url_for('admin.exit_impersonation') }}" style="display:inline">
+              <form method="post" action="{{ url_for('admin.exit_impersonation') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit">Palaa omaksi itseksesi</button>
               </form>
