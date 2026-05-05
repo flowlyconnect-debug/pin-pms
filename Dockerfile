@@ -15,10 +15,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 EXPOSE 5000
 
-# Production default: validate migration graph, run migrations, then start Gunicorn.
-# Local dev overrides this via docker-compose.yml (uses `flask run` for auto-reload).
+
 RUN ls -la /app && python --version && test -f safe_migrate.py
-CMD ["sh", "-c", "echo STARTING_CONTAINER && python safe_migrate.py && exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --access-logfile - --error-logfile - run:app"]
+CMD ["/app/start.sh"]
