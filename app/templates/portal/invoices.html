@@ -6,7 +6,7 @@
   <h1>Omat laskut</h1>
   <table>
     <thead>
-      <tr><th>Lasku</th><th>Veroton</th><th>ALV</th><th>Yhteensä</th><th>Eräpäivä</th><th>Tila</th></tr>
+      <tr><th>Lasku</th><th>Veroton</th><th>ALV</th><th>Yhteensä</th><th>Eräpäivä</th><th>Tila</th><th></th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
@@ -17,9 +17,14 @@
           <td>{{ row.total_incl_vat }} {{ row.currency }}</td>
           <td>{{ row.due_date }}</td>
           <td>{{ row.status }}</td>
+          <td>
+            {% if row.status in ["open", "overdue"] %}
+              <a href="{{ url_for('portal.pay_invoice', invoice_id=row.id) }}">Maksa</a>
+            {% endif %}
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="6"><em>Ei invoices.</em></td></tr>
+        <tr><td colspan="7"><em>Ei invoices.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>

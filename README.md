@@ -98,6 +98,55 @@ only (no secrets). Key variables:
 - iCal calendar sync: `ICAL_FEED_SECRET`, `ICAL_HTTP_TIMEOUT_SECONDS`,
   `ICAL_SYNC_ENABLED`, `ICAL_SYNC_INTERVAL_MINUTES`
 
+## Maksuintegraatio
+
+Sovellus tukee hostattuja maksusivuja (PCI-DSS SAQ-A):
+
+- Stripe Checkout kansainvalisille korteille
+- Paytrail Payment Page suomalaisille verkkopankeille, MobilePaylle ja kotimaisille korteille
+
+Tarkeat ymparistomuuttujat:
+
+- Stripe: `STRIPE_ENABLED`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+- Paytrail: `PAYTRAIL_ENABLED`, `PAYTRAIL_MERCHANT_ID`, `PAYTRAIL_SECRET_KEY`, `PAYTRAIL_API_BASE`
+- Payment flow: `PAYMENT_RETURN_URL`, `PAYMENT_CALLBACK_URL`
+
+Inbound webhook URL:t:
+
+- `/api/v1/webhooks/stripe`
+- `/api/v1/webhooks/paytrail`
+
+Testitilat:
+
+- Stripe CLI: `stripe listen --forward-to localhost:5000/api/v1/webhooks/stripe`
+- Paytrail testitunnukset: `PAYTRAIL_MERCHANT_ID=375917`, `PAYTRAIL_SECRET_KEY=SAIPPUAKAUPPIAS`
+
+Turvallisuus:
+
+- App ei kasittele eika tallenna korttinumeroa, CVV:ta tai expirya.
+- Maksut ohjataan aina providerien hostatuille maksusivuille.
+
+## Maksuintegraation manuaalitesti
+
+Stripe testimoodi:
+
+1. `export STRIPE_SECRET_KEY=sk_test_...`
+2. `stripe listen --forward-to localhost:5000/api/v1/webhooks/stripe`
+3. `flask payments-test-stripe --invoice-id <id>`
+4. Maksa testikortilla: `4242 4242 4242 4242` (mika tahansa CVV, tuleva expiry)
+5. Tarkista: webhook, `Payment.status=succeeded`, invoice paid, audit-loki, `payment_received` email queue.
+
+Paytrail testimoodi:
+
+1. `export PAYTRAIL_MERCHANT_ID=375917`
+2. `export PAYTRAIL_SECRET_KEY=SAIPPUAKAUPPIAS`
+3. `flask payments-test-paytrail --invoice-id <id>`
+4. Valitse `Nordea Demo`
+5. Vahvista maksu
+6. Tarkista: callback tuli, `Payment.status=succeeded`, audit-loki.
+
+Varoitus: Paytrailin testisecrettia ei saa kayttaa production-konfiguraatiossa.
+
 ## Docker startup
 
 First-time bring-up (after `cp .env.example .env`):

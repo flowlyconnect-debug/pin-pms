@@ -1,3 +1,4 @@
+import logging
 import os
 import socket
 import subprocess
@@ -20,6 +21,7 @@ _DB_ENV_KEYS = frozenset(
 )
 
 _DEV_LOCAL_DB_PASSWORD = "dev-only-insecure-local-postgres-password"
+logger = logging.getLogger(__name__)
 
 
 def require_env(name: str) -> str:
@@ -37,6 +39,32 @@ def apply_production_config(config: dict) -> None:
     config["SECRET_KEY"] = require_env("SECRET_KEY")
     config["SQLALCHEMY_DATABASE_URI"] = require_env("DATABASE_URL")
     config["MAILGUN_API_KEY"] = require_env("MAILGUN_API_KEY")
+    validate_payments_config(config, production=True)
+
+
+def _is_truthy(value: object) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes"}
+
+
+def validate_payments_config(config: dict, *, production: bool) -> None:
+    stripe_enabled = _is_truthy(config.get("STRIPE_ENABLED"))
+    paytrail_enabled = _is_truthy(config.get("PAYTRAIL_ENABLED"))
+
+    if stripe_enabled:
+        required = ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PUBLISHABLE_KEY")
+        missing = [key for key in required if not str(config.get(key) or "").strip()]
+        if missing and production:
+            raise RuntimeError(f"Missing required Stripe configuration: {', '.join(missing)}")
+        if missing and not production:
+            logger.warning("Stripe is enabled but config is missing: %s", ", ".join(missing))
+
+    if paytrail_enabled:
+        required = ("PAYTRAIL_MERCHANT_ID", "PAYTRAIL_SECRET_KEY", "PAYMENT_CALLBACK_URL")
+        missing = [key for key in required if not str(config.get(key) or "").strip()]
+        if missing and production:
+            raise RuntimeError(f"Missing required Paytrail configuration: {', '.join(missing)}")
+        if missing and not production:
+            logger.warning("Paytrail is enabled but config is missing: %s", ", ".join(missing))
 
 
 def _running_in_docker() -> bool:
@@ -352,6 +380,16 @@ class BaseConfig:
         "true",
         "yes",
     }
+    STRIPE_ENABLED = os.getenv("STRIPE_ENABLED", "0").lower() in {"1", "true", "yes"}
+    STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    PAYTRAIL_ENABLED = os.getenv("PAYTRAIL_ENABLED", "0").lower() in {"1", "true", "yes"}
+    PAYTRAIL_MERCHANT_ID = os.getenv("PAYTRAIL_MERCHANT_ID", "")
+    PAYTRAIL_SECRET_KEY = os.getenv("PAYTRAIL_SECRET_KEY", "")
+    PAYTRAIL_API_BASE = os.getenv("PAYTRAIL_API_BASE", "https://services.paytrail.com")
+    PAYMENT_RETURN_URL = os.getenv("PAYMENT_RETURN_URL", "")
+    PAYMENT_CALLBACK_URL = os.getenv("PAYMENT_CALLBACK_URL", "")
 
 
 class DevelopmentConfig(BaseConfig):

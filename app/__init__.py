@@ -45,9 +45,10 @@ def create_app(config_object: str = "default") -> Flask:
 
         apply_production_config(app.config)
     elif not app.config.get("TESTING"):
-        from app.config import _resolved_database_url
+        from app.config import _resolved_database_url, validate_payments_config
 
         app.config["SQLALCHEMY_DATABASE_URI"] = _resolved_database_url()
+        validate_payments_config(app.config, production=False)
 
     if app.config.get("SENTRY_DSN"):
         init_sentry(app)
@@ -382,6 +383,10 @@ def register_models():
             WebhookEvent,
             WebhookSubscription,
         )
+    except Exception:
+        pass
+    try:
+        from app.payments.models import Payment, PaymentRefund  # noqa: F401
     except Exception:
         pass
     _ = (

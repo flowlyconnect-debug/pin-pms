@@ -198,6 +198,28 @@ def list_invoices(*, organization_id: int, guest_id: int) -> list[dict]:
     ]
 
 
+def get_invoice(*, organization_id: int, guest_id: int, invoice_id: int) -> dict:
+    row = Invoice.query.filter_by(
+        id=invoice_id,
+        organization_id=organization_id,
+        guest_id=guest_id,
+    ).first()
+    if row is None:
+        raise PortalServiceError(code="not_found", message="Invoice not found.", status=404)
+    return {
+        "id": row.id,
+        "invoice_number": row.invoice_number,
+        "amount": str(row.total_incl_vat),
+        "subtotal_excl_vat": str(row.subtotal_excl_vat),
+        "vat_rate": str(row.vat_rate),
+        "vat_amount": str(row.vat_amount),
+        "total_incl_vat": str(row.total_incl_vat),
+        "currency": row.currency,
+        "due_date": row.due_date.isoformat(),
+        "status": row.status,
+    }
+
+
 def list_maintenance_requests(*, organization_id: int, guest_id: int) -> list[dict]:
     rows = (
         MaintenanceRequest.query.filter_by(organization_id=organization_id, guest_id=guest_id)

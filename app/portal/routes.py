@@ -8,6 +8,7 @@ from flask import abort, current_app, flash, redirect, render_template, request,
 from app.extensions import limiter
 from app.portal import portal_bp
 from app.portal import services as portal_service
+from app.payments import services as payment_service
 
 
 def _login_rate_limit():
@@ -119,6 +120,64 @@ def invoices(user):
         guest_id=user.id,
     )
     return render_template("portal/invoices.html", rows=rows)
+
+
+@portal_bp.route("/invoices/<int:invoice_id>/pay", methods=["GET", "POST"])
+@require_portal_login
+def pay_invoice(user, invoice_id: int):
+    try:
+        invoice = portal_service.get_invoice(
+            organization_id=user.organization_id,
+            guest_id=user.id,
+            invoice_id=invoice_id,
+        )
+    except portal_service.PortalServiceError:
+        abort(404)
+
+    if request.method == "POST":
+        provider = (request.form.get("provider") or "").strip().lower()
+        return_url = url_for("portal.payment_return", _external=True)
+        cancel_url = url_for("portal.payment_cancel", invoice_id=invoice_id, _external=True)
+        try:
+            out = payment_service.create_checkout(
+                invoice_id=invoice_id,
+                provider_name=provider,
+                return_url=return_url,
+                cancel_url=cancel_url,
+                actor_user_id=user.id,
+                idempotency_key=(request.headers.get("Idempotency-Key") or "").strip() or None,
+            )
+        except payment_service.PaymentServiceError as err:
+            return render_template(
+                "portal/pay_invoice.html",
+                row=invoice,
+                stripe_enabled=current_app.config.get("STRIPE_ENABLED", False),
+                paytrail_enabled=current_app.config.get("PAYTRAIL_ENABLED", False),
+                error=err.message,
+            )
+        return redirect(out["redirect_url"])
+
+    return render_template(
+        "portal/pay_invoice.html",
+        row=invoice,
+        stripe_enabled=current_app.config.get("STRIPE_ENABLED", False),
+        paytrail_enabled=current_app.config.get("PAYTRAIL_ENABLED", False),
+        error=None,
+    )
+
+
+@portal_bp.get("/payments/return")
+@require_portal_login
+def payment_return(user):
+    _ = user
+    return render_template("portal/payment_return.html")
+
+
+@portal_bp.get("/payments/cancel/<int:invoice_id>")
+@require_portal_login
+def payment_cancel(user, invoice_id: int):
+    _ = user
+    return render_template("portal/payment_cancel.html", invoice_id=invoice_id)
 
 
 @portal_bp.route("/maintenance", methods=["GET", "POST"])

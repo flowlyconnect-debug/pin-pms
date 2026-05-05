@@ -33,6 +33,11 @@ ALLOWED_API_KEY_SCOPES: tuple[str, ...] = (
     "reports:read",
     "webhooks:read",
     "webhooks:write",
+    "search:read",
+    "tags:read",
+    "tags:write",
+    "payments:read",
+    "payments:write",
     "admin:*",
 )
 LEGACY_WILDCARD_SCOPES: tuple[str, ...] = ("reservations:*", "invoices:*")

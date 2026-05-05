@@ -1,0 +1,10 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Maksu onnistui · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Kiitos maksusta!</h1>
+  <p>Maksusi on vastaanotettu. Kuitti näkyy laskun tiedoissa.</p>
+  <p><a href="{{ url_for('portal.invoices') }}">Palaa laskuihin</a></p>
+{% endblock %}
+

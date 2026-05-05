@@ -32,6 +32,7 @@ _ERROR_AUDIT_MAX = 512
 
 _INBOUND_SETTING_KEY = {
     "stripe": "webhooks.stripe.secret",
+    "paytrail": "webhooks.paytrail.secret",
     "vismapay": "webhooks.vismapay.secret",
     "pindora_lock": "webhooks.pindora_lock.secret",
 }
@@ -79,14 +80,18 @@ def _decrypt_if_encrypted(stored: str) -> str:
 def get_inbound_webhook_secret(provider: str) -> str:
     """Return plaintext signing secret for inbound verification."""
 
+    if provider == "pindora_lock":
+        configured = (current_app.config.get("PINDORA_LOCK_WEBHOOK_SECRET") or "").strip()
+        if configured:
+            return configured
+
     key = _INBOUND_SETTING_KEY.get(provider)
     if key:
         raw = settings_service.get(key, default="")
         if isinstance(raw, str) and raw.strip():
-            return _decrypt_if_encrypted(raw)
-
-    if provider == "pindora_lock":
-        return (current_app.config.get("PINDORA_LOCK_WEBHOOK_SECRET") or "").strip()
+            decrypted = _decrypt_if_encrypted(raw)
+            if decrypted:
+                return decrypted
 
     return ""
 
@@ -111,6 +116,8 @@ def persist_inbound_webhook_secret(
         is_secret=True,
         actor_user_id=actor_user_id,
     )
+    if provider == "pindora_lock":
+        current_app.config["PINDORA_LOCK_WEBHOOK_SECRET"] = plaintext
 
 
 def _payload_hash(payload: dict[str, Any]) -> str:
@@ -139,6 +146,14 @@ def record_inbound_event(
             .first()
         )
         if existing is not None:
+            audit_record(
+                "webhook.duplicate_ignored",
+                status=AuditStatus.SUCCESS,
+                organization_id=existing.organization_id,
+                target_type="webhook_event",
+                target_id=existing.id,
+                metadata={"provider": provider, "external_id": external_id},
+            )
             return existing
 
     event = WebhookEvent(
@@ -173,6 +188,10 @@ def record_inbound_event(
         metadata={"provider": provider, "event_type": event_type},
     )
     return event
+
+
+def provider_is_known(provider: str) -> bool:
+    return provider in {"stripe", "paytrail", "vismapay", "pindora_lock"}
 
 
 def mark_processed(event_id: int, error: str | None) -> None:

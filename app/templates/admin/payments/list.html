@@ -1,0 +1,40 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Maksut · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Maksut</h1>
+  <form method="get" class="actions">
+    <input type="text" name="provider" value="{{ provider or '' }}" placeholder="provider">
+    <input type="text" name="status" value="{{ status or '' }}" placeholder="status">
+    <input type="date" name="from" value="{{ date_from or '' }}">
+    <input type="date" name="to" value="{{ date_to or '' }}">
+    <button type="submit" class="btn">Suodata</button>
+    <a
+      class="btn btn-secondary"
+      href="{{ url_for('admin.payments_export', provider=provider, status=status, from=date_from, to=date_to) }}"
+    >Vie CSV</a>
+  </form>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Provider</th><th>Tila</th><th>Summa</th><th>Lasku</th><th>Varaus</th><th>Luotu</th><th>Valmis</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>#{{ row.id }}</td>
+          <td>{{ row.provider }}</td>
+          <td>{{ row.status }}</td>
+          <td>{{ row.amount }} {{ row.currency }}</td>
+          <td>{% if row.invoice_id %}<a href="{{ url_for('admin.invoices_detail', invoice_id=row.invoice_id) }}">#{{ row.invoice_id }}</a>{% else %}—{% endif %}</td>
+          <td>{{ row.reservation_id or "—" }}</td>
+          <td>{{ row.created_at }}</td>
+          <td>{{ row.completed_at or "—" }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8"><em>Ei maksuja.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
+

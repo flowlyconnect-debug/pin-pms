@@ -27,6 +27,8 @@ from app.integrations.ical.service import IcalService
 from app.organizations.models import Organization
 from app.owners.models import OwnerPayout, OwnerPayoutStatus, PropertyOwner
 from app.owners.services import generate_monthly_payout, send_payout_email
+from app.payments.models import Payment
+from app.payments import services as payments_service
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reservations import services as reservation_service
@@ -354,6 +356,67 @@ def register_cli_commands(app: Flask) -> None:
             click.echo(f"Inserted missing templates: {', '.join(added)}")
         else:
             click.echo("All seed templates are already present.")
+
+    @app.cli.command("payments-test-stripe")
+    @click.option("--invoice-id", type=int, required=True)
+    def payments_test_stripe(invoice_id: int) -> None:
+        out = payments_service.create_checkout(
+            invoice_id=invoice_id,
+            provider_name="stripe",
+            return_url=app.config.get("PAYMENT_RETURN_URL") or "http://127.0.0.1:5000/portal/payments/return",
+            cancel_url="http://127.0.0.1:5000/portal/invoices",
+            actor_user_id=None,
+            idempotency_key=None,
+        )
+        click.echo(out["redirect_url"])
+
+    @app.cli.command("payments-test-paytrail")
+    @click.option("--invoice-id", type=int, required=True)
+    def payments_test_paytrail(invoice_id: int) -> None:
+        out = payments_service.create_checkout(
+            invoice_id=invoice_id,
+            provider_name="paytrail",
+            return_url=app.config.get("PAYMENT_RETURN_URL") or "http://127.0.0.1:5000/portal/payments/return",
+            cancel_url="http://127.0.0.1:5000/portal/invoices",
+            actor_user_id=None,
+            idempotency_key=None,
+        )
+        click.echo(out["redirect_url"])
+
+    @app.cli.command("payments-list")
+    @click.option("--status", default=None)
+    def payments_list(status: str | None) -> None:
+        q = Payment.query
+        if status:
+            q = q.filter(Payment.status == status)
+        for row in q.order_by(Payment.id.desc()).limit(200).all():
+            click.echo(
+                f"#{row.id} org={row.organization_id} provider={row.provider} status={row.status} amount={row.amount} {row.currency}"
+            )
+
+    @app.cli.command("payments-prune-expired")
+    @click.option("--days", default=30, type=int)
+    def payments_prune_expired(days: int) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        rows = Payment.query.filter(
+            Payment.status.in_(["pending", "expired"]),
+            Payment.created_at < cutoff,
+        ).all()
+        for row in rows:
+            row.status = "expired"
+            audit_record(
+                "payment.expired",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.SYSTEM,
+                organization_id=row.organization_id,
+                target_type="payment",
+                target_id=row.id,
+                commit=False,
+            )
+        db.session.commit()
+        click.echo(f"Expired {len(rows)} payment(s).")
 
     @app.cli.command("seed-settings")
     def seed_settings() -> None:

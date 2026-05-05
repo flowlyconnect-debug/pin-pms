@@ -9,13 +9,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import csv
 from datetime import date, datetime, timezone
 from functools import wraps
 from io import BytesIO
+from io import StringIO
 
 from flask import (
     Response,
     abort,
+    current_app,
     flash,
     jsonify,
     redirect,
@@ -71,6 +74,8 @@ from app.notifications import services as notification_service
 from app.organizations.models import Organization
 from app.owners import services as owners_service
 from app.owners.models import PropertyOwner
+from app.payments.models import Payment
+from app.payments import services as payment_service
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reports import services as report_service
@@ -1753,7 +1758,132 @@ def invoices_detail(invoice_id: int):
         )
     except billing_service.InvoiceServiceError:
         abort(404)
-    return render_template("admin/invoices/detail.html", row=row)
+    payment_rows = (
+        Payment.query.filter_by(organization_id=_pms_org_id(), invoice_id=invoice_id)
+        .order_by(Payment.id.desc())
+        .limit(20)
+        .all()
+    )
+    return render_template("admin/invoices/detail.html", row=row, payment_rows=payment_rows)
+
+
+@admin_bp.post("/invoices/<int:invoice_id>/send-payment-link")
+@require_admin_pms_access
+def invoices_send_payment_link(invoice_id: int):
+    provider = (request.form.get("provider") or "stripe").strip().lower()
+    try:
+        checkout = payment_service.create_checkout(
+            invoice_id=invoice_id,
+            provider_name=provider,
+            return_url=current_app.config.get("PAYMENT_RETURN_URL")
+            or url_for("portal.payment_return", _external=True),
+            cancel_url=url_for("portal.payment_cancel", invoice_id=invoice_id, _external=True),
+            actor_user_id=current_user.id,
+            idempotency_key=(request.headers.get("Idempotency-Key") or "").strip() or None,
+        )
+    except payment_service.PaymentServiceError as err:
+        flash(err.message)
+        return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+    flash(f"Maksulinkki luotu: {checkout['redirect_url']}")
+    return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+
+
+@admin_bp.post("/payments/<int:payment_id>/refund")
+@require_admin_pms_access
+def payments_refund(payment_id: int):
+    try:
+        _ = payment_service.refund(
+            payment_id=payment_id,
+            amount=request.form.get("amount"),
+            reason=request.form.get("reason"),
+            actor_user_id=current_user.id,
+            idempotency_key=(request.headers.get("Idempotency-Key") or "").strip() or None,
+        )
+    except payment_service.PaymentServiceError as err:
+        flash(err.message)
+        return redirect(request.referrer or url_for("admin.payments_list"))
+    flash("Hyvitys käynnistetty.")
+    return redirect(request.referrer or url_for("admin.payments_list"))
+
+
+@admin_bp.get("/payments")
+@require_admin_pms_access
+def payments_list():
+    q = Payment.query.filter_by(organization_id=_pms_org_id())
+    provider = (request.args.get("provider") or "").strip()
+    status = (request.args.get("status") or "").strip()
+    date_from = _parse_optional_date("from")
+    date_to = _parse_optional_date("to")
+    if provider:
+        q = q.filter(Payment.provider == provider)
+    if status:
+        q = q.filter(Payment.status == status)
+    if date_from:
+        q = q.filter(Payment.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        q = q.filter(Payment.created_at <= datetime.combine(date_to, datetime.max.time()))
+    rows = q.order_by(Payment.id.desc()).limit(200).all()
+    return render_template(
+        "admin/payments/list.html",
+        rows=rows,
+        provider=provider,
+        status=status,
+        date_from=(request.args.get("from") or ""),
+        date_to=(request.args.get("to") or ""),
+    )
+
+
+@admin_bp.get("/payments/export")
+@require_admin_pms_access
+def payments_export():
+    q = Payment.query.filter_by(organization_id=_pms_org_id())
+    provider = (request.args.get("provider") or "").strip()
+    status = (request.args.get("status") or "").strip()
+    date_from = _parse_optional_date("from")
+    date_to = _parse_optional_date("to")
+    if provider:
+        q = q.filter(Payment.provider == provider)
+    if status:
+        q = q.filter(Payment.status == status)
+    if date_from:
+        q = q.filter(Payment.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        q = q.filter(Payment.created_at <= datetime.combine(date_to, datetime.max.time()))
+    rows = q.order_by(Payment.id.desc()).all()
+    sio = StringIO()
+    writer = csv.writer(sio)
+    writer.writerow(
+        ["id", "created_at", "provider", "amount", "currency", "status", "method", "invoice_number", "customer_email"]
+    )
+    for row in rows:
+        inv = Invoice.query.get(row.invoice_id) if row.invoice_id else None
+        writer.writerow(
+            [
+                row.id,
+                row.created_at.isoformat() if row.created_at else "",
+                row.provider,
+                str(row.amount),
+                row.currency,
+                row.status,
+                row.method or "",
+                inv.invoice_number if inv else "",
+                getattr(getattr(inv, "guest", None), "email", "") if inv else "",
+            ]
+        )
+    audit_record(
+        "payment.exported",
+        status=AuditStatus.SUCCESS,
+        organization_id=_pms_org_id(),
+        target_type="payment",
+        target_id=None,
+        metadata={"format": "csv", "count": len(rows)},
+        commit=True,
+    )
+    return Response(
+        sio.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=payments.csv"},
+    )
 
 
 @admin_bp.get("/invoices/<int:invoice_id>/pdf")

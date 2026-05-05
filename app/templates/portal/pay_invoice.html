@@ -1,0 +1,26 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Maksa lasku · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Maksa lasku {{ row.invoice_number or ("#" ~ row.id) }}</h1>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <div class="card">
+    <p><strong>Veroton:</strong> {{ row.subtotal_excl_vat }} {{ row.currency }}</p>
+    <p><strong>ALV:</strong> {{ row.vat_amount }} ({{ row.vat_rate }} %)</p>
+    <p><strong>Yhteensä:</strong> {{ row.total_incl_vat }} {{ row.currency }}</p>
+    <form method="post">
+      <p>Valitse maksutapa:</p>
+      {% if stripe_enabled %}
+        <button type="submit" name="provider" value="stripe">Maksa kortilla (Stripe)</button>
+      {% endif %}
+      {% if paytrail_enabled %}
+        <button type="submit" name="provider" value="paytrail">Maksa verkkopankissa (Paytrail)</button>
+      {% endif %}
+      {% if not stripe_enabled and not paytrail_enabled %}
+        <p>Maksutavat eivät ole käytettävissä.</p>
+      {% endif %}
+    </form>
+  </div>
+{% endblock %}
+

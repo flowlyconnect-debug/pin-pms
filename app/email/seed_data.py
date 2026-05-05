@@ -317,4 +317,46 @@ SEED_TEMPLATES: list[TemplateSeed] = [
             "from_name",
         ],
     },
+    {
+        "key": "payment_link",
+        "subject": "Maksulinkki laskulle {{ invoice_number }}",
+        "body_text": (
+            "Hei,\n\n"
+            "Tässä on linkki laskusi {{ invoice_number }} maksamiseen:\n"
+            "{{ payment_url }}\n\n"
+            "— {{ from_name }}\n"
+        ),
+        "body_html": (
+            "<p>Hei,</p>"
+            "<p>Tässä on linkki laskusi <strong>{{ invoice_number }}</strong> maksamiseen:</p>"
+            '<p><a href="{{ payment_url }}">Avaa maksusivu</a></p>'
+            "<p>— {{ from_name }}</p>"
+        ),
+        "description": "Maksulinkki asiakkaalle.",
+        "available_variables": ["invoice_number", "payment_url", "from_name"],
+    },
+    {
+        "key": "payment_received",
+        "subject": "Maksu vastaanotettu",
+        "body_text": "Maksusi on vastaanotettu — kuitti liitteenä.\n\n— {{ from_name }}\n",
+        "body_html": "<p>Maksusi on vastaanotettu — kuitti liitteenä.</p><p>— {{ from_name }}</p>",
+        "description": "Maksun onnistumisviesti.",
+        "available_variables": ["invoice_number", "amount", "currency", "from_name"],
+    },
+    {
+        "key": "payment_failed",
+        "subject": "Maksu epäonnistui",
+        "body_text": "Maksusi epäonnistui, yritä uudestaan.\n\n— {{ from_name }}\n",
+        "body_html": "<p>Maksusi epäonnistui, yritä uudestaan.</p><p>— {{ from_name }}</p>",
+        "description": "Maksun epäonnistumisviesti.",
+        "available_variables": ["invoice_number", "from_name"],
+    },
+    {
+        "key": "refund_completed",
+        "subject": "Hyvitys suoritettu",
+        "body_text": "Hyvitys on suoritettu tilillenne.\n\n— {{ from_name }}\n",
+        "body_html": "<p>Hyvitys on suoritettu tilillenne.</p><p>— {{ from_name }}</p>",
+        "description": "Hyvityksen valmistumisviesti.",
+        "available_variables": ["invoice_number", "amount", "currency", "from_name"],
+    },
 ]

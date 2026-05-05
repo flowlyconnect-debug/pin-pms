@@ -68,6 +68,12 @@ DEFAULT_TEST_API_SCOPES = ",".join(
         "maintenance:read",
         "maintenance:write",
         "reports:read",
+        "search:read",
+        "tags:read",
+        "tags:write",
+        "payments:read",
+        "payments:write",
+        "admin:*",
         "webhooks:read",
         "webhooks:write",
     ]
@@ -185,6 +191,16 @@ def _conn_params() -> dict[str, object]:
             port = int(docker_port)
             port_resolved = True
 
+    # Local pytest should default to local DB even if developer .env contains
+    # a production/staging host. Opt in to remote DB with PYTEST_ALLOW_REMOTE_DB=1.
+    allow_remote = (os.getenv("PYTEST_ALLOW_REMOTE_DB") or "").strip() == "1"
+    if (not allow_remote) and (not os.path.exists("/.dockerenv")):
+        normalized_host = (host or "").strip().lower()
+        if normalized_host not in {"127.0.0.1", "localhost", "::1", "db"}:
+            host = _default_postgres_host()
+            # Re-probe local ports (5433 -> 5432) after host fallback.
+            port_resolved = False
+
     if not port_resolved:
         if host in {"127.0.0.1", "localhost"}:
             probed = _probe_working_postgres_port(host, str(user), str(password))
@@ -224,7 +240,23 @@ def _percent_encode(value: str) -> str:
 def _build_test_database_url() -> str:
     """Construct ``postgresql+psycopg2://...`` for the test DB."""
 
+    force_sqlite = (os.getenv("FORCE_SQLITE_TEST_DB") or "").strip() == "1"
+    if force_sqlite:
+        sqlite_path = (_REPO_ROOT / "pindora_test.sqlite3").resolve()
+        return f"sqlite+pysqlite:///{sqlite_path.as_posix()}"
+
     p = _conn_params()
+    local_host = str(p["host"]).strip().lower() in {"127.0.0.1", "localhost", "::1"}
+    if local_host:
+        try:
+            probe_kw = _psycopg2_connect_params(p, dbname="postgres")
+            probe_kw["connect_timeout"] = 2
+            probe = psycopg2.connect(**probe_kw)
+            probe.close()
+        except Exception:
+            sqlite_path = (_REPO_ROOT / "pindora_test.sqlite3").resolve()
+            return f"sqlite+pysqlite:///{sqlite_path.as_posix()}"
+
     user = _percent_encode(str(p["user"]))
     password = _percent_encode(str(p["password"]))
     base = f"postgresql+psycopg2://{user}:{password}@{p['host']}:{p['port']}/pindora_test"
@@ -257,6 +289,10 @@ def pytest_configure(config) -> None:
 
 def _ensure_test_database() -> None:
     """Create the test database if Postgres does not already have it."""
+
+    test_url = (os.getenv("TEST_DATABASE_URL") or "").strip().lower()
+    if test_url.startswith("sqlite"):
+        return
 
     p = _conn_params()
     test_db_name = "pindora_test"

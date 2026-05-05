@@ -29,6 +29,20 @@
         <button type="submit" class="btn">Merkitse maksetuksi</button>
       </div>
     </form>
+
+    <h2>Lähetä maksulinkki</h2>
+    <form method="post" action="{{ url_for('admin.invoices_send_payment_link', invoice_id=row.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Maksutapa
+        <select name="provider">
+          <option value="stripe">Stripe</option>
+          <option value="paytrail">Paytrail</option>
+        </select>
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn">Luo maksulinkki</button>
+      </div>
+    </form>
   {% endif %}
 
   {% if row.status not in ["paid", "peruttu"] %}
@@ -40,5 +54,33 @@
         <button type="submit" class="btn-danger">Peruuta lasku</button>
       </div>
     </form>
+  {% endif %}
+
+  {% if payment_rows %}
+    <h2>Maksut</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Provider</th><th>Tila</th><th>Summa</th><th>Luotu</th><th></th></tr></thead>
+      <tbody>
+        {% for p in payment_rows %}
+          <tr>
+            <td>#{{ p.id }}</td>
+            <td>{{ p.provider }}</td>
+            <td>{{ p.status }}</td>
+            <td>{{ p.amount }} {{ p.currency }}</td>
+            <td>{{ p.created_at }}</td>
+            <td>
+              {% if p.status == "succeeded" %}
+                <form method="post" action="{{ url_for('admin.payments_refund', payment_id=p.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="text" name="amount" placeholder="Summa" required>
+                  <input type="text" name="reason" placeholder="Syy">
+                  <button type="submit">Hyvitä</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   {% endif %}
 {% endblock %}

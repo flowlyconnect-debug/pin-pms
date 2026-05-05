@@ -1,0 +1,10 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Maksu keskeytyi · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Maksu keskeytyi</h1>
+  <p>Maksua ei vahvistettu. Voit yrittää maksua uudelleen.</p>
+  <p><a href="{{ url_for('portal.pay_invoice', invoice_id=invoice_id) }}">Yritä uudelleen</a></p>
+{% endblock %}
+
