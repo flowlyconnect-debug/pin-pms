@@ -175,3 +175,26 @@ def configure_logging(app: Flask) -> None:
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
+
+
+def record_slow_query_observation(*, app: Flask, duration_ms: int, threshold_ms: int) -> None:
+    try:
+        import sentry_sdk
+    except Exception:
+        return
+    sentry_sdk.add_breadcrumb(
+        category="sql.slow_query",
+        message="Slow SQL query",
+        level="warning",
+        data={"duration_ms": int(duration_ms), "threshold_ms": int(threshold_ms)},
+    )
+    if not has_request_context():
+        return
+    slow_query_count = int(getattr(g, "_slow_query_count", 0)) + 1
+    g._slow_query_count = slow_query_count
+    if slow_query_count == 6:
+        sentry_sdk.capture_message("More than 5 slow queries in one request", level="warning")
+        app.logger.warning(
+            "slow_query_burst_detected",
+            extra={"slow_query_count": slow_query_count, "threshold_ms": int(threshold_ms)},
+        )
