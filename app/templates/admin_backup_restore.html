@@ -21,14 +21,14 @@
     <div class="error">{{ error }}</div>
   {% endif %}
   <p>Syötä salasana ja uusi 2FA-koodi jatkaaksesi.</p>
-  <form method="post" action="{{ url_for('backups_admin.backups_restore', backup_id=backup.id) }}" autocomplete="off">
+  <form method="post" action="{{ url_for('backups_admin.backups_restore', backup_id=backup.id) }}" autocomplete="off" data-loading="Palautetaan varmuuskopiota…" data-confirm='{{ {"title": "Palauta varmuuskopio?", "message": "Nykyinen tietokanta korvataan. Haluatko varmasti jatkaa?", "confirmLabel": "Palauta", "cancelLabel": "Peruuta", "dangerous": true}|tojson }}'>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="password">Salasanasi</label>
     <input id="password" name="password" type="password" required autocomplete="current-password">
     <label for="totp_code">Sovelluksen koodi</label>
     <input id="totp_code" name="totp_code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
     <div class="actions">
-      <button type="submit" class="btn-danger">Palauta tästä kopio</button>
+      <button type="submit" class="btn-danger" data-loading-button>Palauta tästä kopio</button>
       <a href="{{ url_for('backups_admin.backups_list') }}" class="btn btn-secondary">Peruuta</a>
     </div>
   </form>

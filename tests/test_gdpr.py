@@ -254,7 +254,7 @@ def test_delete_requires_superadmin_when_not_cli(app, organization, regular_user
 
     from flask_login import login_user
 
-    with app.app_context():
+    with app.test_request_context("/"):
         login_user(regular_user)
         with pytest.raises(GdprPermissionError):
             delete_user_data(superadmin.id, from_cli=False)

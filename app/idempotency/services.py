@@ -7,6 +7,7 @@ from typing import Any
 
 from flask import current_app, g, has_request_context
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import DetachedInstanceError
 
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
@@ -35,9 +36,12 @@ def _resolve_organization_id() -> int | None:
         return None
     api_key = getattr(g, "api_key", None)
     if api_key is not None:
-        oid = getattr(api_key, "organization_id", None)
-        if oid is not None:
-            return int(oid)
+        try:
+            oid = getattr(api_key, "organization_id", None)
+            if oid is not None:
+                return int(oid)
+        except DetachedInstanceError:
+            return None
     try:
         from flask_login import current_user
 
@@ -170,6 +174,10 @@ def normalize_response_body(body: Any) -> str:
 
 def record_response(row: IdempotencyKey, status: int, body: Any) -> None:
     if not should_cache(status):
+        # Do not pin the key in "in progress" state for non-cacheable outcomes
+        # (5xx and most 4xx). Caller can retry with the same key.
+        db.session.delete(row)
+        db.session.commit()
         return
     body_text = normalize_response_body(body)
     raw = body_text.encode("utf-8")

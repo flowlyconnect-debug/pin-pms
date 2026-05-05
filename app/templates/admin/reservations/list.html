@@ -1,16 +1,36 @@
 {% extends "admin/base.html" %}
+{% from "admin/_macros.html" import status_badge %}
+{% from "admin/_filters.html" import render_filters %}
+{% from "admin/_bulk_bar.html" import render_bulk_bar %}
 
 {% block title %}Varaukset · Pin PMS{% endblock %}
+{% block page_title %}Varaukset{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a>
+    <a class="btn btn-primary" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a>
   </div>
   <h1>Varaukset</h1>
+  {{ render_filters("reservations", filters) }}
+  <form method="post" action="{{ url_for('admin.saved_filter_create') }}" class="actions">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="view_type" value="reservations">
+    <input type="hidden" name="status" value="{{ request.args.get('status', '') }}">
+    <input type="hidden" name="from" value="{{ request.args.get('from', '') }}">
+    <input type="hidden" name="to" value="{{ request.args.get('to', '') }}">
+    <input type="hidden" name="q" value="{{ request.args.get('q', '') }}">
+    <input type="text" name="name" placeholder="Suodattimen nimi">
+    <button type="submit">Tallenna suodatin</button>
+  </form>
+  <form method="post" action="{{ url_for('admin.reservations_bulk') }}" data-bulk-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="idempotency_key" value="{{ request.headers.get('X-Request-Id', '') }}">
+    {{ render_bulk_bar("reservations") }}
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
-  <table>
+  <table class="data-table">
     <thead>
       <tr>
+        <th><input type="checkbox" data-bulk-all></th>
         <th>ID</th>
         <th>Huone</th>
         <th>Asiakas</th>
@@ -22,32 +42,40 @@
     <tbody>
       {% for row in rows %}
         <tr class="table-row-link" data-href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">
-          <td>{{ row.id }}</td>
-          <td>{{ row.unit_id }}</td>
-          <td>
+          <td><input type="checkbox" name="ids" value="{{ row.id }}" data-bulk-id></td>
+          <td data-label="ID">{{ row.id }}</td>
+          <td data-label="Huone">{{ row.unit_id }}</td>
+          <td data-label="Asiakas">
             {{ row.guest_name }}
             {% if row.guest_id %}
               (#{{ row.guest_id }})
             {% endif %}
           </td>
-          <td>{{ row.start_date }} → {{ row.end_date }}</td>
-          <td>
-            {% if row.status == "vahvistettu" %}
-              <span class="status-badge status-green">{{ row.status }}</span>
-            {% elif row.status == "peruttu" %}
-              <span class="status-badge status-red">{{ row.status }}</span>
-            {% else %}
-              <span class="status-badge status-blue">{{ row.status }}</span>
-            {% endif %}
+          <td data-label="Päivät">{{ row.start_date }} → {{ row.end_date }}</td>
+          <td data-label="Tila">
+            {{ status_badge(row.status, "reservation") }}
           </td>
-          <td>
+          <td data-label="Toiminnot">
             <a href="{{ url_for('admin.reservations_detail', reservation_id=row.id) }}">Näytä</a>
             · <a href="{{ url_for('admin.reservations_edit', reservation_id=row.id, next='list') }}">Muokkaa</a>
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6" class="empty-state"><em>Ei varauksia vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a></div></td></tr>
+        <tr>
+          <td colspan="7" class="table-empty">
+            <div class="table-empty-icon">🛏</div>
+            <div>Ei vielä varauksia</div>
+            <div class="form-help">Luo varaus, kun asiakas vahvistaa majoituksen.</div>
+            <div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn btn-primary" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a></div>
+          </td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>
+  </form>
+  <p class="meta">
+    {{ ((page - 1) * per_page) + 1 if total else 0 }}–{{ ((page - 1) * per_page) + (rows|length) }} / {{ total }}
+    {% if page > 1 %}<a href="{{ url_for('admin.reservations_list', page=page-1, per_page=per_page) }}">Edellinen</a>{% endif %}
+    {% if (page * per_page) < total %}<a href="{{ url_for('admin.reservations_list', page=page+1, per_page=per_page) }}">Seuraava</a>{% endif %}
+  </p>
 {% endblock %}

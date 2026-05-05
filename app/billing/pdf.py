@@ -178,6 +178,7 @@ def generate_invoice_pdf(invoice_id: int) -> bytes:
         leftMargin=2 * cm,
         topMargin=2 * cm,
         bottomMargin=2 * cm,
+        pageCompression=0,
     )
     story: list[Any] = []
 

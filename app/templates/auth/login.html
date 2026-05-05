@@ -52,11 +52,11 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="pms-login-field">
               <label for="email">Sähköposti</label>
-              <input id="email" name="email" type="email" autocomplete="username" required>
+              <input id="email" name="email" class="modern-input" type="email" autocomplete="username" required>
             </div>
             <div class="pms-login-field">
               <label for="password">Salasana</label>
-              <input id="password" name="password" type="password" autocomplete="current-password" required>
+              <input id="password" name="password" class="modern-input" type="password" autocomplete="current-password" required>
             </div>
             <button class="pms-login-submit" type="submit">Kirjaudu</button>
           </form>

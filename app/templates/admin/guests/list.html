@@ -1,4 +1,6 @@
 {% extends "admin/base.html" %}
+{% from "admin/_filters.html" import render_filters %}
+{% from "admin/_bulk_bar.html" import render_bulk_bar %}
 
 {% block title %}Asiakkaat · Pin PMS{% endblock %}
 
@@ -7,14 +9,15 @@
     <a class="btn" href="{{ url_for('admin.guests_new') }}">Uusi asiakas</a>
   </div>
   <h1>Asiakkaat</h1>
-  <form method="get" class="actions">
-    <input type="text" name="search" placeholder="Hae nimi/sähköposti/puhelin" value="{{ search }}">
-    <button type="submit">Hae</button>
-  </form>
+  {{ render_filters("guests", filters) }}
+  <form method="post" action="{{ url_for('admin.guests_bulk') }}" data-bulk-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ render_bulk_bar("guests") }}
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
   <table>
     <thead>
       <tr>
+        <th><input type="checkbox" data-bulk-all></th>
         <th>ID</th>
         <th>Nimi</th>
         <th>Sähköposti</th>
@@ -25,6 +28,7 @@
     <tbody>
       {% for row in rows %}
         <tr>
+          <td><input type="checkbox" name="ids" value="{{ row.id }}" data-bulk-id></td>
           <td>{{ row.id }}</td>
           <td>{{ row.full_name }}</td>
           <td>{{ row.email or "—" }}</td>
@@ -35,8 +39,9 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="5"><em>Ei asiakkaita vielä.</em></td></tr>
+        <tr><td colspan="6"><em>Ei asiakkaita vielä.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>
+  </form>
 {% endblock %}

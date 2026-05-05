@@ -20,12 +20,20 @@ from app.api.schemas import json_error, json_ok
 from app.billing import services as billing_service
 from app.billing.models import Invoice
 from app.billing.pdf import generate_invoice_pdf
+from app.guests.models import Guest
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
+from app.properties.models import Property, Unit
 from app.properties import services as property_service
 from app.api.services import get_unit_for_org_calendar_export
+from app.reservations.models import Reservation
 from app.reservations import services as reservation_service
 from app.status.service import readiness_status
+from app.tags.models import GuestTag, PropertyTag, ReservationTag, Tag
+from app.tags.services import TagService, TagServiceError
+from app.comments.models import Comment
+from app.comments.services import CommentService, CommentServiceError
+from app.extensions import db
 
 
 @api_bp.get("/health")
@@ -115,6 +123,354 @@ def _pagination_params() -> tuple[int, int] | tuple[None, None]:
     if page < 1 or per_page < 1:
         return None, None
     return page, min(per_page, 100)
+
+
+def _serialize_tag(row: Tag) -> dict:
+    return {
+        "id": row.id,
+        "organization_id": row.organization_id,
+        "name": row.name,
+        "color": row.color,
+        "created_by_user_id": row.created_by_user_id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+def _serialize_comment(row: Comment) -> dict:
+    return {
+        "id": row.id,
+        "organization_id": row.organization_id,
+        "target_type": row.target_type,
+        "target_id": row.target_id,
+        "author_user_id": row.author_user_id,
+        "body": row.body,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "edited_at": row.edited_at.isoformat() if row.edited_at else None,
+        "is_internal": row.is_internal,
+    }
+
+
+def _resource_to_target_type(resource: str) -> str | None:
+    return {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+
+
+@api_bp.get("/search")
+@require_api_key
+@scope_required("search:read")
+def api_search():
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return json_ok([])
+    ilike = f"%{q}%"
+    org_id = _org_id()
+    data: list[dict] = []
+
+    guests = (
+        Guest.query.filter(
+            Guest.organization_id == org_id,
+            (Guest.first_name.ilike(ilike) | Guest.last_name.ilike(ilike) | Guest.email.ilike(ilike) | Guest.phone.ilike(ilike)),
+        )
+        .order_by(Guest.id.desc())
+        .limit(20)
+        .all()
+    )
+    for row in guests:
+        data.append(
+            {
+                "type": "guest",
+                "id": row.id,
+                "label": row.full_name or f"Guest #{row.id}",
+                "sublabel": row.email or row.phone or "",
+                "url": f"/admin/guests/{row.id}",
+            }
+        )
+
+    reservations = (
+        Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == org_id,
+            (Reservation.guest_name.ilike(ilike)),
+        )
+        .order_by(Reservation.id.desc())
+        .limit(20)
+        .all()
+    )
+    for row in reservations:
+        data.append(
+            {
+                "type": "reservation",
+                "id": row.id,
+                "label": f"Reservation #{row.id}",
+                "sublabel": row.guest_name or "",
+                "url": f"/admin/reservations/{row.id}",
+            }
+        )
+
+    properties = (
+        Property.query.filter(Property.organization_id == org_id, Property.name.ilike(ilike))
+        .order_by(Property.id.desc())
+        .limit(20)
+        .all()
+    )
+    for row in properties:
+        data.append(
+            {
+                "type": "property",
+                "id": row.id,
+                "label": row.name,
+                "sublabel": row.address or "",
+                "url": f"/admin/properties/{row.id}",
+            }
+        )
+
+    guest_tag_matches = (
+        Guest.query.join(GuestTag, GuestTag.guest_id == Guest.id)
+        .join(Tag, Tag.id == GuestTag.tag_id)
+        .filter(Guest.organization_id == org_id, Tag.name.ilike(ilike))
+        .order_by(Guest.id.desc())
+        .limit(20)
+        .all()
+    )
+    seen = {(x["type"], x["id"]) for x in data}
+    for row in guest_tag_matches:
+        key = ("guest", row.id)
+        if key in seen:
+            continue
+        data.append(
+            {
+                "type": "guest",
+                "id": row.id,
+                "label": row.full_name or f"Guest #{row.id}",
+                "sublabel": row.email or row.phone or "",
+                "url": f"/admin/guests/{row.id}",
+            }
+        )
+        seen.add(key)
+
+    reservation_tag_matches = (
+        Reservation.query.join(ReservationTag, ReservationTag.reservation_id == Reservation.id)
+        .join(Tag, Tag.id == ReservationTag.tag_id)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == org_id, Tag.name.ilike(ilike))
+        .order_by(Reservation.id.desc())
+        .limit(20)
+        .all()
+    )
+    for row in reservation_tag_matches:
+        key = ("reservation", row.id)
+        if key in seen:
+            continue
+        data.append(
+            {
+                "type": "reservation",
+                "id": row.id,
+                "label": f"Reservation #{row.id}",
+                "sublabel": row.guest_name or "",
+                "url": f"/admin/reservations/{row.id}",
+            }
+        )
+        seen.add(key)
+
+    property_tag_matches = (
+        Property.query.join(PropertyTag, PropertyTag.property_id == Property.id)
+        .join(Tag, Tag.id == PropertyTag.tag_id)
+        .filter(Property.organization_id == org_id, Tag.name.ilike(ilike))
+        .order_by(Property.id.desc())
+        .limit(20)
+        .all()
+    )
+    for row in property_tag_matches:
+        key = ("property", row.id)
+        if key in seen:
+            continue
+        data.append(
+            {
+                "type": "property",
+                "id": row.id,
+                "label": row.name,
+                "sublabel": row.address or "",
+                "url": f"/admin/properties/{row.id}",
+            }
+        )
+        seen.add(key)
+
+    invoices = (
+        Invoice.query.filter(Invoice.organization_id == org_id, Invoice.invoice_number.ilike(ilike))
+        .order_by(Invoice.id.desc())
+        .limit(20)
+        .all()
+    )
+    for row in invoices:
+        data.append(
+            {
+                "type": "invoice",
+                "id": row.id,
+                "label": row.invoice_number or f"Invoice #{row.id}",
+                "sublabel": row.status or "",
+                "url": f"/admin/invoices/{row.id}",
+            }
+        )
+    return json_ok(data[:20])
+
+
+@api_bp.get("/tags")
+@require_api_key
+@scope_required("tags:read")
+def list_tags():
+    rows = TagService.list_for_org(_org_id())
+    return json_ok([_serialize_tag(row) for row in rows])
+
+
+@api_bp.post("/tags")
+@require_api_key
+@scope_required("tags:write")
+def create_tag():
+    payload = _payload()
+    try:
+        row = TagService.create(
+            organization_id=_org_id(),
+            name=str(payload.get("name", "")),
+            color=str(payload.get("color", "")),
+            created_by_user_id=_actor_user_id() or g.api_key.user_id or 0,
+        )
+        db.session.commit()
+    except TagServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(_serialize_tag(row), status=201)
+
+
+@api_bp.post("/<string:resource>/<int:resource_id>/tags")
+@require_api_key
+@scope_required("admin:*")
+def attach_tag(resource: str, resource_id: int):
+    required_scope = f"{resource}:write"
+    if not any(s == required_scope or s == "admin:*" or s == resource.replace("s", "") + ":*" for s in g.api_key.scope_list):
+        return json_error("forbidden", f"Missing required scope: {required_scope}", status=403)
+    target_type = _resource_to_target_type(resource)
+    if target_type is None:
+        return json_error("not_found", "Resource not supported.", status=404)
+    payload = _payload()
+    try:
+        tag_id = int(payload.get("tag_id", 0))
+        TagService.attach(
+            organization_id=_org_id(),
+            target_type=target_type,
+            target_id=resource_id,
+            tag_id=tag_id,
+            actor_user_id=_actor_user_id() or g.api_key.user_id or 0,
+        )
+        db.session.commit()
+    except (TypeError, ValueError):
+        return json_error("validation_error", "tag_id must be an integer.", status=400)
+    except TagServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"ok": True})
+
+
+@api_bp.delete("/<string:resource>/<int:resource_id>/tags/<int:tag_id>")
+@require_api_key
+@scope_required("admin:*")
+def detach_tag(resource: str, resource_id: int, tag_id: int):
+    required_scope = f"{resource}:write"
+    if required_scope not in g.api_key.scope_list and "admin:*" not in g.api_key.scope_list:
+        return json_error("forbidden", f"Missing required scope: {required_scope}", status=403)
+    target_type = _resource_to_target_type(resource)
+    if target_type is None:
+        return json_error("not_found", "Resource not supported.", status=404)
+    try:
+        TagService.detach(
+            organization_id=_org_id(),
+            target_type=target_type,
+            target_id=resource_id,
+            tag_id=tag_id,
+            actor_user_id=_actor_user_id() or g.api_key.user_id or 0,
+        )
+        db.session.commit()
+    except TagServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"ok": True})
+
+
+@api_bp.get("/<string:resource>/<int:resource_id>/comments")
+@require_api_key
+@scope_required("admin:*")
+def list_comments(resource: str, resource_id: int):
+    target_type = _resource_to_target_type(resource)
+    if target_type is None:
+        return json_error("not_found", "Resource not supported.", status=404)
+    try:
+        rows = CommentService.list_for_target(
+            organization_id=_org_id(),
+            target_type=target_type,
+            target_id=resource_id,
+            include_internal=True,
+        )
+    except CommentServiceError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok([_serialize_comment(row) for row in rows])
+
+
+@api_bp.post("/<string:resource>/<int:resource_id>/comments")
+@require_api_key
+@scope_required("admin:*")
+def create_comment(resource: str, resource_id: int):
+    target_type = _resource_to_target_type(resource)
+    if target_type is None:
+        return json_error("not_found", "Resource not supported.", status=404)
+    payload = _payload()
+    try:
+        row = CommentService.create(
+            organization_id=_org_id(),
+            target_type=target_type,
+            target_id=resource_id,
+            author_user_id=_actor_user_id() or g.api_key.user_id or 0,
+            body=str(payload.get("body", "")),
+            is_internal=bool(payload.get("is_internal", True)),
+        )
+        db.session.commit()
+    except CommentServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(_serialize_comment(row), status=201)
+
+
+@api_bp.patch("/comments/<int:comment_id>")
+@require_api_key
+@scope_required("admin:*")
+def edit_comment(comment_id: int):
+    payload = _payload()
+    try:
+        row = CommentService.edit(
+            comment_id=comment_id,
+            actor_user_id=_actor_user_id() or g.api_key.user_id or 0,
+            body=str(payload.get("body", "")),
+        )
+        db.session.commit()
+    except CommentServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(_serialize_comment(row))
+
+
+@api_bp.delete("/comments/<int:comment_id>")
+@require_api_key
+@scope_required("admin:*")
+def delete_comment(comment_id: int):
+    try:
+        CommentService.delete(
+            comment_id=comment_id,
+            actor_user_id=_actor_user_id() or g.api_key.user_id or 0,
+        )
+        db.session.commit()
+    except CommentServiceError as err:
+        db.session.rollback()
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"ok": True})
 
 
 @api_bp.get("/properties")

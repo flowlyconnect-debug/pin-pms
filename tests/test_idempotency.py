@@ -39,6 +39,9 @@ def _register_counter_route(app, path: str, *, with_api_key: bool = False):
     wrapped = idempotent_post(f"POST {path}")(_inner)
     if with_api_key:
         wrapped = require_api_key(wrapped)
+    # Flask 3 locks route registration after first request. Test suite reuses
+    # one app instance, so explicitly reopen setup for these ephemeral routes.
+    app._got_first_request = False  # type: ignore[attr-defined]
     app.add_url_rule(path, endpoint=endpoint, view_func=wrapped, methods=["POST"])
     return state
 

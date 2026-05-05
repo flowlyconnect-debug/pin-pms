@@ -1,14 +1,15 @@
 {% extends "admin/base.html" %}
 
 {% block title %}Kohteet · Pin PMS{% endblock %}
+{% block page_title %}Kohteet{% endblock %}
 
 {% block content %}
   <div class="actions">
-    <a class="btn" href="{{ url_for('admin.properties_new') }}">Uusi kohde</a>
+    <a class="btn btn-primary" href="{{ url_for('admin.properties_new') }}">Uusi kohde</a>
   </div>
   <h1>Kohteet</h1>
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
-  <table>
+  <table class="data-table">
     <thead>
       <tr>
         <th>ID</th>
@@ -20,17 +21,23 @@
     <tbody>
       {% for row in rows %}
         <tr>
-          <td>{{ row.id }}</td>
-          <td>{{ row.name }}</td>
-          <td>{{ row.address or "" }}</td>
-          <td>
+          <td data-label="ID">{{ row.id }}</td>
+          <td data-label="Nimi">{{ row.name }}</td>
+          <td data-label="Osoite">{{ row.address or "" }}</td>
+          <td data-label="Toiminnot">
             <a href="{{ url_for('admin.properties_detail', property_id=row.id) }}">Näytä</a>
             · <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Muokkaa</a>
             · <a href="{{ url_for('admin.units_list', property_id=row.id) }}">Huoneet</a>
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="4"><em>Ei kohteita vielä.</em></td></tr>
+        <tr>
+          <td colspan="4" class="table-empty">
+            <div class="table-empty-icon">🏢</div>
+            <div>Ei vielä kohteita</div>
+            <div class="form-help">Luo ensimmäinen kohde aloittaaksesi hallinnan.</div>
+          </td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>

@@ -1,6 +1,10 @@
 {% extends "admin/base.html" %}
 
 {% block title %}Varaus #{{ row.id }} · Pin PMS{% endblock %}
+{% block head_extra %}
+  <script src="{{ url_for('static', filename='js/admin-tags.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-comments.js') }}" defer></script>
+{% endblock %}
 
 {% block content %}
   <div class="actions">
@@ -50,4 +54,8 @@
   {% else %}
     <p class="meta">Tämä varaus on peruttu.</p>
   {% endif %}
+  {% set resource = "reservations" %}
+  {% set resource_id = row.id %}
+  {% include "admin/_tag_input.html" %}
+  {% include "admin/_comment_thread.html" %}
 {% endblock %}

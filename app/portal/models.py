@@ -8,6 +8,12 @@ from app.extensions import db
 PORTAL_MAGIC_LINK_TTL = timedelta(minutes=20)
 
 
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 class PortalMagicLinkToken(db.Model):
     __tablename__ = "portal_magic_link_tokens"
 
@@ -53,7 +59,7 @@ class PortalMagicLinkToken(db.Model):
             return None
         if row.used_at is not None:
             return None
-        if row.expires_at < datetime.now(timezone.utc):
+        if _as_utc(row.expires_at) < datetime.now(timezone.utc):
             return None
         return row
 
@@ -174,7 +180,7 @@ class PortalCheckInToken(db.Model):
             return None
         if row.used_at is not None:
             return None
-        if row.expires_at < datetime.now(timezone.utc):
+        if _as_utc(row.expires_at) < datetime.now(timezone.utc):
             return None
         return row
 

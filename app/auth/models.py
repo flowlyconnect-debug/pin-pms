@@ -19,6 +19,12 @@ PASSWORD_RESET_TTL = timedelta(hours=1)
 EMAIL_2FA_TTL = timedelta(minutes=10)
 
 
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 class PasswordResetToken(db.Model):
     __tablename__ = "password_reset_tokens"
 
@@ -68,7 +74,7 @@ class PasswordResetToken(db.Model):
             return None
         if row.used_at is not None:
             return None
-        if row.expires_at < datetime.now(timezone.utc):
+        if _as_utc(row.expires_at) < datetime.now(timezone.utc):
             return None
         return row
 

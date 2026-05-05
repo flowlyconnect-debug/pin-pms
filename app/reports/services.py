@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import date
 
+from sqlalchemy import func
+
+from app.extensions import db
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
 
@@ -14,7 +17,9 @@ def occupancy_report(*, organization_id: int, start_date: date, end_date: date) 
     )
 
     reserved_units = (
-        Unit.query.join(Property, Unit.property_id == Property.id)
+        db.session.query(func.count(func.distinct(Unit.id)))
+        .select_from(Unit)
+        .join(Property, Unit.property_id == Property.id)
         .join(Reservation, Reservation.unit_id == Unit.id)
         .filter(
             Property.organization_id == organization_id,
@@ -22,8 +27,8 @@ def occupancy_report(*, organization_id: int, start_date: date, end_date: date) 
             Reservation.start_date < end_date,
             Reservation.end_date > start_date,
         )
-        .distinct(Unit.id)
-        .count()
+        .scalar()
+        or 0
     )
 
     occupancy_percentage = 0.0

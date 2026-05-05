@@ -1,4 +1,7 @@
 {% extends "admin/base.html" %}
+{% from "admin/_macros.html" import status_badge %}
+{% from "admin/_filters.html" import render_filters %}
+{% from "admin/_bulk_bar.html" import render_bulk_bar %}
 
 {% block title %}Laskut · Pin PMS{% endblock %}
 
@@ -11,10 +14,15 @@
     </form>
   </div>
   <h1>Laskut</h1>
+  {{ render_filters("invoices", filters) }}
+  <form method="post" action="{{ url_for('admin.invoices_bulk') }}" data-bulk-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ render_bulk_bar("invoices") }}
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
   <table>
     <thead>
       <tr>
+        <th><input type="checkbox" data-bulk-all></th>
         <th>Numero</th>
         <th>Veroton</th>
         <th>ALV %</th>
@@ -29,6 +37,7 @@
     <tbody>
       {% for row in rows %}
         <tr class="table-row-link" data-href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">
+          <td><input type="checkbox" name="ids" value="{{ row.id }}" data-bulk-id></td>
           <td>{{ row.invoice_number or "—" }}</td>
           <td>{{ row.subtotal_excl_vat }} {{ row.currency }}</td>
           <td>{{ row.vat_rate }}</td>
@@ -36,22 +45,15 @@
           <td>{{ row.total_incl_vat }} {{ row.currency }}</td>
           <td>{{ row.due_date }}</td>
           <td>
-            {% if row.status == "paid" %}
-              <span class="status-badge status-green">{{ row.status }}</span>
-            {% elif row.status in ["overdue", "peruttu"] %}
-              <span class="status-badge status-red">{{ row.status }}</span>
-            {% elif row.status in ["open", "draft"] %}
-              <span class="status-badge status-blue">{{ row.status }}</span>
-            {% else %}
-              <span class="status-badge status-gray">{{ row.status }}</span>
-            {% endif %}
+            {{ status_badge(row.status, "invoice") }}
           </td>
           <td>{% if row.lease_id %}#{{ row.lease_id }}{% else %}—{% endif %}</td>
           <td><a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">Näytä</a></td>
         </tr>
       {% else %}
-        <tr><td colspan="9" class="empty-state"><em>Ei laskuja vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
+        <tr><td colspan="10" class="empty-state"><em>Ei laskuja vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>
+  </form>
 {% endblock %}

@@ -1,4 +1,5 @@
 {% extends "admin/base.html" %}
+{% from "admin/_macros.html" import status_badge %}
 
 {% block title %}Huolto · Pin PMS{% endblock %}
 
@@ -74,15 +75,7 @@
             {% endif %}
           </td>
           <td>
-            {% if row.status in ["resolved"] %}
-              <span class="status-badge status-green">{{ row.status }}</span>
-            {% elif row.status in ["cancelled"] %}
-              <span class="status-badge status-red">{{ row.status }}</span>
-            {% elif row.status in ["in_progress", "waiting"] %}
-              <span class="status-badge status-amber">{{ row.status }}</span>
-            {% else %}
-              <span class="status-badge status-blue">{{ row.status }}</span>
-            {% endif %}
+            {{ status_badge(row.status, "maintenance") }}
           </td>
           <td>{{ row.assigned_to_email or "—" }}</td>
           <td>

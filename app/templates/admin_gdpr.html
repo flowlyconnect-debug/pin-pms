@@ -16,23 +16,23 @@
 
   <h2>Vie data</h2>
   <p>Lataa JSON-tiedosto ilman salaisuuksia (sama sisältö kuin CLI <code>gdpr-export-user</code>).</p>
-  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}">
+  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}" data-loading="Viedään käyttäjädataa…">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="export">
-    <button type="submit">Vie data</button>
+    <button type="submit" data-loading-button>Vie data</button>
   </form>
 
   <h2>Anonymisoi</h2>
   <p>Korvaa henkilötiedot ja deaktivoi tili. Varaukset ja laskut säilyvät.</p>
-  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}">
+  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}" data-loading="Anonymisoidaan käyttäjää…" data-confirm='{{ {"title": "Anonymisoi käyttäjä?", "message": "Käyttäjän henkilötiedot anonymisoidaan ja tili deaktivoidaan.", "confirmLabel": "Anonymisoi", "cancelLabel": "Peruuta", "dangerous": true}|tojson }}'>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="anonymize">
-    <button type="submit">Anonymisoi</button>
+    <button type="submit" data-loading-button>Anonymisoi</button>
   </form>
 
   <h2>Poista pysyvästi</h2>
   <p class="error"><strong>Varoitus:</strong> poistaa käyttäjärivin anonymisoinnin jälkeen. Kirjaa audit-lokiin ennen poistoa.</p>
-  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}" autocomplete="off">
+  <form method="post" action="{{ url_for('admin.gdpr_user', user_id=target_user.id) }}" autocomplete="off" data-loading="Poistetaan käyttäjää…" data-confirm='{{ {"title": "Poista käyttäjä pysyvästi?", "message": "Käyttäjä poistetaan pysyvästi anonymisoinnin jälkeen.", "confirmLabel": "Poista", "cancelLabel": "Peruuta", "dangerous": true}|tojson }}'>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="delete">
     <label for="password">Salasanasi</label>
@@ -40,7 +40,7 @@
     <label for="totp_code">Sovelluksen 2FA-koodi</label>
     <input id="totp_code" name="totp_code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
     <div class="actions">
-      <button type="submit" class="btn-danger">Poista käyttäjä</button>
+      <button type="submit" class="btn-danger" data-loading-button>Poista käyttäjä</button>
     </div>
   </form>
 {% endblock %}

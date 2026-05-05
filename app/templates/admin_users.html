@@ -27,9 +27,9 @@
           <td>
             <a href="{{ url_for('admin.users_edit', user_id=u.id) }}">Muokkaa</a>
             <a href="{{ url_for('admin.gdpr_user', user_id=u.id) }}">GDPR</a>
-            <form method="post" action="{{ url_for('admin.users_toggle_active', user_id=u.id) }}" style="display:inline">
+            <form method="post" action="{{ url_for('admin.users_toggle_active', user_id=u.id) }}" style="display:inline" data-loading="Päivitetään käyttäjää…" data-confirm='{{ {"title": "Muuta käyttäjän tila?", "message": "Haluatko varmasti muuttaa käyttäjän " ~ u.email ~ " aktiivisuutta?", "confirmLabel": "Vahvista", "cancelLabel": "Peruuta", "dangerous": true}|tojson }}'>
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit">{{ "Poista käytöstä" if u.is_active else "Ota käyttöön" }}</button>
+              <button type="submit" data-loading-button>{{ "Poista käytöstä" if u.is_active else "Ota käyttöön" }}</button>
             </form>
             {% if current_user.is_superadmin and current_user.id != u.id %}
               <form method="post" action="{{ url_for('admin.superadmin_impersonate', user_id=u.id) }}" style="display:inline">

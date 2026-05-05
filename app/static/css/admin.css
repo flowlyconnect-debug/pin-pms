@@ -80,21 +80,22 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #0d0d0c;
-    --color-surface: #18181a;
-    --color-surface-2: #1f1f22;
-    --color-border: #2a2a2e;
-    --color-border-strong: #3a3a40;
-    --color-text: #f5f5f3;
-    --color-text-muted: #a8a39a;
-    --color-text-dim: #6e6a62;
-    --color-primary: #ef4444;
-    --color-primary-hover: #f87171;
-    --color-primary-soft: rgba(239, 68, 68, 0.12);
-    --color-success-soft: rgba(34, 197, 94, 0.12);
-    --color-warning-soft: rgba(217, 119, 6, 0.14);
-    --color-danger-soft: rgba(220, 38, 38, 0.14);
-    --color-info-soft: rgba(37, 99, 235, 0.14);
+    /* Keep main/content area in light mode even if OS prefers dark. */
+    --color-bg: #f8f6f2;
+    --color-surface: #ffffff;
+    --color-surface-2: #f4f1ec;
+    --color-border: #e7e2da;
+    --color-border-strong: #d4cec5;
+    --color-text: #1a1814;
+    --color-text-muted: #6b645c;
+    --color-text-dim: #9a948a;
+    --color-primary: #c62828;
+    --color-primary-hover: #a31f23;
+    --color-primary-soft: #fef2f2;
+    --color-success-soft: #f0fdf4;
+    --color-warning-soft: #fffbeb;
+    --color-danger-soft: #fef2f2;
+    --color-info-soft: #eff6ff;
   }
 }
 
@@ -103,22 +104,23 @@ html[data-theme="light"] {
 }
 
 html[data-theme="dark"] {
-  color-scheme: dark;
-  --color-bg: #0d0d0c;
-  --color-surface: #18181a;
-  --color-surface-2: #1f1f22;
-  --color-border: #2a2a2e;
-  --color-border-strong: #3a3a40;
-  --color-text: #f5f5f3;
-  --color-text-muted: #a8a39a;
-  --color-text-dim: #6e6a62;
-  --color-primary: #ef4444;
-  --color-primary-hover: #f87171;
-  --color-primary-soft: rgba(239, 68, 68, 0.12);
-  --color-success-soft: rgba(34, 197, 94, 0.12);
-  --color-warning-soft: rgba(217, 119, 6, 0.14);
-  --color-danger-soft: rgba(220, 38, 38, 0.14);
-  --color-info-soft: rgba(37, 99, 235, 0.14);
+  color-scheme: light;
+  /* Force light main/content styling for admin views. */
+  --color-bg: #f8f6f2;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f1ec;
+  --color-border: #e7e2da;
+  --color-border-strong: #d4cec5;
+  --color-text: #1a1814;
+  --color-text-muted: #6b645c;
+  --color-text-dim: #9a948a;
+  --color-primary: #c62828;
+  --color-primary-hover: #a31f23;
+  --color-primary-soft: #fef2f2;
+  --color-success-soft: #f0fdf4;
+  --color-warning-soft: #fffbeb;
+  --color-danger-soft: #fef2f2;
+  --color-info-soft: #eff6ff;
 }
 
 *,

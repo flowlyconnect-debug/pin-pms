@@ -1,6 +1,10 @@
 {% extends "admin/base.html" %}
 
 {% block title %}Kohde #{{ row.id }} · Pin PMS{% endblock %}
+{% block head_extra %}
+  <script src="{{ url_for('static', filename='js/admin-tags.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-comments.js') }}" defer></script>
+{% endblock %}
 
 {% block content %}
   <div class="actions">
@@ -14,4 +18,8 @@
     <p><strong>ID:</strong> {{ row.id }}</p>
     <p><strong>Osoite:</strong> {{ row.address or "—" }}</p>
   </div>
+  {% set resource = "properties" %}
+  {% set resource_id = row.id %}
+  {% include "admin/_tag_input.html" %}
+  {% include "admin/_comment_thread.html" %}
 {% endblock %}

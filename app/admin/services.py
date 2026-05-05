@@ -1,19 +1,25 @@
 from __future__ import annotations
 
+import csv
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from io import StringIO
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from flask import current_app, g, url_for
+from flask import current_app, url_for
 from sqlalchemy import case, func
+from sqlalchemy import or_
 
 from app.audit.models import AuditLog
+from app.admin.models import SavedFilter
 from app.backups.models import Backup, BackupStatus
 from app.billing.models import Invoice, Lease
 from app.email.models import OutgoingEmail, OutgoingEmailStatus
 from app.email.services import render_template as render_email_template
 from app.email.services import send_test_template_email
 from app.extensions import db
+from app.guests.models import Guest
 from app.integrations.ical.models import ImportedCalendarEvent, ImportedCalendarFeed
 from app.maintenance.models import MaintenanceRequest
 from app.organizations.models import Organization
@@ -22,7 +28,17 @@ from app.properties.models import Property, Unit
 from app.reports import services as report_service
 from app.reservations.models import Reservation
 from app.status.models import StatusCheck, StatusComponent, StatusIncident
+from app.tags.models import GuestTag, PropertyTag, ReservationTag, Tag
 from app.users.models import User
+from app.idempotency.services import IdempotencyKeyConflict, get_or_create, record_response
+
+
+def _as_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def email_preview_context() -> dict[str, object]:
@@ -286,13 +302,6 @@ def get_dashboard_stats(
 ) -> dict:
     """Aggregate operational KPIs for the admin dashboard (single-tenant scope)."""
     normalized_range = normalize_dashboard_range(range_key)
-    cache: dict[tuple[int, bool, str], dict[str, Any]] = getattr(
-        g, "_admin_dashboard_stats_cache", {}
-    )
-    cache_key = (organization_id, bool(viewer_is_superadmin), normalized_range)
-    if cache_key in cache:
-        return cache[cache_key]
-
     total_properties = Property.query.filter_by(organization_id=organization_id).count()
     total_units = (
         Unit.query.join(Property, Unit.property_id == Property.id)
@@ -303,10 +312,8 @@ def get_dashboard_stats(
     range_start, range_end, range_days = _resolve_range_window(
         range_key=normalized_range, today=today
     )
-    range_start_dt = datetime.combine(range_start, datetime.min.time(), tzinfo=timezone.utc)
-    range_end_dt = datetime.combine(
-        range_end + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc
-    )
+    range_start_dt = datetime.combine(range_start, datetime.min.time())
+    range_end_dt = datetime.combine(range_end + timedelta(days=1), datetime.min.time())
 
     reservation_metrics = (
         db.session.query(
@@ -488,7 +495,7 @@ def get_dashboard_stats(
     today_arrivals = [_reservation_row(row) for row in arrivals_today_rows]
     today_departures = [_reservation_row(row) for row in departures_today_rows]
 
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.utcnow()
     overdue_invoice_rows = (
         Invoice.query.filter_by(organization_id=organization_id)
         .filter(Invoice.status == "overdue")
@@ -573,8 +580,8 @@ def get_dashboard_stats(
         start_dt=range_start_dt,
         end_dt=range_end_dt,
     )
-    month_start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
-    now_utc = datetime.now(timezone.utc)
+    month_start = datetime(today.year, today.month, 1)
+    now_utc = datetime.utcnow()
     month_to_date_revenue = _sum_paid_between(
         organization_id=organization_id,
         start_dt=month_start,
@@ -611,8 +618,8 @@ def get_dashboard_stats(
         .one()
     )
     latest_status = backup_metrics.latest_status
-    latest_success_at = backup_metrics.last_success_at
-    latest_failure_at = backup_metrics.last_failure_at
+    latest_success_at = _as_utc(backup_metrics.last_success_at)
+    latest_failure_at = _as_utc(backup_metrics.last_failure_at)
     backup_state = "missing"
     if latest_status is not None:
         if latest_status == BackupStatus.FAILED:
@@ -636,7 +643,12 @@ def get_dashboard_stats(
         OutgoingEmail.created_at < range_end_dt,
     )
     if email_scope_is_org:
-        email_q = email_q.filter(OutgoingEmail.organization_id == organization_id)
+        email_q = email_q.filter(
+            or_(
+                OutgoingEmail.organization_id == organization_id,
+                OutgoingEmail.organization_id.is_(None),
+            )
+        )
     sent_count = email_q.filter(OutgoingEmail.status == OutgoingEmailStatus.SENT).count()
     failed_rows = (
         email_q.filter(OutgoingEmail.status == OutgoingEmailStatus.FAILED)
@@ -764,15 +776,268 @@ def get_dashboard_stats(
         "occupancy_percentage": occupancy_percent,
         "latest_events": latest_rows,
     }
-    cache[cache_key] = result
-    g._admin_dashboard_stats_cache = cache
     return result
 
 
-def dashboard_summary(*, organization_id: int) -> dict:
-    """Deprecated alias — use :func:`get_dashboard_stats`."""
+def _coerce_timezone_name(raw_timezone: str | None) -> str:
+    candidate = (raw_timezone or "").strip() or "Europe/Helsinki"
+    try:
+        ZoneInfo(candidate)
+    except Exception:
+        return "Europe/Helsinki"
+    return candidate
 
-    return get_dashboard_stats(organization_id=organization_id)
+
+def _daily_sum_by_start_date(
+    *, organization_id: int, start_date: date, end_date: date
+) -> dict[date, Decimal]:
+    rows = (
+        db.session.query(
+            Reservation.start_date.label("day"),
+            func.coalesce(func.sum(Reservation.amount), 0).label("value"),
+        )
+        .select_from(Reservation)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            Reservation.status != "cancelled",
+            Reservation.amount.isnot(None),
+            Reservation.start_date >= start_date,
+            Reservation.start_date <= end_date,
+        )
+        .group_by(Reservation.start_date)
+        .all()
+    )
+    return {row.day: Decimal(row.value or 0) for row in rows}
+
+
+def dashboard_summary(*, organization_id: int, timezone: str = "Europe/Helsinki") -> dict:
+    tz_name = _coerce_timezone_name(timezone)
+    tz = ZoneInfo(tz_name)
+    today_local = datetime.now(tz).date()
+    trend_start = today_local - timedelta(days=29)
+    trend_end = today_local
+    arrivals_window_end = today_local + timedelta(days=7)
+
+    total_properties = Property.query.filter_by(organization_id=organization_id).count()
+    total_units = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+        .count()
+    )
+    reservation_base = (
+        Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+    )
+    confirmed_base = reservation_base.filter(Reservation.status == "confirmed")
+    non_cancelled_base = reservation_base.filter(Reservation.status != "cancelled")
+    reservations_count = non_cancelled_base.count()
+
+    active_reservations = (
+        confirmed_base.filter(
+            Reservation.start_date <= today_local,
+            Reservation.end_date > today_local,
+        ).count()
+    )
+    checkins_today = confirmed_base.filter(Reservation.start_date == today_local).count()
+    checkouts_today = confirmed_base.filter(Reservation.end_date == today_local).count()
+
+    month_start = today_local.replace(day=1)
+    prev_month_end = month_start - timedelta(days=1)
+    prev_month_start = prev_month_end.replace(day=1)
+
+    revenue_this_month = (
+        db.session.query(func.coalesce(func.sum(Reservation.amount), 0))
+        .select_from(Reservation)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            Reservation.status != "cancelled",
+            Reservation.amount.isnot(None),
+            Reservation.start_date >= month_start,
+            Reservation.start_date <= today_local,
+        )
+        .scalar()
+    )
+    revenue_last_month = (
+        db.session.query(func.coalesce(func.sum(Reservation.amount), 0))
+        .select_from(Reservation)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            Reservation.status != "cancelled",
+            Reservation.amount.isnot(None),
+            Reservation.start_date >= prev_month_start,
+            Reservation.start_date <= prev_month_end,
+        )
+        .scalar()
+    )
+
+    invoice_metrics = (
+        db.session.query(
+            func.count().filter(Invoice.status.in_(("open", "overdue"))).label("open_invoices"),
+            func.count().filter(Invoice.status == "overdue").label("overdue_invoices"),
+        )
+        .select_from(Invoice)
+        .filter(Invoice.organization_id == organization_id)
+        .one()
+    )
+    open_invoices = int(invoice_metrics.open_invoices or 0)
+    overdue_invoices = int(invoice_metrics.overdue_invoices or 0)
+
+    open_maintenance = (
+        MaintenanceRequest.query.filter(
+            MaintenanceRequest.organization_id == organization_id,
+            MaintenanceRequest.status.in_(("new", "in_progress", "waiting")),
+        ).count()
+    )
+
+    # SQL-aggregate sources for occupancy trend (arrivals/departures), then cumulative walk.
+    arrivals_rows = (
+        db.session.query(Reservation.start_date.label("day"), func.count(Reservation.id).label("count"))
+        .select_from(Reservation)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            Reservation.status == "confirmed",
+            Reservation.start_date >= trend_start,
+            Reservation.start_date <= trend_end,
+        )
+        .group_by(Reservation.start_date)
+        .all()
+    )
+    departures_rows = (
+        db.session.query(Reservation.end_date.label("day"), func.count(Reservation.id).label("count"))
+        .select_from(Reservation)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            Reservation.status == "confirmed",
+            Reservation.end_date >= trend_start,
+            Reservation.end_date <= trend_end,
+        )
+        .group_by(Reservation.end_date)
+        .all()
+    )
+    base_occupied = (
+        confirmed_base.filter(
+            Reservation.start_date < trend_start,
+            Reservation.end_date > trend_start,
+        ).count()
+    )
+    arrivals_map = {row.day: int(row.count or 0) for row in arrivals_rows}
+    departures_map = {row.day: int(row.count or 0) for row in departures_rows}
+    running_occupied = base_occupied
+    trend_occupancy_30d: list[dict[str, object]] = []
+    for day_offset in range(30):
+        day = trend_start + timedelta(days=day_offset)
+        running_occupied += arrivals_map.get(day, 0)
+        running_occupied -= departures_map.get(day, 0)
+        day_pct = round((running_occupied / total_units) * 100, 1) if total_units else 0.0
+        trend_occupancy_30d.append({"date": day.isoformat(), "pct": day_pct})
+
+    occupancy_today_pct = float(trend_occupancy_30d[-1]["pct"]) if trend_occupancy_30d else 0.0
+    last_7 = trend_occupancy_30d[-7:] if trend_occupancy_30d else []
+    occupancy_7d_avg_pct = (
+        round(sum(float(item["pct"]) for item in last_7) / len(last_7), 1) if last_7 else 0.0
+    )
+
+    revenue_by_day = _daily_sum_by_start_date(
+        organization_id=organization_id,
+        start_date=trend_start,
+        end_date=trend_end,
+    )
+    trend_revenue_30d: list[dict[str, object]] = []
+    for day_offset in range(30):
+        day = trend_start + timedelta(days=day_offset)
+        value = revenue_by_day.get(day, Decimal("0"))
+        trend_revenue_30d.append({"date": day.isoformat(), "value": float(value)})
+
+    upcoming_rows = (
+        confirmed_base.filter(
+            Reservation.start_date >= today_local,
+            Reservation.start_date <= arrivals_window_end,
+        )
+        .order_by(Reservation.start_date.asc(), Reservation.id.asc())
+        .limit(10)
+        .all()
+    )
+    upcoming_arrivals = [
+        {
+            "reservation_id": row.id,
+            "start_date": row.start_date.isoformat(),
+            "end_date": row.end_date.isoformat(),
+            "guest_name": ((row.guest_name or "").strip() or "Vieras"),
+            "unit_label": (
+                f"{(row.unit.property.name or '').strip()} / {(row.unit.name or '').strip()}"
+                if row.unit and row.unit.property
+                else f"Yksikkö #{row.unit_id}"
+            ),
+            "link": _safe_url_for("admin.reservations_detail", reservation_id=row.id),
+        }
+        for row in upcoming_rows
+    ]
+
+    alerts: list[dict[str, str]] = []
+    if overdue_invoices > 0:
+        alerts.append(
+            {
+                "type": "warning",
+                "message": f"{overdue_invoices} laskua erääntynyt",
+                "link": "/admin/invoices?status=overdue",
+            }
+        )
+    if open_maintenance > 0:
+        alerts.append(
+            {
+                "type": "warning",
+                "message": f"{open_maintenance} avointa huoltopyyntöä",
+                "link": "/admin/maintenance-requests?status=new",
+            }
+        )
+    if checkins_today > total_units and total_units > 0:
+        alerts.append(
+            {
+                "type": "info",
+                "message": "Poikkeuksellisen paljon check-intejä tänään",
+                "link": "/admin/reservations",
+            }
+        )
+
+    insufficient_properties = total_properties < 3
+    insufficient_chart_data = reservations_count < 5
+    return {
+        "kpi": {
+            "occupancy_today_pct": occupancy_today_pct,
+            "occupancy_7d_avg_pct": occupancy_7d_avg_pct,
+            "revenue_this_month": Decimal(revenue_this_month or 0),
+            "revenue_last_month": Decimal(revenue_last_month or 0),
+            "active_reservations": active_reservations,
+            "checkins_today": checkins_today,
+            "checkouts_today": checkouts_today,
+            "open_invoices": open_invoices,
+            "overdue_invoices": overdue_invoices,
+            "open_maintenance": open_maintenance,
+        },
+        "trend_revenue_30d": trend_revenue_30d,
+        "trend_occupancy_30d": trend_occupancy_30d,
+        "upcoming_arrivals": upcoming_arrivals,
+        "alerts": alerts,
+        "meta": {
+            "timezone": tz_name,
+            "total_properties": total_properties,
+            "total_reservations": reservations_count,
+            "insufficient_properties": insufficient_properties,
+            "insufficient_chart_data": insufficient_chart_data,
+            "can_render_charts": not insufficient_chart_data,
+        },
+    }
 
 
 # User lifecycle — delegated to :mod:`app.users.services`.
@@ -1045,3 +1310,328 @@ def apply_superadmin_status_post(*, form) -> list[str]:
         db.session.commit()
         messages.append("Häiriö suljettu.")
     return messages
+
+
+def search_all_resources(*, organization_id: int, q: str, limit: int = 20) -> list[dict[str, Any]]:
+    needle = (q or "").strip()
+    if len(needle) < 2:
+        return []
+    ilike = f"%{needle}%"
+    out: list[dict[str, Any]] = []
+
+    guests = (
+        Guest.query.filter(
+            Guest.organization_id == organization_id,
+            or_(
+                Guest.first_name.ilike(ilike),
+                Guest.last_name.ilike(ilike),
+                Guest.email.ilike(ilike),
+                Guest.phone.ilike(ilike),
+            ),
+        )
+        .order_by(Guest.id.desc())
+        .limit(limit)
+        .all()
+    )
+    for row in guests:
+        out.append(
+            {
+                "type": "guest",
+                "id": row.id,
+                "label": row.full_name or f"Guest #{row.id}",
+                "sublabel": row.email or row.phone or "",
+                "url": f"/admin/guests/{row.id}",
+            }
+        )
+
+    guest_tag_matches = (
+        Guest.query.join(GuestTag, GuestTag.guest_id == Guest.id)
+        .join(Tag, Tag.id == GuestTag.tag_id)
+        .filter(Guest.organization_id == organization_id, Tag.name.ilike(ilike))
+        .order_by(Guest.id.desc())
+        .limit(limit)
+        .all()
+    )
+    seen = {(item["type"], item["id"]) for item in out}
+    for row in guest_tag_matches:
+        key = ("guest", row.id)
+        if key in seen:
+            continue
+        out.append(
+            {
+                "type": "guest",
+                "id": row.id,
+                "label": row.full_name or f"Guest #{row.id}",
+                "sublabel": row.email or row.phone or "",
+                "url": f"/admin/guests/{row.id}",
+            }
+        )
+        seen.add(key)
+
+    reservations = (
+        Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            or_(Reservation.guest_name.ilike(ilike), db.cast(Reservation.id, db.String).ilike(ilike)),
+        )
+        .order_by(Reservation.id.desc())
+        .limit(limit)
+        .all()
+    )
+    for row in reservations:
+        out.append(
+            {
+                "type": "reservation",
+                "id": row.id,
+                "label": f"Reservation #{row.id}",
+                "sublabel": row.guest_name or "",
+                "url": f"/admin/reservations/{row.id}",
+            }
+        )
+
+    properties = (
+        Property.query.filter(Property.organization_id == organization_id, Property.name.ilike(ilike))
+        .order_by(Property.id.desc())
+        .limit(limit)
+        .all()
+    )
+    for row in properties:
+        out.append(
+            {
+                "type": "property",
+                "id": row.id,
+                "label": row.name,
+                "sublabel": row.address or "",
+                "url": f"/admin/properties/{row.id}",
+            }
+        )
+
+    invoices = (
+        Invoice.query.filter(
+            Invoice.organization_id == organization_id,
+            Invoice.invoice_number.ilike(ilike),
+        )
+        .order_by(Invoice.id.desc())
+        .limit(limit)
+        .all()
+    )
+    for row in invoices:
+        out.append(
+            {
+                "type": "invoice",
+                "id": row.id,
+                "label": row.invoice_number or f"Invoice #{row.id}",
+                "sublabel": row.status or "",
+                "url": f"/admin/invoices/{row.id}",
+            }
+        )
+    return out[:limit]
+
+
+def create_saved_filter(*, user_id: int, name: str, view_type: str, filter_params: dict[str, Any]) -> dict:
+    row = SavedFilter(
+        user_id=user_id,
+        name=(name or "").strip()[:128] or "Saved filter",
+        view_type=(view_type or "").strip(),
+        filter_params=filter_params or {},
+    )
+    db.session.add(row)
+    db.session.flush()
+    audit_record(
+        "saved_filter.created",
+        status=AuditStatus.SUCCESS,
+        actor_id=user_id,
+        target_type="saved_filter",
+        target_id=row.id,
+        metadata={"view_type": row.view_type, "name": row.name},
+        commit=False,
+    )
+    db.session.commit()
+    return {
+        "id": row.id,
+        "name": row.name,
+        "view_type": row.view_type,
+        "filter_params": row.filter_params,
+    }
+
+
+def delete_saved_filter(*, user_id: int, saved_filter_id: int) -> None:
+    row = SavedFilter.query.filter_by(id=saved_filter_id, user_id=user_id).first()
+    if row is None:
+        raise ValueError("Saved filter not found.")
+    db.session.delete(row)
+    audit_record(
+        "saved_filter.deleted",
+        status=AuditStatus.SUCCESS,
+        actor_id=user_id,
+        target_type="saved_filter",
+        target_id=saved_filter_id,
+        commit=False,
+    )
+    db.session.commit()
+
+
+def list_saved_filters(*, user_id: int, view_type: str) -> list[dict[str, Any]]:
+    rows = (
+        SavedFilter.query.filter_by(user_id=user_id, view_type=view_type)
+        .order_by(SavedFilter.created_at.desc(), SavedFilter.id.desc())
+        .all()
+    )
+    return [{"id": r.id, "name": r.name, "filter_params": r.filter_params} for r in rows]
+
+
+def _apply_idempotency_key(*, key: str, endpoint: str, organization_id: int, request_hash: str):
+    row, created = get_or_create(
+        key=key,
+        endpoint=endpoint,
+        request_hash=request_hash,
+        organization_id=organization_id,
+    )
+    return row, created
+
+
+def list_admin_reservations(
+    *,
+    organization_id: int,
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    q: str | None = None,
+    page: int = 1,
+    per_page: int = 25,
+    sort: str = "created_at",
+    direction: str = "desc",
+) -> tuple[list[dict[str, Any]], int]:
+    query = (
+        Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+    )
+    if status:
+        query = query.filter(Reservation.status == status)
+    if date_from:
+        query = query.filter(Reservation.start_date >= date_from)
+    if date_to:
+        query = query.filter(Reservation.end_date <= date_to)
+    if q:
+        ilike = f"%{q.strip()}%"
+        query = query.filter(or_(Reservation.guest_name.ilike(ilike), db.cast(Reservation.id, db.String).ilike(ilike)))
+    sort_map = {"created_at": Reservation.created_at, "start_date": Reservation.start_date, "id": Reservation.id}
+    col = sort_map.get(sort, Reservation.created_at)
+    query = query.order_by(col.asc() if direction == "asc" else col.desc(), Reservation.id.desc())
+    total = query.count()
+    rows = query.offset((page - 1) * per_page).limit(per_page).all()
+    return [
+        {
+            "id": r.id,
+            "unit_id": r.unit_id,
+            "guest_id": r.guest_id,
+            "guest_name": r.guest_name,
+            "start_date": r.start_date.isoformat(),
+            "end_date": r.end_date.isoformat(),
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ], total
+
+
+def list_admin_guests(
+    *,
+    organization_id: int,
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    q: str | None = None,
+    page: int = 1,
+    per_page: int = 25,
+    sort: str = "created_at",
+    direction: str = "desc",
+) -> tuple[list[dict[str, Any]], int]:
+    query = Guest.query.filter(Guest.organization_id == organization_id)
+    if q:
+        ilike = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                Guest.first_name.ilike(ilike),
+                Guest.last_name.ilike(ilike),
+                Guest.email.ilike(ilike),
+                Guest.phone.ilike(ilike),
+            )
+        )
+    if date_from:
+        query = query.filter(db.func.date(Guest.created_at) >= date_from)
+    if date_to:
+        query = query.filter(db.func.date(Guest.created_at) <= date_to)
+    _ = status
+    sort_map = {"created_at": Guest.created_at, "name": Guest.last_name, "id": Guest.id}
+    col = sort_map.get(sort, Guest.created_at)
+    query = query.order_by(col.asc() if direction == "asc" else col.desc(), Guest.id.desc())
+    total = query.count()
+    rows = query.offset((page - 1) * per_page).limit(per_page).all()
+    return [
+        {
+            "id": r.id,
+            "full_name": r.full_name,
+            "first_name": r.first_name,
+            "last_name": r.last_name,
+            "email": r.email,
+            "phone": r.phone,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ], total
+
+
+def list_admin_invoices(
+    *,
+    organization_id: int,
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    q: str | None = None,
+    page: int = 1,
+    per_page: int = 25,
+    sort: str = "created_at",
+    direction: str = "desc",
+) -> tuple[list[dict[str, Any]], int]:
+    query = Invoice.query.filter(Invoice.organization_id == organization_id)
+    if status:
+        query = query.filter(Invoice.status == status)
+    if date_from:
+        query = query.filter(Invoice.due_date >= date_from)
+    if date_to:
+        query = query.filter(Invoice.due_date <= date_to)
+    if q:
+        ilike = f"%{q.strip()}%"
+        query = query.filter(Invoice.invoice_number.ilike(ilike))
+    sort_map = {"created_at": Invoice.created_at, "due_date": Invoice.due_date, "id": Invoice.id}
+    col = sort_map.get(sort, Invoice.created_at)
+    query = query.order_by(col.asc() if direction == "asc" else col.desc(), Invoice.id.desc())
+    total = query.count()
+    rows = query.offset((page - 1) * per_page).limit(per_page).all()
+    return [
+        {
+            "id": r.id,
+            "invoice_number": r.invoice_number,
+            "status": r.status,
+            "due_date": r.due_date.isoformat() if r.due_date else None,
+            "currency": r.currency,
+            "subtotal_excl_vat": str(r.subtotal_excl_vat),
+            "vat_rate": str(r.vat_rate),
+            "vat_amount": str(r.vat_amount),
+            "total_incl_vat": str(r.total_incl_vat),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ], total
+
+
+def _csv_for_rows(*, rows: list[dict[str, Any]], columns: list[str]) -> str:
+    buf = StringIO()
+    writer = csv.DictWriter(buf, fieldnames=columns)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({k: row.get(k) for k in columns})
+    return buf.getvalue()

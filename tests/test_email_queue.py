@@ -31,6 +31,7 @@ def test_send_template_queues_pending_row(app):
     from app.email.models import OutgoingEmail, OutgoingEmailStatus, TemplateKey
     from app.email.services import send_template
 
+    app.config["MAIL_DEV_LOG_ONLY"] = False
     ok = send_template(
         TemplateKey.ADMIN_NOTIFICATION,
         to="queue@test.local",
