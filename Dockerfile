@@ -20,4 +20,5 @@ EXPOSE 5000
 
 # Production default: validate migration graph, run migrations, then start Gunicorn.
 # Local dev overrides this via docker-compose.yml (uses `flask run` for auto-reload).
-CMD ["sh", "-c", "python safe_migrate.py && gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --access-logfile - --error-logfile - run:app"]
+RUN ls -la /app && python --version && test -f safe_migrate.py
+CMD ["sh", "-c", "echo STARTING_CONTAINER && python safe_migrate.py && exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --access-logfile - --error-logfile - run:app"]
