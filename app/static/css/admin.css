@@ -264,6 +264,11 @@ body.admin-sidebar-open {
   min-width: 0;
 }
 
+.admin-nav-group + .admin-nav-group {
+  padding-top: 0.2rem;
+  border-top: 1px solid rgba(255, 246, 237, 0.08);
+}
+
 .admin-nav-group-title {
   margin: 0;
   padding: 0.2rem 0.65rem 0;
@@ -296,6 +301,7 @@ body.admin-sidebar-open {
   border-radius: var(--admin-radius-sm);
   transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
   position: relative;
+  line-height: 1.2;
 }
 
 .admin-nav-ico {
@@ -316,6 +322,11 @@ body.admin-sidebar-open {
   flex-shrink: 0;
   color: inherit;
   stroke: currentColor;
+}
+
+.admin-nav-ico svg * {
+  stroke: currentColor;
+  fill: currentColor;
 }
 
 .admin-nav-text {
@@ -340,6 +351,10 @@ body.admin-sidebar-open {
   color: var(--admin-nav-text);
   background: var(--admin-nav-active-bg);
   font-weight: 600;
+}
+
+.admin-nav-link.is-active .admin-nav-ico {
+  color: currentColor;
 }
 
 .admin-nav-link.is-active::before {
