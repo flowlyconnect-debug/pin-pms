@@ -1,0 +1,41 @@
+<section
+  class="card"
+  data-tag-widget
+  data-resource="{{ resource }}"
+  data-resource-id="{{ resource_id }}"
+>
+  <h2>Tagit</h2>
+  <div class="actions">
+    {% for tag in tags %}
+      <span class="badge" style="background-color: var(--color-{{ tag.color }}, #e5e7eb); color: #111;">
+        {{ tag.name }}
+        <button type="button" class="btn-link" data-detach-tag-id="{{ tag.id }}">x</button>
+      </span>
+    {% else %}
+      <span class="meta">Ei tageja.</span>
+    {% endfor %}
+  </div>
+  <div class="actions">
+    <select data-attach-tag-id>
+      <option value="">Valitse olemassa oleva tagi</option>
+      {% for tag in all_tags %}
+        <option value="{{ tag.id }}">{{ tag.name }} ({{ tag.color }})</option>
+      {% endfor %}
+    </select>
+    <button type="button" class="btn" data-attach-tag>Liitä</button>
+  </div>
+  <div class="actions">
+    <input type="text" maxlength="64" placeholder="Uusi tagi" data-create-tag-name>
+    <select data-create-tag-color>
+      <option value="green">Vihreä</option>
+      <option value="yellow">Keltainen</option>
+      <option value="red">Punainen</option>
+      <option value="blue">Sininen</option>
+      <option value="purple">Violetti</option>
+      <option value="orange">Oranssi</option>
+      <option value="gray">Harmaa</option>
+      <option value="black">Musta</option>
+    </select>
+    <button type="button" class="btn" data-create-tag>Luo tagi</button>
+  </div>
+</section>

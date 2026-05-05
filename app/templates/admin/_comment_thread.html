@@ -1,0 +1,35 @@
+<section
+  class="card"
+  data-comment-widget
+  data-resource="{{ resource }}"
+  data-resource-id="{{ resource_id }}"
+>
+  <h2>Kommentit</h2>
+  <p class="meta">Kirjoita @nimi mainitaksesi käyttäjän.</p>
+  <div class="stack">
+    {% for comment in comments %}
+      <article class="card">
+        <p>{{ comment.body }}</p>
+        <p class="meta">
+          #{{ comment.id }} · käyttäjä {{ comment.author_user_id }}
+          {% if comment.edited_at %} · muokattu{% endif %}
+        </p>
+        <div class="actions">
+          {% if current_user.id == comment.author_user_id %}
+            <button type="button" class="btn btn-secondary" data-edit-comment-id="{{ comment.id }}">Muokkaa</button>
+          {% endif %}
+          {% if current_user.id == comment.author_user_id or current_user.role in ["admin", "superadmin"] %}
+            <button type="button" class="btn-danger" data-delete-comment-id="{{ comment.id }}">Poista</button>
+          {% endif %}
+        </div>
+      </article>
+    {% else %}
+      <p class="meta">Ei kommentteja.</p>
+    {% endfor %}
+  </div>
+  <textarea rows="3" placeholder="Kirjoita kommentti" data-comment-body></textarea>
+  <label><input type="checkbox" checked data-comment-internal> Internal</label>
+  <div class="actions">
+    <button type="button" class="btn" data-comment-create>Lähetä kommentti</button>
+  </div>
+</section>
