@@ -1,11 +1,20 @@
 <!doctype html>
-<html lang="en">
+{% set ui_theme = request.cookies.get("ui_theme", "auto") %}
+<html lang="en" data-theme="{{ ui_theme if ui_theme in ['light', 'dark', 'auto'] else 'auto' }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <title>{% block title %}Ylläpito · Pin PMS{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
     <script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-toast.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-confirm.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-loading.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-search.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-filters.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-bulk.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-notifications.js') }}" defer></script>
     {% block head_extra %}{% endblock %}
   </head>
   {% set ep = request.endpoint or '' %}
@@ -31,6 +40,7 @@
           <a href="{{ url_for('admin.calendar_sync_conflicts') }}" class="admin-nav-link{% if ep == 'admin.calendar_sync_conflicts' %} is-active{% endif %}"{% if ep == 'admin.calendar_sync_conflicts' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">⚠️</span><span class="admin-nav-text">Kalenteriristiriidat</span></a>
           <a href="{{ url_for('admin.reports_index') }}" class="admin-nav-link{% if ep.startswith('admin.reports_') %} is-active{% endif %}"{% if ep.startswith('admin.reports_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">📈</span><span class="admin-nav-text">Raportit</span></a>
           <a href="{{ url_for('admin.audit') }}" class="admin-nav-link{% if ep == 'admin.audit' %} is-active{% endif %}"{% if ep == 'admin.audit' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">📋</span><span class="admin-nav-text">Audit-loki</span></a>
+          <a href="{{ url_for('admin.notifications_list') }}" class="admin-nav-link{% if ep.startswith('admin.notifications_') %} is-active{% endif %}"{% if ep.startswith('admin.notifications_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🔔</span><span class="admin-nav-text">Ilmoitukset</span></a>
           <a href="{{ url_for('admin.users_list') }}" class="admin-nav-link{% if ep.startswith('admin.users_') %} is-active{% endif %}"{% if ep.startswith('admin.users_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">👥</span><span class="admin-nav-text">Käyttäjät</span></a>
           <a href="{{ url_for('admin.organizations_list') }}" class="admin-nav-link{% if ep.startswith('admin.organizations_') %} is-active{% endif %}"{% if ep.startswith('admin.organizations_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🏛</span><span class="admin-nav-text">Organisaatiot</span></a>
           <a href="{{ url_for('admin.api_keys_list') }}" class="admin-nav-link{% if ep.startswith('admin.api_keys_') %} is-active{% endif %}"{% if ep.startswith('admin.api_keys_') %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🔑</span><span class="admin-nav-text">API-avaimet</span></a>
@@ -41,7 +51,23 @@
           <a href="{{ url_for('admin.superadmin_status') }}" class="admin-nav-link{% if ep == 'admin.superadmin_status' %} is-active{% endif %}"{% if ep == 'admin.superadmin_status' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">🟢</span><span class="admin-nav-text">Tilannehallinta</span></a>
         </nav>
         <div class="admin-sidebar-foot">
-          <a class="admin-logout" href="{{ url_for('auth.logout') }}"><span class="admin-nav-ico" aria-hidden="true">🚪</span><span class="admin-nav-text">Kirjaudu ulos</span></a>
+          <div class="admin-sidebar-user">
+            <div class="admin-sidebar-user-name">{{ current_user.email if current_user.is_authenticated else "Käyttäjä" }}</div>
+            <div class="admin-sidebar-user-org">{{ current_user.organization.name if current_user.is_authenticated and current_user.organization else "Organisaatio" }}</div>
+            <div class="admin-sidebar-user-actions">
+              <a href="{{ url_for('admin.settings_list') }}" class="admin-link">Asetukset</a>
+              <a href="{{ url_for('auth.logout') }}" class="admin-link">Kirjaudu ulos</a>
+            </div>
+          </div>
+          <form method="post" action="{{ url_for('admin.set_theme') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label for="theme-select" class="admin-nav-text">Teema</label>
+            <select id="theme-select" name="theme" data-theme-select>
+              <option value="auto" {% if (ui_theme or 'auto') == 'auto' %}selected{% endif %}>Auto</option>
+              <option value="light" {% if ui_theme == 'light' %}selected{% endif %}>Vaalea</option>
+              <option value="dark" {% if ui_theme == 'dark' %}selected{% endif %}>Tumma</option>
+            </select>
+          </form>
         </div>
       </aside>
       <div class="admin-main-wrap">
@@ -52,6 +78,15 @@
           <span class="admin-topbar-title">Pin PMS</span>
         </header>
         <main class="admin-main">
+          <header class="admin-desktop-topbar">
+            <h1 class="admin-desktop-title">{% block page_title %}Hallinta{% endblock %}</h1>
+            <input type="search" class="admin-search-input" placeholder="Etsi..." id="admin-global-search" role="combobox" aria-expanded="false" aria-controls="admin-global-search-results">
+            <div id="admin-global-search-results" role="listbox" hidden></div>
+            <div class="admin-topbar-actions">
+              {% include "admin/_notification_bell.html" %}
+              <span class="admin-avatar" aria-hidden="true">{{ (current_user.email[:2] if current_user.is_authenticated else "PM")|upper }}</span>
+            </div>
+          </header>
           {% if impersonation_active %}
             <div style="background:#fde68a;color:#111827;padding:.6rem .8rem;border:1px solid #f59e0b;border-radius:8px;margin-bottom:.75rem;">
               Esiinnyt käyttäjänä {{ current_user.email }}.
@@ -61,15 +96,21 @@
               </form>
             </div>
           {% endif %}
-          {% with messages = get_flashed_messages() %}
-            {% if messages %}
+          {% set flashed_messages = get_flashed_messages(with_categories=true) %}
+          {% if flashed_messages %}
+            <div id="flash-toast-data" hidden>
+              {% for category, message in flashed_messages %}
+                <div data-flash-category="{{ category }}" data-flash-message="{{ message }}"></div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if flashed_messages %}
               <div class="flash-wrap">
-                {% for message in messages %}
-                  <div class="flash">{{ message }}</div>
+                {% for category, message in flashed_messages %}
+                  <div class="flash{% if category in ['warning'] %} is-warning{% elif category in ['error', 'danger'] %} is-danger{% endif %}">{{ message }}</div>
                 {% endfor %}
               </div>
-            {% endif %}
-          {% endwith %}
+          {% endif %}
           {% block content %}{% endblock %}
         </main>
       </div>

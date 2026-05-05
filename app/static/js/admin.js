@@ -63,6 +63,19 @@
         window.location.href = row.getAttribute("data-href");
       });
     });
+
+    var themeSelect = document.querySelector("[data-theme-select]");
+    if (themeSelect && themeSelect.form) {
+      themeSelect.addEventListener("change", function () {
+        var theme = (themeSelect.value || "auto").toLowerCase();
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.setAttribute("data-theme", theme);
+        } else {
+          document.documentElement.setAttribute("data-theme", "auto");
+        }
+        themeSelect.form.submit();
+      });
+    }
   }
 
   if (document.readyState === "loading") {
