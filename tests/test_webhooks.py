@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import time
 import pytest
 
 from app.audit.models import AuditLog
@@ -30,6 +31,8 @@ def test_inbound_invalid_signature_returns_401(app, client):
         headers={"Content-Type": "application/json", "X-Signature": "not-a-valid-signature"},
     )
     assert rv.status_code == 401
+    assert b"invalid" not in rv.data.lower()
+    assert b"signature" not in rv.data.lower()
 
     with app.app_context():
         row = (
@@ -37,6 +40,23 @@ def test_inbound_invalid_signature_returns_401(app, client):
             .order_by(AuditLog.id.desc())
             .first()
         )
+        assert row is not None
+
+
+def test_inbound_unknown_provider_returns_404(client):
+    rv = client.post(
+        "/api/v1/webhooks/not-a-provider",
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+    )
+    assert rv.status_code == 404
+
+
+def test_unknown_provider_returns_404_and_audits(app, client):
+    rv = client.post("/api/v1/webhooks/unknown-provider", data=b"{}", headers={"Content-Type": "application/json"})
+    assert rv.status_code == 404
+    with app.app_context():
+        row = AuditLog.query.filter_by(action="webhook.unknown_provider").order_by(AuditLog.id.desc()).first()
         assert row is not None
 
 
@@ -86,6 +106,114 @@ def test_inbound_duplicate_external_id_is_idempotent(app, client):
     assert rv2.status_code == 200
     with app.app_context():
         assert WebhookEvent.query.filter_by(provider="pindora_lock", external_id="evt-dup-1").count() == 1
+        dup = AuditLog.query.filter_by(action="webhook.duplicate_ignored").order_by(AuditLog.id.desc()).first()
+        assert dup is not None
+
+
+def test_payload_too_large_returns_413_and_audits(app, client):
+    big = b"a" * (1024 * 1024 + 1)
+    rv = client.post(
+        "/api/v1/webhooks/stripe",
+        data=big,
+        headers={"Content-Type": "application/json", "Stripe-Signature": "x", "Content-Length": str(len(big))},
+    )
+    assert rv.status_code == 413
+    with app.app_context():
+        row = AuditLog.query.filter_by(action="webhook.payload_too_large").order_by(AuditLog.id.desc()).first()
+        assert row is not None
+
+
+def test_webhook_processing_deferred_when_slow(app, client, monkeypatch):
+    secret = "slow-secret"
+    with app.app_context():
+        from app.webhooks.services import persist_inbound_webhook_secret
+
+        persist_inbound_webhook_secret(provider="pindora_lock", plaintext=secret, actor_user_id=None)
+    payload = {"event": "slow.event", "id": "evt-slow-1"}
+    body = json.dumps(payload).encode("utf-8")
+    sig = _hmac_hex(secret, body)
+
+    def slow_handler(*, provider, event, payload):
+        _ = (provider, event, payload)
+        time.sleep(5.1)
+
+    monkeypatch.setattr("app.webhooks.routes.dispatch_handler", slow_handler)
+    rv = client.post(
+        "/api/v1/webhooks/pindora_lock",
+        data=body,
+        headers={"Content-Type": "application/json", "X-Signature": sig},
+    )
+    assert rv.status_code == 200
+    with app.app_context():
+        row = WebhookEvent.query.filter_by(external_id="evt-slow-1").first()
+        assert row is not None
+        assert row.processed is False
+
+
+def test_webhook_missing_secret_returns_401_and_audits(app, client):
+    _ = app
+    rv = client.post(
+        "/api/v1/webhooks/vismapay",
+        data=b"{}",
+        headers={"Content-Type": "application/json", "X-VismaPay-Signature": "x"},
+    )
+    assert rv.status_code == 401
+    with app.app_context():
+        row = AuditLog.query.filter_by(action="webhook.invalid_signature").order_by(AuditLog.id.desc()).first()
+        assert row is not None
+
+
+def test_webhook_invalid_json_returns_400(app, client):
+    secret = "invalid-json-secret"
+    with app.app_context():
+        from app.webhooks.services import persist_inbound_webhook_secret
+
+        persist_inbound_webhook_secret(provider="pindora_lock", plaintext=secret, actor_user_id=None)
+    body = b"{not-json"
+    sig = _hmac_hex(secret, body)
+    rv = client.post(
+        "/api/v1/webhooks/pindora_lock",
+        data=body,
+        headers={"Content-Type": "application/json", "X-Signature": sig},
+    )
+    assert rv.status_code == 400
+
+
+def test_webhook_idempotency_conflict_returns_409(app, client, monkeypatch):
+    secret = "idem-conflict-secret"
+    with app.app_context():
+        from app.webhooks.services import persist_inbound_webhook_secret
+
+        persist_inbound_webhook_secret(provider="pindora_lock", plaintext=secret, actor_user_id=None)
+    body = b'{"event":"x","id":"evt-conflict"}'
+    sig = _hmac_hex(secret, body)
+
+    from app.idempotency.services import IdempotencyKeyConflict
+
+    def raise_conflict(**_kwargs):
+        raise IdempotencyKeyConflict()
+
+    monkeypatch.setattr("app.webhooks.routes.apply_idempotency_for_inbound", raise_conflict)
+    rv = client.post(
+        "/api/v1/webhooks/pindora_lock",
+        data=body,
+        headers={"Content-Type": "application/json", "X-Signature": sig},
+    )
+    assert rv.status_code == 409
+
+
+def test_stripe_webhook_valid_signature_returns_200(app, client, monkeypatch):
+    monkeypatch.setattr("app.payments.providers.stripe.StripeProvider.verify_webhook", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "app.payments.providers.stripe.StripeProvider.parse_webhook_event",
+        lambda *args, **kwargs: {"type": "unknown"},
+    )
+    rv = client.post(
+        "/api/v1/webhooks/stripe",
+        data=b'{"type":"x","data":{"object":{}}}',
+        headers={"Content-Type": "application/json", "Stripe-Signature": "ok"},
+    )
+    assert rv.status_code == 200
 
 
 def test_audit_log_for_received_processed_invalid_signature(app, client):

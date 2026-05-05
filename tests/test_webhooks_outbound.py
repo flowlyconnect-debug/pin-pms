@@ -11,7 +11,7 @@ from app.webhooks.models import WebhookDelivery, WebhookSubscription
 from app.webhooks.services import dispatch, retry_pending_deliveries
 
 
-def _issue_key(*, organization_id: int, user_id: int, scopes: str) -> tuple[ApiKey, str]:
+def _issue_key(*, organization_id: int, user_id: int, scopes: str) -> tuple[int, str]:
     key, raw = ApiKey.issue(
         name="Webhook scope test",
         organization_id=organization_id,
@@ -20,7 +20,7 @@ def _issue_key(*, organization_id: int, user_id: int, scopes: str) -> tuple[ApiK
     )
     db.session.add(key)
     db.session.commit()
-    return key, raw
+    return int(key.id), raw
 
 
 def test_outbound_dispatch_signs_payload(app, organization, regular_user):
@@ -107,7 +107,7 @@ def test_outbound_disabled_after_5_failures(app, organization, regular_user):
 
 def test_api_webhook_subscription_requires_scope(app, client, organization, regular_user):
     with app.app_context():
-        key, raw = _issue_key(
+        key_id, raw = _issue_key(
             organization_id=organization.id,
             user_id=regular_user.id,
             scopes="reports:read",
@@ -119,7 +119,7 @@ def test_api_webhook_subscription_requires_scope(app, client, organization, regu
     assert rv.status_code == 403
 
     with app.app_context():
-        row = ApiKey.query.get(key.id)
+        row = ApiKey.query.get(key_id)
         assert row is not None
         row.scopes = "reports:read,webhooks:read,webhooks:write"
         db.session.commit()
@@ -151,7 +151,7 @@ def test_outbound_subscription_tenant_isolation(app, client, organization, regul
         )
         db.session.add(user_b)
         db.session.commit()
-        key_b, raw_b = _issue_key(
+        _key_b_id, raw_b = _issue_key(
             organization_id=org_b.id,
             user_id=user_b.id,
             scopes="webhooks:read,webhooks:write,reports:read",
@@ -165,15 +165,13 @@ def test_outbound_subscription_tenant_isolation(app, client, organization, regul
             created_by_user_id=user_b.id,
         )
         sub_b_id = sub_b.id
-        _ = key_b
 
     with app.app_context():
-        key_a, raw_a = _issue_key(
+        _key_a_id, raw_a = _issue_key(
             organization_id=organization.id,
             user_id=regular_user.id,
             scopes="webhooks:read,webhooks:write,reports:read",
         )
-        _ = key_a
 
     rv = client.delete(
         f"/api/v1/webhooks/subscriptions/{sub_b_id}",
@@ -216,3 +214,70 @@ def test_retry_pending_deliveries_marks_next(app, organization, regular_user):
         assert n >= 1
         d2 = WebhookDelivery.query.get(d.id)
         assert d2.delivered_at is not None
+
+
+def test_webhook_services_metadata_helpers(app):
+    with app.app_context():
+        from app.webhooks.services import extract_event_metadata, provider_is_known, verify_signature
+
+        assert provider_is_known("stripe") is True
+        assert provider_is_known("paytrail") is True
+        assert provider_is_known("nope") is False
+        et, eid, org = extract_event_metadata("stripe", {"type": "checkout", "id": "evt_1", "organization_id": "1"})
+        assert et == "checkout"
+        assert eid == "evt_1"
+        assert org == 1
+        et2, eid2, org2 = extract_event_metadata("vismapay", {"event_type": "x", "order_number": "ord"})
+        assert et2 == "x"
+        assert eid2 == "ord"
+        assert org2 is None
+        assert verify_signature("unknown", b"{}", "sig", "secret") is False
+
+
+def test_webhook_services_mark_processed_and_idempotency_helper(app):
+    with app.app_context():
+        from app.webhooks.services import apply_idempotency_for_inbound, mark_processed
+
+        # no-op branch when event does not exist
+        mark_processed(999999, None)
+        sub = WebhookSubscription(
+            organization_id=1,
+            url="https://example.com/w",
+            secret_hash="h",
+            secret_encrypted="gAAAAABk",
+            events=["x"],
+            is_active=True,
+            created_by_user_id=None,
+        )
+        db.session.add(sub)
+        db.session.flush()
+        delivery = WebhookDelivery(
+            subscription_id=sub.id,
+            event_type="x",
+            payload={"a": 1},
+            payload_hash="abc",
+            signature="sig",
+            attempt_number=1,
+        )
+        db.session.add(delivery)
+        db.session.flush()
+        from app.webhooks.models import WebhookEvent
+
+        event = WebhookEvent(
+            provider="pindora_lock",
+            event_type="evt",
+            external_id="evt-mark",
+            payload={"ok": True},
+            signature="s",
+            signature_verified=True,
+        )
+        db.session.add(event)
+        db.session.commit()
+        mark_processed(event.id, "err")
+        mark_processed(event.id, None)
+        apply_idempotency_for_inbound(
+            provider="pindora_lock",
+            external_id="evt-mark",
+            payload={"ok": True},
+            organization_id=None,
+        )
