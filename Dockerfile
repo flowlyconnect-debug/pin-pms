@@ -18,6 +18,6 @@ COPY . .
 
 EXPOSE 5000
 
-# Production default: run migrations, then start Gunicorn.
+# Production default: validate migration graph, run migrations, then start Gunicorn.
 # Local dev overrides this via docker-compose.yml (uses `flask run` for auto-reload).
-CMD ["sh", "-c", "python -m flask db upgrade && exec gunicorn --bind 0.0.0.0:5000 --workers 3 --access-logfile - --error-logfile - run:app"]
+CMD ["sh", "-c", "python safe_migrate.py && exec gunicorn --bind 0.0.0.0:5000 --workers 3 --access-logfile - --error-logfile - run:app"]

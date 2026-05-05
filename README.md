@@ -404,7 +404,7 @@ TLS paths. See `deploy/README.md` for step-by-step instructions.
 Render start command (runs migrations before serving traffic):
 
 ```bash
-python -m flask db upgrade && gunicorn --bind 0.0.0.0:$PORT --workers 3 --access-logfile - --error-logfile - run:app
+python safe_migrate.py && gunicorn --bind 0.0.0.0:$PORT --workers 3 --access-logfile - --error-logfile - run:app
 ```
 
 ## Deployment checklist
