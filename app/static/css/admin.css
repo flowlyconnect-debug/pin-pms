@@ -317,23 +317,16 @@ body.admin-sidebar-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  font-size: 1.1rem;
-  line-height: 1;
-  color: currentColor;
-}
-
-.admin-nav-ico svg {
-  width: 1.15rem;
-  height: 1.15rem;
-  flex-shrink: 0;
   color: inherit;
-  stroke: currentColor;
 }
 
-.admin-nav-ico svg * {
-  stroke: currentColor;
-  fill: currentColor;
+/* Outline SVGs: stroke from parent via stroke="currentColor" on <svg> (Heroicons-style). */
+.admin-nav-svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  display: block;
+  color: inherit;
 }
 
 .admin-nav-text {
@@ -360,10 +353,6 @@ body.admin-sidebar-open {
   background: var(--admin-nav-active-bg);
   font-weight: 600;
   box-shadow: inset 4px 0 0 var(--color-primary), 0 10px 24px rgba(0, 0, 0, 0.24);
-}
-
-.admin-nav-link.is-active .admin-nav-ico {
-  color: currentColor;
 }
 
 .admin-nav-link.is-active::before {
