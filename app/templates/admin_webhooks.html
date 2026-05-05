@@ -3,6 +3,7 @@
 {% block title %}Webhook-tilaukset · Pin PMS{% endblock %}
 
 {% block content %}
+  <script src="{{ url_for('static', filename='js/admin-webhooks.js') }}" defer></script>
   <h1>Webhook-tilaukset (outbound)</h1>
   <p>Organisaation <code>{{ current_user.organization_id }}</code> tilaukset.</p>
 
@@ -22,10 +23,19 @@
       <p><strong>URL:</strong> <code>{{ s.url }}</code></p>
       <p><strong>Tapahtumat:</strong> {{ (s.events or [])|join(', ') }}</p>
       <p><strong>Aktiivinen:</strong> {{ "kyllä" if s.is_active else "ei" }}</p>
+      <p><strong>Viimeisin toimitus:</strong> {{ s.last_delivery_at.strftime('%Y-%m-%d %H:%M') if s.last_delivery_at else "—" }}</p>
+      <p><strong>Viimeisin HTTP-tila:</strong> {{ s.last_delivery_status if s.last_delivery_status is not none else "—" }}</p>
       <p><strong>Epäonnistumiset:</strong> {{ s.failure_count }}</p>
-      <form method="post" action="{{ url_for('admin.webhooks_deactivate', subscription_id=s.id) }}" style="display:inline" onsubmit="return confirm('Poistetaanko tilaus #{{ s.id }} käytöstä?');">
+      <p><a href="{{ url_for('admin.webhooks_detail', subscription_id=s.id) }}">Avaa tilausnäkymä</a></p>
+      <form
+        method="post"
+        action="{{ url_for('admin.webhooks_deactivate', subscription_id=s.id) }}"
+        style="display:inline"
+        data-loading="Poistetaan webhook käytöstä…"
+        data-confirm='{{ {"title": "Poista webhook käytöstä?", "message": "Poistetaanko tilaus #" ~ s.id ~ " käytöstä?", "confirmLabel": "Poista käytöstä", "cancelLabel": "Peruuta", "dangerous": true}|tojson }}'
+      >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" {% if not s.is_active %}disabled{% endif %}>Poista käytöstä</button>
+        <button type="submit" data-loading-button {% if not s.is_active %}disabled{% endif %}>Poista käytöstä</button>
       </form>
 
       <h3>Viimeisimmät lähetykset (10)</h3>

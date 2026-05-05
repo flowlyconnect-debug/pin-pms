@@ -12,25 +12,34 @@ cannot expose another user's screen.
 
 from __future__ import annotations
 
-from flask import Flask, request
+from secrets import token_urlsafe
 
-_DEFAULT_CSP = (
-    "default-src 'self'; "
-    "img-src 'self' data:; "
-    "style-src 'self' 'unsafe-inline'; "
-    "script-src 'self'; "
-    "frame-ancestors 'none'; "
-    "base-uri 'self'; "
-    "form-action 'self'"
-)
+from flask import Flask, g, request
+
+
+def _build_csp(nonce: str) -> str:
+    return (
+        "default-src 'self'; "
+        "img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; "
+        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
 
 
 def register_security_headers(app: Flask) -> None:
     """Attach the after_request hook that emits the headers."""
 
+    @app.before_request
+    def _generate_csp_nonce():
+        g.csp_nonce = token_urlsafe(16)
+
     @app.after_request
     def _apply(response):
-        csp = app.config.get("CONTENT_SECURITY_POLICY") or _DEFAULT_CSP
+        nonce = getattr(g, "csp_nonce", "")
+        csp = app.config.get("CONTENT_SECURITY_POLICY") or _build_csp(nonce)
 
         response.headers.setdefault("Content-Security-Policy", csp)
         response.headers.setdefault("X-Frame-Options", "DENY")

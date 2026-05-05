@@ -3,6 +3,7 @@
 {% block title %}API-avaimet · Pin PMS{% endblock %}
 
 {% block content %}
+  <script src="{{ url_for('static', filename='js/admin-api-keys.js') }}" defer></script>
   <h1>API-avaimet</h1>
 
   {% if raw_key %}
@@ -43,13 +44,19 @@
           <td>{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else '—' }}</td>
           <td>
             <a href="{{ url_for('admin.api_keys_usage', key_id=k.id) }}">Käyttö</a>
-            <form method="post" action="{{ url_for('admin.api_keys_toggle_active', key_id=k.id) }}" style="display:inline">
+            <form method="post" action="{{ url_for('admin.api_keys_toggle_active', key_id=k.id) }}" style="display:inline" data-loading="Päivitetään avainta…">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit">{{ "Poista käytöstä" if k.is_active else "Ota käyttöön" }}</button>
+              <button type="submit" data-loading-button>{{ "Poista käytöstä" if k.is_active else "Ota käyttöön" }}</button>
             </form>
-            <form method="post" action="{{ url_for('admin.api_keys_delete', key_id=k.id) }}" style="display:inline" onsubmit="return confirm('Poista API-avain {{ k.key_prefix }}? Tätä ei voi perua.');">
+            <form
+              method="post"
+              action="{{ url_for('admin.api_keys_delete', key_id=k.id) }}"
+              style="display:inline"
+              data-loading="Poistetaan API-avain…"
+              data-confirm='{{ {"title": "Poista API-avain?", "message": "Poistetaanko API-avain " ~ k.key_prefix ~ "? Tätä ei voi perua.", "confirmLabel": "Poista", "cancelLabel": "Peruuta", "dangerous": true}|tojson }}'
+            >
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit">Poista</button>
+              <button type="submit" data-loading-button>Poista</button>
             </form>
           </td>
         </tr>

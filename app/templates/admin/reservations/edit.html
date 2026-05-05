@@ -3,6 +3,8 @@
 {% block title %}Muokkaa varausta #{{ row.id }} · Pin PMS{% endblock %}
 
 {% block head_extra %}
+  <script src="{{ url_for('static', filename='js/admin-form-helpers.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-reservations.js') }}" defer></script>
   <style>
     .guest-search-wrap { position: relative; }
     .guest-results {
@@ -42,6 +44,11 @@
 {% endblock %}
 
 {% block content %}
+  <div
+    id="reservation-form-page"
+    data-guest-search-url="{{ url_for('admin.api_guests_search') }}"
+    data-has-property-filter="1"
+  >
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.calendar_page') }}">Kalenteri</a>
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Varaukset</a>
@@ -115,131 +122,5 @@
       <button type="submit">Tallenna</button>
     </div>
   </form>
-  <script>
-    (function () {
-      var prop = document.getElementById("property_id");
-      var unitSel = document.getElementById("unit_id");
-      if (!prop || !unitSel) return;
-
-      function filterHuoneet() {
-        var pid = prop.value;
-        var opts = unitSel.querySelectorAll("option[value]");
-        var firstVisible = null;
-        opts.forEach(function (o) {
-          var match = !pid || o.getAttribute("data-property-id") === pid;
-          o.hidden = !match;
-          o.disabled = !match;
-          if (match && !firstVisible) firstVisible = o;
-        });
-        var cur = unitSel.selectedOptions[0];
-        if (cur && cur.disabled) {
-          unitSel.value = firstVisible ? firstVisible.value : "";
-        }
-      }
-
-      prop.addEventListener("change", filterHuoneet);
-      filterHuoneet();
-    })();
-  </script>
-  <script>
-    (function () {
-      var searchEl = document.getElementById("guest_search");
-      var idEl = document.getElementById("guest_id");
-      var resultsEl = document.getElementById("guest_search_results");
-      var clearBtn = document.getElementById("guest_search_clear");
-      var searchUrl = {{ url_for('admin.api_guests_search') | tojson }};
-      if (!searchEl || !idEl || !resultsEl) return;
-
-      var timer = null;
-
-      function hideResults() {
-        resultsEl.innerHTML = "";
-        resultsEl.style.display = "none";
-      }
-
-      function labelForAsiakas(g) {
-        var name = (g.name || g.full_name || "").trim();
-        var email = (g.email || "").trim();
-        if (name && email) {
-          return name + " (" + email + ")";
-        }
-        return name || email || ("Asiakas #" + String(g.id));
-      }
-
-      function showPick(g) {
-        idEl.value = String(g.id);
-        searchEl.value = labelForAsiakas(g);
-        hideResults();
-      }
-
-      function render(list) {
-        if (!list.length) {
-          resultsEl.innerHTML = "<div class=\"guest-no-results\">Asiakkaita ei löytynyt</div>";
-          resultsEl.style.display = "block";
-          return;
-        }
-        resultsEl.innerHTML = "";
-        list.forEach(function (g) {
-          var label = labelForAsiakas(g);
-          if (!label.trim()) {
-            return;
-          }
-          var btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "guest-result";
-          btn.dataset.guestId = String(g.id);
-          btn.dataset.guestLabel = label;
-          btn.textContent = label;
-          btn.addEventListener("click", function () {
-            showPick(g);
-          });
-          resultsEl.appendChild(btn);
-        });
-        if (!resultsEl.children.length) {
-          resultsEl.innerHTML = "<div class=\"guest-no-results\">Asiakkaita ei löytynyt</div>";
-        }
-        resultsEl.style.display = "block";
-      }
-
-      function fetchAsiakkaat(q) {
-        if (!String(q || "").trim()) {
-          hideResults();
-          return;
-        }
-        fetch(searchUrl + "?q=" + encodeURIComponent(q), { credentials: "same-origin" })
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (data) {
-            render(Array.isArray(data) ? data : []);
-          })
-          .catch(function () {
-            hideResults();
-          });
-      }
-
-      searchEl.addEventListener("input", function () {
-        clearTimeout(timer);
-        var q = searchEl.value;
-        timer = setTimeout(function () {
-          fetchAsiakkaat(q);
-        }, 200);
-      });
-
-      if (clearBtn) {
-        clearBtn.addEventListener("click", function () {
-          idEl.value = "";
-          searchEl.value = "";
-          hideResults();
-        });
-      }
-
-      document.addEventListener("click", function (ev) {
-        var wrap = searchEl.closest(".guest-search-wrap");
-        if (wrap && !wrap.contains(ev.target)) {
-          hideResults();
-        }
-      });
-    })();
-  </script>
+  </div>
 {% endblock %}

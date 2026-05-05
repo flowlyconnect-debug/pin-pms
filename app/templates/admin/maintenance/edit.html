@@ -3,27 +3,12 @@
 {% block title %}Muokkaa huoltopyyntöä #{{ row.id }} · Pin PMS{% endblock %}
 
 {% block head_extra %}
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      var prop = document.getElementById("property_id");
-      var unitSel = document.getElementById("unit_id");
-      if (!prop || !unitSel) return;
-      var all = Array.prototype.slice.call(unitSel.querySelectorAll("option"));
-      function filterHuoneet() {
-        var pid = String(prop.value || "");
-        all.forEach(function (opt) {
-          if (!opt.value) { opt.hidden = false; return; }
-          var op = opt.getAttribute("data-property");
-          opt.hidden = pid && op !== pid;
-        });
-      }
-      prop.addEventListener("change", filterHuoneet);
-      filterHuoneet();
-    });
-  </script>
+  <script src="{{ url_for('static', filename='js/admin-form-helpers.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-maintenance.js') }}" defer></script>
 {% endblock %}
 
 {% block content %}
+  <div id="maintenance-form-page">
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.maintenance_requests_detail', request_id=row.id) }}">Takaisin pyyntöön</a>
   </div>
@@ -75,4 +60,5 @@
       <button type="submit" class="btn">Tallenna</button>
     </div>
   </form>
+  </div>
 {% endblock %}

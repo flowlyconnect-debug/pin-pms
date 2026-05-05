@@ -7,6 +7,8 @@ fires for HTTPS requests (or behind a TLS-terminating proxy).
 
 from __future__ import annotations
 
+import re
+
 
 def _assert_baseline(response):
     assert response.headers.get("X-Frame-Options") == "DENY"
@@ -67,3 +69,54 @@ def test_admin_page_uses_no_store_cache(client, superadmin):
     assert response.status_code == 200
     cache_control = (response.headers.get("Cache-Control") or "").lower()
     assert "no-store" in cache_control
+
+
+def _extract_script_src(csp: str) -> str:
+    for directive in csp.split(";"):
+        part = directive.strip()
+        if part.startswith("script-src "):
+            return part
+    return ""
+
+
+def _extract_nonce(csp: str) -> str:
+    match = re.search(r"'nonce-([^']+)'", csp)
+    return match.group(1) if match else ""
+
+
+def test_csp_includes_nonce(client):
+    response = client.get("/login")
+    csp = response.headers.get("Content-Security-Policy") or ""
+    script_src = _extract_script_src(csp)
+    assert re.search(r"'nonce-[^']+'", script_src)
+
+
+def test_csp_nonce_unique_per_request(client):
+    first = client.get("/login")
+    second = client.get("/login")
+    first_nonce = _extract_nonce(first.headers.get("Content-Security-Policy") or "")
+    second_nonce = _extract_nonce(second.headers.get("Content-Security-Policy") or "")
+    assert first_nonce
+    assert second_nonce
+    assert first_nonce != second_nonce
+
+
+def test_csp_does_not_use_unsafe_inline(client):
+    response = client.get("/login")
+    csp = response.headers.get("Content-Security-Policy") or ""
+    script_src = _extract_script_src(csp)
+    assert "'unsafe-inline'" not in script_src
+    assert "style-src 'self' 'unsafe-inline'" in csp
+
+
+def test_csp_allows_jsdelivr_for_calendar(client):
+    response = client.get("/login")
+    csp = response.headers.get("Content-Security-Policy") or ""
+    script_src = _extract_script_src(csp)
+    assert "https://cdn.jsdelivr.net" in script_src
+
+
+def test_csp_does_not_use_unsafe_eval(client):
+    response = client.get("/login")
+    csp = response.headers.get("Content-Security-Policy") or ""
+    assert "'unsafe-eval'" not in csp
