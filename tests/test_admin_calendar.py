@@ -43,6 +43,18 @@ def test_admin_calendar_get_returns_200_and_nonce_scripts(client, admin_user):
     assert re.search(r"\son[a-zA-Z]+\s*=", html) is None
 
 
+def test_calendar_renders_clickable_events(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    response = client.get("/admin/calendar")
+    assert response.status_code == 200
+
+    html = response.get_data(as_text=True)
+    assert 'id="calendar"' in html
+    assert 'data-reservations-base-url="/admin/reservations"' in html
+    assert 'data-events-url="' in html
+
+
 def test_calendar_sync_view_renders_when_no_feeds(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 

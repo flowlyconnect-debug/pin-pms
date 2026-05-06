@@ -2328,6 +2328,12 @@ a.admin-kpi-card:hover,
 
 .fc-event {
   border-radius: 8px;
+  cursor: pointer;
+}
+
+.fc-event:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
 }
 
 .fc-event-peruttu {

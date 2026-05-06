@@ -61,6 +61,36 @@
       return params;
     }
 
+    function buildEventTooltip(event) {
+      var props = event.extendedProps || {};
+      var startLabel = event.start ? fiDateFormat.format(event.start) : "";
+      var endLabel = event.end ? fiDateFormat.format(event.end) : "";
+      var reservationId = "";
+      if (event.id !== undefined && event.id !== null && event.id !== "") {
+        reservationId = String(event.id);
+      } else if (props.reservation_id !== undefined && props.reservation_id !== null) {
+        reservationId = String(props.reservation_id);
+      }
+      return [
+        "Vieras: " + (props.guest_name || "Tuntematon"),
+        "Varaus-ID: " + (reservationId || "-"),
+        "Paivat: " + (startLabel && endLabel ? startLabel + " - " + endLabel : startLabel || endLabel || "-"),
+      ].join("\n");
+    }
+
+    function navigateToEvent(info) {
+      var rid = info.event.id;
+      if (rid !== undefined && rid !== null && rid !== "" && /^\d+$/.test(String(rid))) {
+        window.location.href = reservationsBaseUrl + "/" + String(rid);
+        return true;
+      }
+      if (info.event.url) {
+        window.location.href = info.event.url;
+        return true;
+      }
+      return false;
+    }
+
     var calendar = new FullCalendar.Calendar(el, {
       initialView: "dayGridMonth",
       headerToolbar: {
@@ -79,35 +109,29 @@
         if (props.status === "cancelled") {
           info.el.classList.add("fc-event-peruttu");
         }
-        info.el.title =
-          "Asiakas: " +
-          (props.guest_name || "") +
-          "\n" +
-          "Kohde: " +
-          (props.property_name || "") +
-          "\n" +
-          "Huone: " +
-          (props.unit_name || "") +
-          "\n" +
-          "Tila: " +
-          (props.status || "") +
-          "\n" +
-          "Alku: " +
-          (info.event.start ? fiDateFormat.format(info.event.start) : "") +
-          "\n" +
-          "Loppu: " +
-          (info.event.end ? fiDateFormat.format(info.event.end) : "");
+        var tooltip = buildEventTooltip(info.event);
+        info.el.title = tooltip;
+        info.el.setAttribute("aria-label", tooltip);
+        info.el.setAttribute("tabindex", "0");
+        info.el.setAttribute("role", "link");
+        if (info.event.id !== undefined && info.event.id !== null && info.event.id !== "") {
+          info.el.setAttribute("data-reservation-id", String(info.event.id));
+        }
+        if (/^\d+$/.test(String(info.event.id || ""))) {
+          info.el.setAttribute("data-href", reservationsBaseUrl + "/" + String(info.event.id));
+        } else if (info.event.url) {
+          info.el.setAttribute("data-href", info.event.url);
+        }
+        info.el.addEventListener("keydown", function (event) {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            navigateToEvent(info);
+          }
+        });
       },
       eventClick: function (info) {
         info.jsEvent.preventDefault();
-        var rid = info.event.id;
-        if (rid !== undefined && rid !== null && rid !== "" && /^\d+$/.test(String(rid))) {
-          window.location.href = reservationsBaseUrl + "/" + String(rid);
-          return;
-        }
-        if (info.event.url) {
-          window.location.href = info.event.url;
-        }
+        navigateToEvent(info);
       },
       eventDrop: function (info) {
         var ev = info.event;
