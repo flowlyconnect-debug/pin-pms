@@ -20,6 +20,7 @@ from flask import (
     abort,
     current_app,
     flash,
+    g,
     jsonify,
     redirect,
     render_template,
@@ -66,7 +67,6 @@ from app.gdpr.services import (
     export_user_data,
 )
 from app.guests import services as guest_service
-from app.integrations.ical.models import ImportedCalendarFeed
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
 from app.notifications import routes as notification_routes
@@ -74,7 +74,7 @@ from app.notifications import services as notification_service
 from app.organizations.models import Organization
 from app.owners import services as owners_service
 from app.owners.models import PropertyOwner
-from app.payments.models import Payment
+from app.payments.models import Payment, PaymentRefund
 from app.payments import services as payment_service
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
@@ -88,7 +88,7 @@ from app.email.services import send_template
 from app.email.models import TemplateKey
 from app.tags.services import TagService, TagServiceError
 from app.comments.services import CommentService, CommentServiceError
-
+from app.core.decorators import require_api_tenant_entity, require_tenant_access
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
 
@@ -119,8 +119,8 @@ def check_impersonation_blocked(view_func):
 
 
 def _pms_org_id() -> int:
-    # TODO: If a safe, explicit superadmin cross-tenant override is introduced
-    # in the future, centralize it here. For now we keep strict tenant scope.
+    # Cross-tenant superadmin override is out of scope; track future design at
+    # https://github.com/example/pindora-pms/issues/1
     return current_user.organization_id
 
 
@@ -981,10 +981,9 @@ def calendar_sync_conflicts():
 
 @admin_bp.post("/calendar-sync/feeds/<int:feed_id>/sync")
 @require_admin_pms_access
+@require_tenant_access("imported_calendar_feed", id_arg="feed_id")
 def calendar_sync_feed_now(feed_id: int):
-    row = ImportedCalendarFeed.query.get(feed_id)
-    if row is None or row.organization_id != _pms_org_id():
-        abort(404)
+    row = g.scoped_entity
     IcalService().sync_all_feeds(organization_id=row.organization_id)
     flash("Kalenterin synkronointi valmis.")
     return redirect(url_for("admin.units_calendar_sync", unit_id=row.unit_id))
@@ -1764,19 +1763,44 @@ def invoices_detail(invoice_id: int):
         .limit(20)
         .all()
     )
-    return render_template("admin/invoices/detail.html", row=row, payment_rows=payment_rows)
+    from app.payments.services import refundable_outstanding_amount
+
+    payment_outstanding = {p.id: refundable_outstanding_amount(p.id) for p in payment_rows}
+    refunds_by_payment_id: dict[int, list] = {
+        p.id: PaymentRefund.query.filter_by(payment_id=p.id).order_by(PaymentRefund.id.desc()).all()
+        for p in payment_rows
+    }
+    return render_template(
+        "admin/invoices/detail.html",
+        row=row,
+        payment_rows=payment_rows,
+        payment_outstanding=payment_outstanding,
+        refunds_by_payment_id=refunds_by_payment_id,
+    )
 
 
 @admin_bp.post("/invoices/<int:invoice_id>/send-payment-link")
 @require_admin_pms_access
 def invoices_send_payment_link(invoice_id: int):
     provider = (request.form.get("provider") or "stripe").strip().lower()
+    configured_return = (current_app.config.get("PAYMENT_RETURN_URL") or "").strip()
+    if configured_return:
+        base_return = configured_return
+        sep = "&" if "?" in base_return else "?"
+        return_url = (
+            f"{base_return}{sep}payment_id={{payment_id}}"
+            if "{payment_id}" not in base_return
+            else base_return
+        )
+    else:
+        base_return = url_for("portal.payment_return", _external=True)
+        sep = "&" if "?" in base_return else "?"
+        return_url = f"{base_return}{sep}payment_id={{payment_id}}"
     try:
         checkout = payment_service.create_checkout(
             invoice_id=invoice_id,
             provider_name=provider,
-            return_url=current_app.config.get("PAYMENT_RETURN_URL")
-            or url_for("portal.payment_return", _external=True),
+            return_url=return_url,
             cancel_url=url_for("portal.payment_cancel", invoice_id=invoice_id, _external=True),
             actor_user_id=current_user.id,
             idempotency_key=(request.headers.get("Idempotency-Key") or "").strip() or None,
@@ -1788,8 +1812,31 @@ def invoices_send_payment_link(invoice_id: int):
     return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
 
 
+@admin_bp.post("/invoices/<int:invoice_id>/refunds/<int:refund_id>/retry")
+@require_admin_pms_access
+def invoices_refund_retry(invoice_id: int, refund_id: int):
+    refund_row = PaymentRefund.query.get(refund_id)
+    if refund_row is None:
+        abort(404)
+    payment = Payment.query.get(refund_row.payment_id)
+    if (
+        payment is None
+        or payment.organization_id != _pms_org_id()
+        or payment.invoice_id != invoice_id
+    ):
+        abort(404)
+    try:
+        _ = payment_service.retry_refund(refund_id, actor_user_id=current_user.id)
+    except payment_service.PaymentServiceError as err:
+        flash(err.message)
+        return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+    flash("Hyvityksen uudelleenyritys käynnistetty.")
+    return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+
+
 @admin_bp.post("/payments/<int:payment_id>/refund")
 @require_admin_pms_access
+@require_tenant_access("payment", id_arg="payment_id")
 def payments_refund(payment_id: int):
     try:
         _ = payment_service.refund(
@@ -1888,12 +1935,9 @@ def payments_export():
 
 @admin_bp.get("/invoices/<int:invoice_id>/pdf")
 @require_admin_pms_access
+@require_tenant_access("invoice", id_arg="invoice_id", allow_superadmin_all_tenants=True)
 def invoices_pdf(invoice_id: int):
-    inv = Invoice.query.get(invoice_id)
-    if inv is None:
-        abort(404)
-    if not current_user.is_superadmin and inv.organization_id != current_user.organization_id:
-        abort(403)
+    inv = g.scoped_entity
     try:
         pdf_bytes = generate_invoice_pdf(invoice_id)
     except billing_service.InvoiceServiceError as err:
@@ -3345,16 +3389,11 @@ def webhooks_list():
 
 @admin_bp.get("/webhooks/<int:subscription_id>")
 @require_superadmin_2fa
+@require_tenant_access("webhook_subscription", id_arg="subscription_id")
 def webhooks_detail(subscription_id: int):
-    from app.webhooks.models import WebhookSubscription
     from app.webhooks.services import list_recent_deliveries
 
-    sub = WebhookSubscription.query.filter_by(
-        id=subscription_id,
-        organization_id=_pms_org_id(),
-    ).first()
-    if sub is None:
-        abort(404)
+    sub = g.scoped_entity
     deliveries = list_recent_deliveries(subscription_id=sub.id, limit=20)
     return render_template(
         "admin_webhooks_detail.html",
@@ -3427,16 +3466,11 @@ def webhooks_deactivate(subscription_id: int):
 
 @admin_bp.post("/webhooks/<int:subscription_id>/send-test-event")
 @require_superadmin_2fa
+@require_tenant_access("webhook_subscription", id_arg="subscription_id")
 def webhooks_send_test_event(subscription_id: int):
-    from app.webhooks.models import WebhookSubscription
     from app.webhooks.services import dispatch
 
-    sub = WebhookSubscription.query.filter_by(
-        id=subscription_id,
-        organization_id=_pms_org_id(),
-    ).first()
-    if sub is None:
-        abort(404)
+    sub = g.scoped_entity
     if not sub.is_active:
         flash("Webhook-tilaus ei ole aktiivinen.", "error")
         return redirect(url_for("admin.webhooks_detail", subscription_id=subscription_id))

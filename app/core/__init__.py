@@ -108,3 +108,8 @@ def public_status():
     payload = admin_service.public_status_payload(window_days=90)
     has_open_incident = any(i.status != "resolved" for i in payload["incidents"])
     return render_template("status.html", payload=payload, has_open_incident=has_open_incident)
+
+
+@core_bp.get("/accessibility-statement")
+def accessibility_statement():
+    return render_template("accessibility.html")

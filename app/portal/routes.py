@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import date
 from functools import wraps
 
-from flask import abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask import abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.extensions import limiter
+from app.payments.models import Payment
 from app.portal import portal_bp
 from app.portal import services as portal_service
 from app.payments import services as payment_service
@@ -18,6 +19,14 @@ def _login_rate_limit():
 def _current_portal_user():
     user_id = session.get("portal_user_id")
     return portal_service.get_portal_user_or_none(user_id=user_id)
+
+
+def _payment_error_message_for_portal(code: str) -> str:
+    return {
+        "provider_disabled": "Maksuyhteys on tilapäisesti pois käytöstä, yritä uudelleen myöhemmin",
+        "validation_error": "Tarkista syöttämäsi tiedot",
+        "forbidden": "Et voi maksaa tätä laskua",
+    }.get(code, "Maksun aloitus epäonnistui, yritä uudelleen")
 
 
 def require_portal_login(view_func):
@@ -136,7 +145,9 @@ def pay_invoice(user, invoice_id: int):
 
     if request.method == "POST":
         provider = (request.form.get("provider") or "").strip().lower()
-        return_url = url_for("portal.payment_return", _external=True)
+        base_return = url_for("portal.payment_return", _external=True)
+        sep = "&" if "?" in base_return else "?"
+        return_url = f"{base_return}{sep}payment_id={{payment_id}}"
         cancel_url = url_for("portal.payment_cancel", invoice_id=invoice_id, _external=True)
         try:
             out = payment_service.create_checkout(
@@ -148,12 +159,14 @@ def pay_invoice(user, invoice_id: int):
                 idempotency_key=(request.headers.get("Idempotency-Key") or "").strip() or None,
             )
         except payment_service.PaymentServiceError as err:
+            msg = _payment_error_message_for_portal(err.code)
+            flash(msg)
             return render_template(
                 "portal/pay_invoice.html",
                 row=invoice,
                 stripe_enabled=current_app.config.get("STRIPE_ENABLED", False),
                 paytrail_enabled=current_app.config.get("PAYTRAIL_ENABLED", False),
-                error=err.message,
+                error=msg,
             )
         return redirect(out["redirect_url"])
 
@@ -169,8 +182,39 @@ def pay_invoice(user, invoice_id: int):
 @portal_bp.get("/payments/return")
 @require_portal_login
 def payment_return(user):
-    _ = user
-    return render_template("portal/payment_return.html")
+    raw = (request.args.get("payment_id") or "").strip()
+    payment_id = int(raw) if raw.isdigit() else None
+    row = None
+    poll_url = None
+    if payment_id is not None:
+        row = Payment.query.filter_by(id=payment_id, organization_id=user.organization_id).first()
+        if row is None:
+            payment_id = None
+        else:
+            poll_url = url_for("portal.portal_payment_status", payment_id=payment_id)
+    return render_template(
+        "portal/payment_return.html",
+        payment_id=payment_id,
+        payment=row,
+        poll_url=poll_url,
+    )
+
+
+@portal_bp.get("/payments/<int:payment_id>/status")
+@require_portal_login
+def portal_payment_status(user, payment_id: int):
+    row = Payment.query.filter_by(id=payment_id, organization_id=user.organization_id).first()
+    if row is None:
+        abort(404)
+    return jsonify(
+        {
+            "id": row.id,
+            "status": row.status,
+            "amount": str(row.amount),
+            "currency": row.currency,
+            "invoice_id": row.invoice_id,
+        }
+    )
 
 
 @portal_bp.get("/payments/cancel/<int:invoice_id>")

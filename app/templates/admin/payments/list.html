@@ -5,10 +5,14 @@
 {% block content %}
   <h1>Maksut</h1>
   <form method="get" class="actions">
-    <input type="text" name="provider" value="{{ provider or '' }}" placeholder="provider">
-    <input type="text" name="status" value="{{ status or '' }}" placeholder="status">
-    <input type="date" name="from" value="{{ date_from or '' }}">
-    <input type="date" name="to" value="{{ date_to or '' }}">
+    <label for="payments-provider">Maksupalvelu</label>
+    <input id="payments-provider" type="text" name="provider" value="{{ provider or '' }}" placeholder="provider">
+    <label for="payments-status">Tila</label>
+    <input id="payments-status" type="text" name="status" value="{{ status or '' }}" placeholder="status">
+    <label for="payments-from">Aikaväli alkaen</label>
+    <input id="payments-from" type="date" name="from" value="{{ date_from or '' }}">
+    <label for="payments-to">Aikaväli asti</label>
+    <input id="payments-to" type="date" name="to" value="{{ date_to or '' }}">
     <button type="submit" class="btn">Suodata</button>
     <a
       class="btn btn-secondary"

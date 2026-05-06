@@ -22,6 +22,7 @@ class WebhookEvent(db.Model):
     signature = db.Column(db.String(256), nullable=False, default="")
     signature_verified = db.Column(db.Boolean, nullable=False, default=False)
     processed = db.Column(db.Boolean, nullable=False, default=False)
+    inbound_handler_attempts = db.Column(db.Integer, nullable=False, default=0)
     processing_error = db.Column(db.Text, nullable=True)
     organization_id = db.Column(
         db.Integer,

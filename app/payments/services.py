@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -77,6 +77,48 @@ def _refund_totals(payment_id: int) -> tuple[Decimal, Decimal]:
     return _money(succeeded), _money(pending)
 
 
+def refundable_outstanding_amount(payment_id: int) -> Decimal:
+    """Remaining amount that can still be refunded (payment total minus pending/succeeded refunds)."""
+
+    payment = Payment.query.get(payment_id)
+    if payment is None:
+        return Decimal("0.00")
+    succeeded_total, pending_total = _refund_totals(payment_id)
+    out = _money(payment.amount) - succeeded_total - pending_total
+    return out if out > Decimal("0.00") else Decimal("0.00")
+
+
+def expire_pending_payments(*, max_age_hours: int | None = None) -> int:
+    """Mark stale pending payments as ``expired`` and audit ``payment.expired``."""
+
+    hours = max_age_hours
+    if hours is None:
+        hours = int(current_app.config.get("PAYMENT_PENDING_EXPIRY_HOURS", 24))
+    hours = max(1, hours)
+    cutoff_naive = datetime.utcnow() - timedelta(hours=hours)
+    rows = (
+        Payment.query.filter(Payment.status == "pending", Payment.created_at < cutoff_naive)
+        .order_by(Payment.id.asc())
+        .limit(500)
+        .all()
+    )
+    n = 0
+    for payment in rows:
+        payment.status = "expired"
+        n += 1
+        audit_record(
+            "payment.expired",
+            status=AuditStatus.SUCCESS,
+            organization_id=payment.organization_id,
+            target_type="payment",
+            target_id=payment.id,
+            commit=False,
+        )
+    if n:
+        db.session.commit()
+    return n
+
+
 def _payment_status_for_refunds(*, payment_amount: Decimal, refunded_total: Decimal) -> str:
     if refunded_total <= Decimal("0.00"):
         return "succeeded"
@@ -128,6 +170,13 @@ def create_checkout(
     )
     db.session.add(payment)
     db.session.flush()
+
+    if return_url and "{payment_id}" in return_url:
+        return_url = return_url.format(payment_id=payment.id)
+    if cancel_url and "{payment_id}" in cancel_url:
+        cancel_url = cancel_url.format(payment_id=payment.id)
+    payment.return_url = return_url
+    payment.cancel_url = cancel_url
 
     provider_result = provider.create_checkout(
         amount=amount,
@@ -350,6 +399,87 @@ def refund(payment_id, amount, reason, *, actor_user_id, idempotency_key=None) -
         organization_id=payment.organization_id,
         target_type="payment_refund",
         target_id=refund_row.id,
+        commit=True,
+    )
+    return {"refund_id": refund_row.id, "status": refund_row.status}
+
+
+def retry_refund(refund_id: int, *, actor_user_id: int) -> dict:
+    """Create a new pending refund row from a failed refund and call the provider."""
+
+    old = PaymentRefund.query.get(refund_id)
+    if old is None:
+        raise PaymentServiceError("not_found", "Refund not found.", 404)
+    if old.status != "failed":
+        raise PaymentServiceError("validation_error", "Only failed refunds can be retried.", 400)
+
+    payment = Payment.query.get(old.payment_id)
+    if payment is None:
+        raise PaymentServiceError("not_found", "Payment not found.", 404)
+
+    actor = User.query.get(actor_user_id)
+    if actor is None or actor.role not in {UserRole.ADMIN.value, UserRole.SUPERADMIN.value}:
+        raise PaymentServiceError("forbidden", "Admin permission required.", 403)
+    if not actor.is_superadmin and actor.organization_id != payment.organization_id:
+        raise PaymentServiceError("forbidden", "Payment not found.", 403)
+
+    idem = f"retry-refund-{old.id}-{int(time.time())}"[:128]
+    refund_row = PaymentRefund(
+        payment_id=payment.id,
+        amount=old.amount,
+        reason=old.reason,
+        status="pending",
+        idempotency_key=idem,
+        actor_user_id=actor_user_id,
+    )
+    db.session.add(refund_row)
+    db.session.flush()
+
+    provider = get_provider(payment.provider)
+    try:
+        result = provider.refund(
+            provider_payment_id=payment.provider_payment_id,
+            amount=refund_row.amount,
+            reason=refund_row.reason,
+            idempotency_key=idem,
+        )
+    except Exception as exc:  # noqa: BLE001
+        refund_row.status = "failed"
+        refund_row.last_error = str(exc)[:500]
+        audit_record(
+            "payment.refund_failed",
+            status=AuditStatus.FAILURE,
+            organization_id=payment.organization_id,
+            target_type="payment_refund",
+            target_id=refund_row.id,
+            metadata={"reason": "provider_error", "retry_of": old.id},
+            commit=True,
+        )
+        db.session.commit()
+        return {"refund_id": refund_row.id, "status": refund_row.status}
+
+    refund_row.provider_refund_id = result.get("provider_refund_id")
+    refund_row.status = result.get("status", "pending")
+    if refund_row.status == "failed":
+        refund_row.last_error = str(result.get("error") or "refund_failed")
+        audit_record(
+            "payment.refund_failed",
+            status=AuditStatus.FAILURE,
+            organization_id=payment.organization_id,
+            target_type="payment_refund",
+            target_id=refund_row.id,
+            metadata={"reason": "provider_failed", "retry_of": old.id},
+            commit=False,
+        )
+    db.session.commit()
+    audit_record(
+        "payment.refund_retried",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=payment.organization_id,
+        target_type="payment_refund",
+        target_id=refund_row.id,
+        metadata={"original_refund_id": old.id},
         commit=True,
     )
     return {"refund_id": refund_row.id, "status": refund_row.status}

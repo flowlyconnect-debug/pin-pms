@@ -1,10 +1,60 @@
 {% extends "portal/base.html" %}
 
-{% block title %}Maksu onnistui · Pin PMS{% endblock %}
+{% block title %}Maksu · Pin PMS{% endblock %}
 
 {% block content %}
   <h1>Kiitos maksusta!</h1>
-  <p>Maksusi on vastaanotettu. Kuitti näkyy laskun tiedoissa.</p>
-  <p><a href="{{ url_for('portal.invoices') }}">Palaa laskuihin</a></p>
+  {% if payment_id %}
+    <div id="payment-verify" data-status-url="{{ poll_url }}">
+      <p id="payment-status-line">Vahvistetaan maksua…</p>
+      <div id="payment-spinner" aria-hidden="true">⏳</div>
+    </div>
+    <p id="payment-done" style="display:none;">Maksusi on vahvistettu. Kuitti näkyy laskun tiedoissa.</p>
+    <p><a href="{{ url_for('portal.invoices') }}">Palaa laskuihin</a></p>
+    <script nonce="{{ csp_nonce }}">
+      (function () {
+        var root = document.getElementById("payment-verify");
+        if (!root) return;
+        var statusUrl = root.getAttribute("data-status-url");
+        if (!statusUrl) return;
+        var line = document.getElementById("payment-status-line");
+        var spin = document.getElementById("payment-spinner");
+        var done = document.getElementById("payment-done");
+        var start = Date.now();
+        var maxMs = 30000;
+        var intervalMs = 2000;
+        function tick() {
+          if (Date.now() - start > maxMs) {
+            line.textContent = "Maksun vahvistus viivästyi. Päivitä sivu tai tarkista laskun tila myöhemmin.";
+            if (spin) spin.style.display = "none";
+            return;
+          }
+          fetch(statusUrl, { credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (!data || !data.status) return;
+              line.textContent = "Tila: " + data.status;
+              if (data.status === "succeeded") {
+                root.style.display = "none";
+                done.style.display = "block";
+                return;
+              }
+              if (data.status === "failed" || data.status === "expired") {
+                line.textContent = "Maksun tila: " + data.status + ". Tarkista lasku tai ota yhteyttä.";
+                if (spin) spin.style.display = "none";
+                return;
+              }
+              setTimeout(tick, intervalMs);
+            })
+            .catch(function () {
+              setTimeout(tick, intervalMs);
+            });
+        }
+        tick();
+      })();
+    </script>
+  {% else %}
+    <p>Maksusi on vastaanotettu. Kuitti näkyy laskun tiedoissa, kun maksu on vahvistettu.</p>
+    <p><a href="{{ url_for('portal.invoices') }}">Palaa laskuihin</a></p>
+  {% endif %}
 {% endblock %}
-

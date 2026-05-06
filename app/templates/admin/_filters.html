@@ -2,15 +2,19 @@
 <form method="get" class="actions">
   <input type="hidden" name="sort" value="{{ filters.sort or 'created_at' }}">
   <input type="hidden" name="dir" value="{{ filters.direction or 'desc' }}">
-  <input type="search" name="q" value="{{ filters.q or '' }}" placeholder="Hae listasta">
-  <select name="status">
+  <label for="{{ resource }}-filters-q">Hae</label>
+  <input id="{{ resource }}-filters-q" type="search" name="q" value="{{ filters.q or '' }}" placeholder="Hae listasta">
+  <label for="{{ resource }}-filters-status">Tila</label>
+  <select id="{{ resource }}-filters-status" name="status">
     <option value="">All</option>
     <option value="confirmed" {% if filters.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
     <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Pending</option>
     <option value="cancelled" {% if filters.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
   </select>
-  <input type="date" name="from" value="{{ request.args.get('from', '') }}">
-  <input type="date" name="to" value="{{ request.args.get('to', '') }}">
+  <label for="{{ resource }}-filters-from">Alkaen</label>
+  <input id="{{ resource }}-filters-from" type="date" name="from" value="{{ request.args.get('from', '') }}">
+  <label for="{{ resource }}-filters-to">Asti</label>
+  <input id="{{ resource }}-filters-to" type="date" name="to" value="{{ request.args.get('to', '') }}">
   <button type="submit">Suodata</button>
 </form>
 {% endmacro %}

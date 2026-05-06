@@ -155,7 +155,7 @@ def test_admin_route_tenant_isolation(client, admin_user):
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     r = client.get(f"/admin/invoices/{inv['id']}/pdf")
-    assert r.status_code == 403
+    assert r.status_code == 404
 
 
 def test_api_route_requires_scope(app, client, organization, regular_user):

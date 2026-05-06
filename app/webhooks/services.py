@@ -525,3 +525,66 @@ def extract_event_metadata(
     eid = payload.get("id") or payload.get("event_id")
     ext = str(eid) if eid is not None else None
     return et, ext, org_id
+
+
+def mark_inbound_handler_dead_letter(event: WebhookEvent, *, error: str | None = None) -> None:
+    """Mark an inbound event as processed after too many handler failures (ops visibility)."""
+
+    now = _now()
+    event.processed = True
+    event.processed_at = now
+    event.processing_error = _truncate(error, _ERROR_AUDIT_MAX) or "handler_dead_letter"
+    audit_record(
+        "webhook.handler_dead_letter",
+        status=AuditStatus.FAILURE,
+        organization_id=event.organization_id,
+        target_type="webhook_event",
+        target_id=event.id,
+        metadata={
+            "provider": event.provider,
+            "event_type": event.event_type,
+            "attempts": int(event.inbound_handler_attempts or 0),
+        },
+    )
+
+
+def process_stale_inbound_webhook_events(
+    *,
+    min_age_seconds: int = 30,
+    batch_limit: int = 100,
+) -> int:
+    """Dispatch handlers for inbound events left ``processed=False`` (slow HTTP path or errors)."""
+
+    cutoff = _now() - timedelta(seconds=max(5, min_age_seconds))
+    rows = (
+        WebhookEvent.query.filter(
+            WebhookEvent.processed.is_(False),
+            WebhookEvent.created_at <= cutoff,
+        )
+        .order_by(WebhookEvent.id.asc())
+        .limit(batch_limit)
+        .all()
+    )
+    handled = 0
+    for event in rows:
+        if int(event.inbound_handler_attempts or 0) >= 5:
+            mark_inbound_handler_dead_letter(event, error=event.processing_error)
+            db.session.commit()
+            handled += 1
+            continue
+        try:
+            dispatch_handler(
+                provider=event.provider,
+                event=event,
+                payload=event.payload if isinstance(event.payload, dict) else {},
+            )
+            mark_processed(event.id, None)
+        except Exception as exc:  # noqa: BLE001
+            err = str(exc)[:512]
+            event.inbound_handler_attempts = int(event.inbound_handler_attempts or 0) + 1
+            event.processing_error = err
+            if event.inbound_handler_attempts >= 5:
+                mark_inbound_handler_dead_letter(event, error=err)
+        db.session.commit()
+        handled += 1
+    return handled

@@ -33,6 +33,7 @@ from app.tags.models import GuestTag, PropertyTag, ReservationTag, Tag
 from app.tags.services import TagService, TagServiceError
 from app.comments.models import Comment
 from app.comments.services import CommentService, CommentServiceError
+from app.core.decorators import require_api_tenant_entity
 from app.extensions import db
 
 
@@ -871,12 +872,9 @@ def get_invoice_api(invoice_id: int):
 @api_bp.get("/invoices/<int:invoice_id>/pdf")
 @require_api_key
 @scope_required("invoices:read")
+@require_api_tenant_entity(Invoice, id_param="invoice_id")
 def api_invoice_pdf(invoice_id: int):
-    inv = Invoice.query.get(invoice_id)
-    if inv is None:
-        return json_error("not_found", "Invoice not found.", status=404)
-    if inv.organization_id != _org_id():
-        return json_error("forbidden", "Invoice not found.", status=403)
+    inv = g.scoped_entity
     try:
         pdf_bytes = generate_invoice_pdf(invoice_id)
     except billing_service.InvoiceServiceError as err:

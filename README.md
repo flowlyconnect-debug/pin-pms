@@ -21,6 +21,20 @@ This project provides the core operational platform for PMS use cases:
 - Mailgun-backed template email delivery
 - scheduled/manual backups with guarded restore
 
+## Tarkoitus — tukipaketit
+
+### `app/subscriptions/`
+
+**Tarkoitus:** `SubscriptionPlan`-malli ja organisaation käyttäjien tilaus-/rajapaketointi (esim. API rate limit -metadata `limits_json`-kentässä). Ei erillistä blueprintia; taulu ja ORM käytössä käyttäjä–tilaus -suhteessa.
+
+### `app/status/`
+
+**Tarkoitus:** Julkisen tilasivun ja valmiustarkistusten (`StatusComponent`, `StatusCheck`, `StatusIncident`) datamallit ja palvelu; synteettiset tarkistukset voidaan ajastaa APSchedulerilla (`app/status/scheduler.py`). Käytössä mm. `/api/v1/health/ready` ja superadmin-näkymät.
+
+### `app/owner_portal/`
+
+**Tarkoitus:** Omistajille tarkoitettu kirjautumispinta (`/owner`) ja omistajakohtaiset listaukset (esim. kiinteistöiden varaukset). Säilytetty Pakkaus 8:n owner statements -työn alla olevaa jatkokehitystä varten.
+
 ## Tech stack
 
 - Python 3.12+

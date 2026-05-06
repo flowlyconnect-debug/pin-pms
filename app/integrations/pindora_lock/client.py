@@ -32,23 +32,16 @@ class PindoraLockClient:
         valid_until_iso: str,
     ) -> dict[str, Any]:
         self._ensure_enabled()
-        # Placeholder endpoint path; replace once vendor docs are confirmed.
-        return self._request(
-            "POST",
-            f"/devices/{provider_device_id}/codes",
-            json_payload={
-                "code": code,
-                "valid_from": valid_from_iso,
-                "valid_until": valid_until_iso,
-            },
-        )
+        # Placeholder paths (vendor TBD): POST /devices/{id}/codes with JSON body;
+        # finalize against vendor docs before enabling live calls.
+        raise RuntimeError("Pindora lock vendor endpoints not yet finalized")
 
     def revoke_access_code(
         self, *, provider_device_id: str, provider_code_id: str
     ) -> dict[str, Any]:
         self._ensure_enabled()
-        # Placeholder endpoint path; replace once vendor docs are confirmed.
-        return self._request("DELETE", f"/devices/{provider_device_id}/codes/{provider_code_id}")
+        # Placeholder path (vendor TBD): DELETE /devices/{id}/codes/{code_id}
+        raise RuntimeError("Pindora lock vendor endpoints not yet finalized")
 
     def verify_webhook_signature(self, *, payload: bytes, signature: str) -> bool:
         secret = (current_app.config.get("PINDORA_LOCK_WEBHOOK_SECRET") or "").strip()

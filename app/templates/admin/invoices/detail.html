@@ -69,13 +69,33 @@
             <td>{{ p.amount }} {{ p.currency }}</td>
             <td>{{ p.created_at }}</td>
             <td>
-              {% if p.status == "succeeded" %}
+              {% if p.status in ["succeeded", "partially_refunded"] %}
+                <p><strong>Jäljellä hyvitettävää:</strong> {{ payment_outstanding.get(p.id) }} {{ p.currency }}</p>
                 <form method="post" action="{{ url_for('admin.payments_refund', payment_id=p.id) }}">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="text" name="amount" placeholder="Summa" required>
-                  <input type="text" name="reason" placeholder="Syy">
+                  <label>Summa (€)
+                    <input type="text" name="amount" placeholder="Esim. 30.00" required>
+                  </label>
+                  <label>Syy (valinnainen)
+                    <input type="text" name="reason" placeholder="Syy">
+                  </label>
                   <button type="submit">Hyvitä</button>
                 </form>
+              {% endif %}
+              {% set refunds = refunds_by_payment_id.get(p.id, []) %}
+              {% if refunds %}
+                <ul class="payment-refunds">
+                  {% for r in refunds %}
+                    <li>#{{ r.id }} — {{ r.amount }} {{ p.currency }} — {{ r.status }}
+                      {% if r.status == "failed" %}
+                        <form method="post" action="{{ url_for('admin.invoices_refund_retry', invoice_id=row.id, refund_id=r.id) }}" style="display:inline;">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <button type="submit">Yritä uudelleen</button>
+                        </form>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
               {% endif %}
             </td>
           </tr>

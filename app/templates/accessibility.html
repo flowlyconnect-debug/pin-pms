@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="{{ g.locale|default(config.get('BABEL_DEFAULT_LOCALE', 'fi')) }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Saavutettavuusseloste · Pin PMS</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/skip-link.css') }}">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Hyppää sisältöön</a>
+  <main id="main-content" role="main">
+    <h1>Saavutettavuusseloste</h1>
+    <p>Tama seloste koskee Pin PMS -jarjestelman admin-paneelia ja vierasportaalia.</p>
+    <h2>Saavutettavuuden tila</h2>
+    <p>Palvelu pyritaan pitamaan WCAG 2.1 AA -tason mukaisena.</p>
+    <h2>Havaitut rajoitukset</h2>
+    <p>Kaikkia yksittaisia sivuja ei valttamatta ole viela validoitu manuaalisesti ruudunlukijalla.</p>
+    <h2>Palautekanava</h2>
+    <p>Jos huomaat saavutettavuuspuutteen, ilmoita siita sahkopostitse: support@pinpms.example</p>
+    <h2>Paivitys</h2>
+    <p>Seloste paivitetty: {{ now().strftime('%Y-%m-%d') if now is defined else '2026-05-06' }}</p>
+  </main>
+</body>
+</html>

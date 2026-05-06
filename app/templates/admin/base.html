@@ -1,13 +1,14 @@
 <!doctype html>
 {% from "admin/_nav_icons.html" import nav_icon_dashboard, nav_icon_building, nav_icon_user, nav_icon_bookings, nav_icon_document, nav_icon_invoice, nav_icon_maintenance, nav_icon_calendar, nav_icon_warning, nav_icon_reports, nav_icon_clipboard, nav_icon_bell, nav_icon_users, nav_icon_org, nav_icon_key, nav_icon_link, nav_icon_mail, nav_icon_server, nav_icon_settings, nav_icon_status %}
 {% set ui_theme = request.cookies.get("ui_theme", "auto") %}
-<html lang="en" data-theme="{{ ui_theme if ui_theme in ['light', 'dark', 'auto'] else 'auto' }}">
+<html lang="{{ g.locale|default(config.get('BABEL_DEFAULT_LOCALE', 'fi')) }}" data-theme="{{ ui_theme if ui_theme in ['light', 'dark', 'auto'] else 'auto' }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <title>{% block title %}Ylläpito · Pin PMS{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='ui-polish-v2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/skip-link.css') }}">
     <script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-toast.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-confirm.js') }}" defer></script>
@@ -23,16 +24,17 @@
   {% set user_initials = (user_email[:2] if current_user.is_authenticated else "PM")|upper %}
   {% set current_page_title %}{% block page_title %}Hallinta{% endblock %}{% endset %}
   <body class="admin">
+    <a class="skip-link" href="#main-content">Hyppää sisältöön</a>
     <div class="admin-sidebar-backdrop" aria-hidden="true"></div>
     <div class="admin-shell">
-      <aside id="admin-sidebar" class="admin-sidebar" aria-label="Ylläpidon valikko">
+      <aside id="admin-sidebar" class="admin-sidebar" role="complementary" aria-label="Ylläpidon valikko">
         <div class="admin-sidebar-head">
           <a class="admin-brand" href="{{ url_for('admin.admin_home') }}">
             <span class="admin-brand-mark" aria-hidden="true"></span>
             <span>Pin PMS</span>
           </a>
         </div>
-        <nav class="admin-sidebar-nav">
+        <nav class="admin-sidebar-nav" role="navigation" aria-label="Päävalikko">
           <div class="admin-nav-group" role="group" aria-labelledby="admin-nav-grp-primary">
             <p id="admin-nav-grp-primary" class="admin-nav-group-title">Päätoiminnot</p>
             <div class="admin-nav-group-items">
@@ -66,6 +68,7 @@
               <a href="{{ url_for('backups_admin.backups_list') }}" class="admin-nav-link{% if ep.startswith('backups_admin.backups_') %} is-active{% endif %}"{% if ep.startswith('backups_admin.backups_') %} aria-current="page"{% endif %}>{{ nav_icon_server() }}<span class="admin-nav-text">Varmuuskopiot</span></a>
               <a href="{{ url_for('admin.settings_list') }}" class="admin-nav-link{% if ep.startswith('admin.settings_') %} is-active{% endif %}"{% if ep.startswith('admin.settings_') %} aria-current="page"{% endif %}>{{ nav_icon_settings() }}<span class="admin-nav-text">Asetukset</span></a>
               <a href="{{ url_for('admin.superadmin_status') }}" class="admin-nav-link{% if ep == 'admin.superadmin_status' %} is-active{% endif %}"{% if ep == 'admin.superadmin_status' %} aria-current="page"{% endif %}>{{ nav_icon_status() }}<span class="admin-nav-text">Tilannehallinta</span></a>
+              <a href="{{ url_for('core.accessibility_statement') }}" class="admin-nav-link{% if ep == 'core.accessibility_statement' %} is-active{% endif %}"{% if ep == 'core.accessibility_statement' %} aria-current="page"{% endif %}><span class="admin-nav-ico" aria-hidden="true">A11Y</span><span class="admin-nav-text">Saavutettavuus</span></a>
             </div>
           </div>
         </nav>
@@ -107,7 +110,7 @@
             </details>
           </div>
         </header>
-        <main class="admin-main">
+        <main id="main-content" class="admin-main" role="main" tabindex="-1">
           <header class="admin-desktop-topbar">
             <h1 class="admin-desktop-title">{{ current_page_title|trim }}</h1>
             <div class="admin-topbar-actions">

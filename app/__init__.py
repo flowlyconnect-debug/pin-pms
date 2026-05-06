@@ -79,6 +79,7 @@ def create_app(config_object: str = "default") -> Flask:
     _maybe_start_owner_scheduler(app)
     _maybe_start_status_scheduler(app)
     _maybe_start_webhook_delivery_scheduler(app)
+    _maybe_start_payment_expiry_scheduler(app)
     init_tracing(app)
 
     return app
@@ -274,6 +275,16 @@ def _maybe_start_webhook_delivery_scheduler(app):
     scheduler = init_scheduler(app)
     if scheduler is not None:
         _register_scheduler(app, "webhook_delivery", scheduler)
+
+
+def _maybe_start_payment_expiry_scheduler(app):
+    if _scheduler_should_skip(app):
+        return
+    from app.payments.scheduler import init_scheduler
+
+    scheduler = init_scheduler(app)
+    if scheduler is not None:
+        _register_scheduler(app, "payment_expiry", scheduler)
 
 
 def _register_scheduler(app, name: str, scheduler) -> None:

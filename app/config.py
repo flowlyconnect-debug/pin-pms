@@ -374,6 +374,12 @@ class BaseConfig:
     WEBHOOK_DELIVERY_RETRY_INTERVAL_SECONDS = int(
         os.getenv("WEBHOOK_DELIVERY_RETRY_INTERVAL_SECONDS", "60")
     )
+    WEBHOOK_INBOUND_HANDLER_SCHEDULER_ENABLED = os.getenv(
+        "WEBHOOK_INBOUND_HANDLER_SCHEDULER_ENABLED", "0"
+    ).lower() in {"1", "true", "yes"}
+    WEBHOOK_INBOUND_HANDLER_INTERVAL_SECONDS = int(
+        os.getenv("WEBHOOK_INBOUND_HANDLER_INTERVAL_SECONDS", "60")
+    )
     WEBHOOK_HTTP_TIMEOUT_SECONDS = float(os.getenv("WEBHOOK_HTTP_TIMEOUT_SECONDS", "4"))
     WEBHOOK_PUBLISH_ASYNC = os.getenv("WEBHOOK_PUBLISH_ASYNC", "0").lower() in {
         "1",
@@ -390,6 +396,10 @@ class BaseConfig:
     PAYTRAIL_API_BASE = os.getenv("PAYTRAIL_API_BASE", "https://services.paytrail.com")
     PAYMENT_RETURN_URL = os.getenv("PAYMENT_RETURN_URL", "")
     PAYMENT_CALLBACK_URL = os.getenv("PAYMENT_CALLBACK_URL", "")
+    PAYMENT_PENDING_EXPIRY_HOURS = int(os.getenv("PAYMENT_PENDING_EXPIRY_HOURS", "24"))
+    PAYMENT_EXPIRY_SCHEDULER_ENABLED = os.getenv(
+        "PAYMENT_EXPIRY_SCHEDULER_ENABLED", "0"
+    ).lower() in {"1", "true", "yes"}
 
 
 class DevelopmentConfig(BaseConfig):
@@ -426,6 +436,8 @@ class TestConfig(BaseConfig):
     INVOICE_OVERDUE_SCHEDULER_ENABLED = False
     IDEMPOTENCY_PRUNE_SCHEDULER_ENABLED = False
     WEBHOOK_DELIVERY_SCHEDULER_ENABLED = False
+    WEBHOOK_INBOUND_HANDLER_SCHEDULER_ENABLED = False
+    PAYMENT_EXPIRY_SCHEDULER_ENABLED = False
     CHECKIN_FERNET_KEY = os.getenv(
         "CHECKIN_FERNET_KEY",
         "1zakWgvYOaHtecRaBwIRHYuB8waN6MZPwAo5FGIx9Bg=",
