@@ -28,3 +28,4 @@ opentelemetry-instrumentation-sqlalchemy
 opentelemetry-exporter-otlp
 sentry-sdk[flask]>=1.40
 stripe>=8.0,<10
+openpyxl

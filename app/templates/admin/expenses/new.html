@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Uusi kulu · Pin PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.expenses_list') }}">Takaisin kuluihin</a>
+  </div>
+  <h1>Lisää kulu</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="property_id">Kohde</label>
+    <select id="property_id" name="property_id">
+      <option value="">Ei kohdetta</option>
+      {% for prop in properties %}
+        <option value="{{ prop.id }}" {% if form.property_id == prop.id|string %}selected{% endif %}>{{ prop.name }}</option>
+      {% endfor %}
+    </select>
+    <label for="category">Kategoria</label>
+    <select id="category" name="category" required>
+      {% for cat in categories %}
+        <option value="{{ cat }}" {% if form.category == cat %}selected{% endif %}>{{ cat }}</option>
+      {% endfor %}
+    </select>
+    <label for="amount">Summa</label>
+    <input id="amount" name="amount" type="number" min="0" step="0.01" required value="{{ form.amount }}">
+    <label for="vat">ALV (summa)</label>
+    <input id="vat" name="vat" type="number" min="0" step="0.01" value="{{ form.vat }}">
+    <label for="date">Päivämäärä</label>
+    <input id="date" name="date" type="date" required value="{{ form.date }}">
+    <label for="payee">Maksunsaaja</label>
+    <input id="payee" name="payee" value="{{ form.payee }}">
+    <label for="description">Kuvaus</label>
+    <textarea id="description" name="description">{{ form.description }}</textarea>
+    <div class="actions">
+      <button type="submit" class="btn">Tallenna kulu</button>
+    </div>
+  </form>
+{% endblock %}

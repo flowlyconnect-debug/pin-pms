@@ -9,6 +9,7 @@
 
 {% block content %}
   {% set revenue = summary.revenue or {} %}
+  {% set cash_flow = summary.cash_flow or {} %}
 
   <div class="dashboard-modern-header">
     {% if current_user.is_superadmin and organization_options %}
@@ -44,22 +45,22 @@
       </p>
     </article>
     <article class="dashboard-kpi-modern-card kpi-card">
-      <p class="dashboard-kpi-modern-label">Tulot (kk)</p>
-      <p class="dashboard-kpi-modern-value">{{ revenue.month_to_date_fi or "0,00 €" }}</p>
+      <p class="dashboard-kpi-modern-label">Tulot tässä kuussa</p>
+      <p class="dashboard-kpi-modern-value">{{ cash_flow.income_this_month_fi or revenue.month_to_date_fi or "0,00 €" }}</p>
       <p class="dashboard-kpi-modern-delta">
-        Avoimet saatavat: {{ revenue.open_receivables_fi or "0,00 €" }}
+        Edellinen kuukausi: {{ revenue.month_to_date_previous_fi or "0,00 €" }}
       </p>
     </article>
     <article class="dashboard-kpi-modern-card kpi-card">
-      <p class="dashboard-kpi-modern-label">Aktiiviset varaukset</p>
-      <p class="dashboard-kpi-modern-value">{{ summary.active_reservations or 0 }}</p>
-      <p class="dashboard-kpi-modern-delta">Tänään saapuu: {{ summary.arrivals_today or 0 }} · Tänään lähtee: {{ summary.departures_today or 0 }}</p>
+      <p class="dashboard-kpi-modern-label">Kulut tässä kuussa</p>
+      <p class="dashboard-kpi-modern-value">{{ cash_flow.expenses_this_month_fi or "0,00 €" }}</p>
+      <p class="dashboard-kpi-modern-delta">Avoimet saatavat: {{ revenue.open_receivables_fi or "0,00 €" }}</p>
     </article>
     <article class="dashboard-kpi-modern-card kpi-card">
-      <p class="dashboard-kpi-modern-label">Avoimet laskut</p>
-      <p class="dashboard-kpi-modern-value">{{ summary.open_invoices or 0 }}</p>
+      <p class="dashboard-kpi-modern-label">Nettokassavirta</p>
+      <p class="dashboard-kpi-modern-value">{{ cash_flow.net_cash_flow_this_month_fi or "0,00 €" }}</p>
       <p class="dashboard-kpi-modern-delta">
-        Erääntyneitä: {{ summary.overdue_invoices or 0 }}
+        Avoimet laskut: {{ summary.open_invoices or 0 }} · Erääntyneitä: {{ summary.overdue_invoices or 0 }}
       </p>
     </article>
   </section>

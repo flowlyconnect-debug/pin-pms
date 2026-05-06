@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Kulut · Pin PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn" href="{{ url_for('admin.expenses_new') }}">Lisää kulu</a>
+  </div>
+  <h1>Kulut</h1>
+  <form method="get" class="card">
+    <label for="property_id">Kohde</label>
+    <select id="property_id" name="property_id">
+      <option value="">Kaikki kohteet</option>
+      {% for prop in properties %}
+        <option value="{{ prop.id }}" {% if selected_property_id == prop.id %}selected{% endif %}>{{ prop.name }}</option>
+      {% endfor %}
+    </select>
+    <div class="actions">
+      <button type="submit">Suodata</button>
+    </div>
+  </form>
+  <table>
+    <thead>
+      <tr>
+        <th>Päivä</th>
+        <th>Kategoria</th>
+        <th>Kohde</th>
+        <th>Summa</th>
+        <th>ALV</th>
+        <th>Kuvaus</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.date }}</td>
+          <td>{{ row.category }}</td>
+          <td>{{ row.property.name if row.property else "—" }}</td>
+          <td>{{ row.amount }}</td>
+          <td>{{ row.vat }}</td>
+          <td>{{ row.description or "—" }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6"><em>Ei kuluja.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

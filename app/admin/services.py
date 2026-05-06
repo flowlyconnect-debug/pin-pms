@@ -18,6 +18,7 @@ from app.billing.models import Invoice, Lease
 from app.email.models import OutgoingEmail, OutgoingEmailStatus
 from app.email.services import render_template as render_email_template
 from app.email.services import send_test_template_email
+from app.expenses.models import Expense
 from app.extensions import db
 from app.guests.models import Guest
 from app.integrations.ical.models import ImportedCalendarEvent, ImportedCalendarFeed
@@ -587,6 +588,24 @@ def get_dashboard_stats(
         start_dt=month_start,
         end_dt=now_utc,
     )
+    previous_month_start = (month_start - timedelta(days=1)).replace(day=1)
+    month_to_date_revenue_previous = _sum_paid_between(
+        organization_id=organization_id,
+        start_dt=previous_month_start,
+        end_dt=month_start,
+    )
+    month_expenses = (
+        db.session.query(func.coalesce(func.sum(Expense.amount), 0))
+        .select_from(Expense)
+        .filter(
+            Expense.organization_id == organization_id,
+            Expense.date >= month_start.date(),
+            Expense.date <= today,
+        )
+        .scalar()
+    )
+    month_expenses_dec = Decimal(month_expenses or 0).quantize(Decimal("0.01"))
+    month_net_cash_flow = (month_to_date_revenue - month_expenses_dec).quantize(Decimal("0.01"))
     compare_start = range_start_dt - timedelta(days=range_days)
     compare_end = range_start_dt
     range_compare_revenue = _sum_paid_between(
@@ -752,6 +771,7 @@ def get_dashboard_stats(
         "open_invoices_amount_fi": _format_eur_fi(open_receivables),
         "revenue": {
             "month_to_date": month_to_date_revenue,
+            "month_to_date_previous": month_to_date_revenue_previous,
             "previous_month": range_compare_revenue,
             "range_total": range_total_revenue,
             "range_compare": range_compare_revenue,
@@ -759,8 +779,17 @@ def get_dashboard_stats(
             "open_receivables": open_receivables,
             "overdue_amount": overdue_amount,
             "month_to_date_fi": _format_eur_fi(month_to_date_revenue),
+            "month_to_date_previous_fi": _format_eur_fi(month_to_date_revenue_previous),
             "open_receivables_fi": _format_eur_fi(open_receivables),
             "overdue_amount_fi": _format_eur_fi(overdue_amount),
+        },
+        "cash_flow": {
+            "income_this_month": month_to_date_revenue,
+            "expenses_this_month": month_expenses_dec,
+            "net_cash_flow_this_month": month_net_cash_flow,
+            "income_this_month_fi": _format_eur_fi(month_to_date_revenue),
+            "expenses_this_month_fi": _format_eur_fi(month_expenses_dec),
+            "net_cash_flow_this_month_fi": _format_eur_fi(month_net_cash_flow),
         },
         "integrations": integrations,
         "backup_status": backup_status if viewer_is_superadmin else None,

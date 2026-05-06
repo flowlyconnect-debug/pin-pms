@@ -59,6 +59,8 @@ from app.auth.routes import require_superadmin_2fa
 from app.billing import services as billing_service
 from app.billing.models import Invoice
 from app.billing.pdf import generate_invoice_pdf
+from app.expenses import services as expense_service
+from app.expenses.models import Expense
 from app.email.models import EmailQueueItem, EmailTemplate, OutgoingEmailStatus
 from app.email.services import EmailServiceError, update_email_template_admin
 from app.extensions import db
@@ -235,6 +237,23 @@ def admin_home():
         selected_range=selected_range,
         availability_preview=availability_preview,
     )
+
+
+def _parse_report_range() -> tuple[date, date, str | None]:
+    start_date_raw = (request.args.get("start_date") or "").strip()
+    end_date_raw = (request.args.get("end_date") or "").strip()
+    if not start_date_raw or not end_date_raw:
+        today = date.today()
+        start_date = date(today.year, today.month, 1)
+        return start_date, today, None
+    try:
+        start_date = date.fromisoformat(start_date_raw)
+        end_date = date.fromisoformat(end_date_raw)
+    except ValueError:
+        return date.today(), date.today(), "Päivämäärien tulee olla muodossa YYYY-MM-DD."
+    if start_date > end_date:
+        return start_date, end_date, "Alkupäivä ei voi olla loppupäivän jälkeen."
+    return start_date, end_date, None
 
 
 @admin_bp.post("/theme")
@@ -1618,6 +1637,246 @@ def reports_occupancy():
 def reports_reservations():
     data = report_service.reservation_report(organization_id=_pms_org_id())
     return render_template("admin/reports/reservations.html", data=data)
+
+
+@admin_bp.get("/expenses")
+@require_admin_pms_access
+def expenses_list():
+    org_id = _pms_org_id()
+    property_raw = (request.args.get("property_id") or "").strip()
+    property_id = int(property_raw) if property_raw.isdigit() else None
+    rows = expense_service.list_expenses(organization_id=org_id, property_id=property_id)
+    properties = (
+        Property.query.filter_by(organization_id=org_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    return render_template(
+        "admin/expenses/list.html",
+        rows=rows,
+        properties=properties,
+        selected_property_id=property_id,
+    )
+
+
+@admin_bp.route("/expenses/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def expenses_new():
+    org_id = _pms_org_id()
+    properties = (
+        Property.query.filter_by(organization_id=org_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    form = {
+        "property_id": "",
+        "category": "other",
+        "amount": "",
+        "vat": "0.00",
+        "date": date.today().isoformat(),
+        "description": "",
+        "payee": "",
+    }
+    error = None
+    if request.method == "POST":
+        form["property_id"] = (request.form.get("property_id") or "").strip()
+        form["category"] = (request.form.get("category") or "").strip().lower()
+        form["amount"] = (request.form.get("amount") or "").strip()
+        form["vat"] = (request.form.get("vat") or "").strip()
+        form["date"] = (request.form.get("date") or "").strip()
+        form["description"] = (request.form.get("description") or "").strip()
+        form["payee"] = (request.form.get("payee") or "").strip()
+        property_id = int(form["property_id"]) if form["property_id"].isdigit() else None
+        try:
+            expense_service.create_expense(
+                organization_id=org_id,
+                property_id=property_id,
+                category=form["category"],
+                amount_raw=form["amount"],
+                vat_raw=form["vat"],
+                date_raw=form["date"],
+                description=form["description"],
+                payee=form["payee"],
+                actor_user_id=current_user.id,
+            )
+        except expense_service.ExpenseServiceError as err:
+            error = err.message
+        else:
+            flash("Kulu lisätty.")
+            return redirect(url_for("admin.expenses_list"))
+    return render_template(
+        "admin/expenses/new.html",
+        properties=properties,
+        form=form,
+        categories=expense_service.ALLOWED_CATEGORIES,
+        error=error,
+    )
+
+
+def _report_xlsx_response(*, filename: str, columns: list[str], rows: list[list]):
+    try:
+        from openpyxl import Workbook
+    except Exception:
+        abort(400, description="openpyxl puuttuu, XLSX-vienti ei käytettävissä.")
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Report"
+    sheet.append(columns)
+    for row in rows:
+        sheet.append(row)
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@admin_bp.get("/reports/cash-flow")
+@require_admin_pms_access
+def reports_cash_flow():
+    org_id = _pms_org_id()
+    start_date, end_date, error = _parse_report_range()
+    property_raw = (request.args.get("property_id") or "").strip()
+    property_id = int(property_raw) if property_raw.isdigit() else None
+    export_format = (request.args.get("export") or "").strip().lower()
+    data = report_service.cash_flow_report(
+        organization_id=org_id,
+        start_date=start_date,
+        end_date=end_date,
+        property_id=property_id,
+    )
+    if export_format in {"csv", "xlsx"}:
+        export_rows = [
+            [row["label"], str(row["income"]), str(row["expenses"]), str(row["net"])]
+            for row in data["groups"]
+        ]
+        if export_format == "csv":
+            sio = StringIO()
+            writer = csv.writer(sio)
+            writer.writerow(["period", "income", "expenses", "net"])
+            writer.writerows(export_rows)
+            return Response(
+                sio.getvalue(),
+                mimetype="text/csv; charset=utf-8",
+                headers={"Content-Disposition": 'attachment; filename="cash-flow.csv"'},
+            )
+        return _report_xlsx_response(
+            filename="cash-flow.xlsx",
+            columns=["period", "income", "expenses", "net"],
+            rows=export_rows,
+        )
+    properties = (
+        Property.query.filter_by(organization_id=org_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    return render_template(
+        "admin/reports/cash_flow.html",
+        data=data,
+        error=error,
+        properties=properties,
+        selected_property_id=property_id,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+    )
+
+
+@admin_bp.get("/reports/income-breakdown")
+@require_admin_pms_access
+def reports_income_breakdown():
+    org_id = _pms_org_id()
+    start_date, end_date, error = _parse_report_range()
+    property_raw = (request.args.get("property_id") or "").strip()
+    property_id = int(property_raw) if property_raw.isdigit() else None
+    export_format = (request.args.get("export") or "").strip().lower()
+    data = report_service.income_breakdown_report(
+        organization_id=org_id,
+        start_date=start_date,
+        end_date=end_date,
+        property_id=property_id,
+    )
+    export_rows = [[row["label"], str(row["amount"])] for row in data["groups"]]
+    if export_format == "csv":
+        sio = StringIO()
+        writer = csv.writer(sio)
+        writer.writerow(["type", "amount"])
+        writer.writerows(export_rows)
+        return Response(
+            sio.getvalue(),
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="income-breakdown.csv"'},
+        )
+    if export_format == "xlsx":
+        return _report_xlsx_response(
+            filename="income-breakdown.xlsx",
+            columns=["type", "amount"],
+            rows=export_rows,
+        )
+    properties = (
+        Property.query.filter_by(organization_id=org_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    return render_template(
+        "admin/reports/income_breakdown.html",
+        data=data,
+        error=error,
+        properties=properties,
+        selected_property_id=property_id,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+    )
+
+
+@admin_bp.get("/reports/expenses-breakdown")
+@require_admin_pms_access
+def reports_expenses_breakdown():
+    org_id = _pms_org_id()
+    start_date, end_date, error = _parse_report_range()
+    property_raw = (request.args.get("property_id") or "").strip()
+    property_id = int(property_raw) if property_raw.isdigit() else None
+    export_format = (request.args.get("export") or "").strip().lower()
+    data = report_service.expenses_breakdown_report(
+        organization_id=org_id,
+        start_date=start_date,
+        end_date=end_date,
+        property_id=property_id,
+    )
+    export_rows = [[row["label"], str(row["amount"])] for row in data["groups"]]
+    if export_format == "csv":
+        sio = StringIO()
+        writer = csv.writer(sio)
+        writer.writerow(["category", "amount"])
+        writer.writerows(export_rows)
+        return Response(
+            sio.getvalue(),
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="expenses-breakdown.csv"'},
+        )
+    if export_format == "xlsx":
+        return _report_xlsx_response(
+            filename="expenses-breakdown.xlsx",
+            columns=["category", "amount"],
+            rows=export_rows,
+        )
+    properties = (
+        Property.query.filter_by(organization_id=org_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    return render_template(
+        "admin/reports/expenses_breakdown.html",
+        data=data,
+        error=error,
+        properties=properties,
+        selected_property_id=property_id,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+    )
 
 
 # --- Leases & invoices (billing) -------------------------------------------

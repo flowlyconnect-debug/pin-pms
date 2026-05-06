@@ -400,6 +400,10 @@ def register_models():
         from app.payments.models import Payment, PaymentRefund  # noqa: F401
     except Exception:
         pass
+    try:
+        from app.expenses.models import Expense  # noqa: F401
+    except Exception:
+        pass
     _ = (
         SavedFilter,
         ApiKey,
@@ -428,6 +432,7 @@ def register_models():
     )
     _ = OutgoingEmail
     _ = (OwnerPayout, OwnerUser, PropertyOwner, PropertyOwnerAssignment)
+    _ = Expense if "Expense" in locals() else None
 
 
 @login_manager.user_loader
