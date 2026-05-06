@@ -26,6 +26,6 @@ opentelemetry-distro
 opentelemetry-instrumentation-flask
 opentelemetry-instrumentation-sqlalchemy
 opentelemetry-exporter-otlp
-sentry-sdk[flask]>=1.40
+sentry-sdk[flask]>=2.59.0
 stripe>=8.0,<10
 openpyxl
