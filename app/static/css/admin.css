@@ -1096,11 +1096,12 @@ body.admin-sidebar-collapsed .admin-main-wrap {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
   padding: 1.25rem;
-  transition: box-shadow var(--t-fast), transform var(--t-fast);
+  transition: box-shadow 200ms ease-out, transform 200ms ease-out, border-color 200ms ease-out;
 }
 
 .card:hover {
   box-shadow: var(--shadow-lg);
+  transform: translateY(-2px) scale(1.008);
 }
 
 .card-elevated { box-shadow: var(--shadow-md); }
@@ -1421,7 +1422,7 @@ body.admin-sidebar-collapsed .admin-main-wrap {
   border-radius: 14px;
   padding: 1rem 1.05rem;
   box-shadow: var(--admin-shadow-card);
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color 200ms ease-out, box-shadow 200ms ease-out, transform 200ms ease-out;
 }
 
 .kpi-card,
@@ -1480,10 +1481,11 @@ body.admin-sidebar-collapsed .admin-main-wrap {
 
 .admin-kpi-card:hover {
   border-color: #cfc4b8;
+  transform: translateY(-3px) scale(1.012);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.8) inset,
     0 1px 2px rgba(31, 27, 27, 0.05),
-    0 14px 36px rgba(31, 27, 27, 0.09);
+    0 18px 44px rgba(31, 27, 27, 0.12);
 }
 
 .admin-kpi-card--danger {
@@ -2029,4 +2031,110 @@ body.admin-sidebar-collapsed .admin-main-wrap {
   text-align: left;
   cursor: pointer;
   text-decoration: underline;
+}
+
+/* ================================================================
+   Micro-animations & hover feedback
+   ================================================================ */
+
+/* — Entrance: staggered fade-up for KPI cards — */
+@keyframes admin-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.admin-kpi-card {
+  animation: admin-fade-up 0.32s ease-out both;
+}
+.admin-kpi-card:nth-child(1) { animation-delay:   0ms; }
+.admin-kpi-card:nth-child(2) { animation-delay:  60ms; }
+.admin-kpi-card:nth-child(3) { animation-delay: 120ms; }
+.admin-kpi-card:nth-child(4) { animation-delay: 180ms; }
+.admin-kpi-card:nth-child(5) { animation-delay: 240ms; }
+.admin-kpi-card:nth-child(6) { animation-delay: 300ms; }
+
+/* — Entrance: panels and cards — */
+@keyframes admin-fade-in-soft {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.admin-desktop-topbar {
+  animation: admin-fade-in-soft 0.25s ease-out both;
+}
+
+.card {
+  animation: admin-fade-in-soft 0.28s ease-out both;
+}
+
+/* — dashboard-kpi-modern-card lift — */
+.kpi-card,
+.dashboard-kpi-modern-card {
+  transition: box-shadow 200ms ease-out, transform 200ms ease-out, border-color 200ms ease-out;
+}
+.kpi-card:hover,
+.dashboard-kpi-modern-card:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: var(--shadow-lg);
+}
+
+/* — Danger KPI card lift — */
+.admin-kpi-card--danger:hover {
+  transform: translateY(-3px) scale(1.012);
+}
+
+/* — Buttons: smoother transition + press effect — */
+.btn {
+  transition: all 200ms ease-out;
+}
+
+.btn:active {
+  transform: scale(0.965) !important;
+  transition-duration: 80ms;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px) scale(1.015);
+}
+
+/* — Table rows: smooth highlight — */
+tr.table-row-link {
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+/* — Flash messages slide in — */
+@keyframes admin-flash-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.flash {
+  animation: admin-flash-in 0.22s ease-out both;
+}
+
+/* — Avatar dropdown scale-in — */
+@keyframes admin-dropdown-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.admin-avatar-menu[open] .admin-avatar-dropdown {
+  animation: admin-dropdown-in 0.18s ease-out both;
+}
+
+/* — Respect reduced-motion preference — */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
