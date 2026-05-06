@@ -65,7 +65,7 @@
   </section>
 
   <section class="dashboard-columns">
-    <article class="card">
+    <article class="card content-card">
       <h2>Vaatii toimintaa</h2>
       <ul>
         {% for row in summary.action_required %}
@@ -75,7 +75,7 @@
         {% endfor %}
       </ul>
     </article>
-    <article class="card">
+    <article class="card content-card">
       <h2>Tänään saapuu</h2>
       <ul>
         {% for row in summary.today_arrivals %}
@@ -95,7 +95,7 @@
     </article>
   </section>
 
-  <section class="card">
+  <section class="card content-card">
     <h2>Yksiköiden tilanne tänään</h2>
     <ul class="dashboard-upcoming-list">
       {% for row in summary.unit_status_overview %}
@@ -110,26 +110,26 @@
   </section>
 
   {% if summary.backup_status %}
-    <section class="card">
+    <section class="card content-card">
       <h2>Backup</h2>
       <p class="meta">Tila: {{ summary.backup_status.state }}</p>
     </section>
   {% endif %}
 
   <section class="dashboard-mini-charts-grid">
-    <article class="card dashboard-mini-chart-card">
+    <article class="card content-card dashboard-mini-chart-card">
       <h2>Viikkonäkymä</h2>
       <canvas id="revenue-chart" height="130"></canvas>
       <p class="meta">{{ summary.range_label or "Tänään" }}</p>
     </article>
-    <article class="card dashboard-mini-chart-card">
+    <article class="card content-card dashboard-mini-chart-card">
       <h2>Käyttöaste</h2>
       <canvas id="occupancy-chart" height="130"></canvas>
     </article>
   </section>
 
   <section class="dashboard-columns">
-    <section class="card">
+    <section class="card content-card">
       <h2>Saapuvat seuraavat 7 päivää</h2>
       <ul class="dashboard-upcoming-list">
         {% for row in summary.today_arrivals %}
@@ -142,7 +142,7 @@
         {% endfor %}
       </ul>
     </section>
-    <section class="card">
+    <section class="card content-card">
       <h2>Hälytykset ja toimintaehdotukset</h2>
       <ul class="dashboard-alerts-list">
         {% for item in summary.action_required %}

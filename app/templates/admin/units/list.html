@@ -8,6 +8,7 @@
     <a class="btn" href="{{ url_for('admin.units_new', property_id=property_row.id) }}">Uusi huone</a>
   </div>
   <h1>Huoneet: {{ property_row.name }}</h1>
+  <div class="data-table-card">
   <table>
     <thead>
       <tr>
@@ -34,4 +35,5 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 {% endblock %}

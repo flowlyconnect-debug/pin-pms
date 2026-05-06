@@ -18,6 +18,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {{ render_bulk_bar("guests") }}
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
+  <div class="data-table-card">
   <table>
     <thead>
       <tr>
@@ -47,5 +48,6 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   </form>
 {% endblock %}

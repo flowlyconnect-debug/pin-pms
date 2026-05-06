@@ -4,7 +4,7 @@
 
 {% block content %}
   <h1>Audit-loki</h1>
-  <form method="get" class="card">
+  <form method="get" class="card form-card">
     <label for="action">Toiminto (alku-osuma)</label>
     <input id="action" type="text" name="action" value="{{ action_filter }}" placeholder="auth.login">
     <label for="email">Tekijän sähköposti</label>
@@ -19,6 +19,7 @@
     </div>
   </form>
   <p class="meta">{{ total }} tapahtumaa · sivu {{ page }} · näytetään {{ rows|length }}</p>
+  <div class="data-table-card">
   <table>
     <thead>
       <tr>
@@ -41,6 +42,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   <div class="actions">
     {% set qs_base = "action=" ~ action_filter ~ "&email=" ~ email_filter ~ "&page_size=" ~ page_size %}
     {% if has_prev %}

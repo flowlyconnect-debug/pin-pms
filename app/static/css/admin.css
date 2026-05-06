@@ -746,7 +746,8 @@ body.admin-sidebar-open {
   margin: 0;
 }
 
-.admin-main > table {
+/* Tables anywhere under main (often inside forms — not only direct children) */
+.admin-main table {
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
@@ -755,6 +756,26 @@ body.admin-sidebar-open {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--admin-shadow-card);
+}
+
+.admin-main .data-table-card {
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.08);
+  background: var(--color-surface);
+}
+
+.admin-main .data-table-card > table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  margin: 0;
+  background: var(--admin-surface);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
 }
 
 .admin-main th,
@@ -858,8 +879,8 @@ body.admin-sidebar-open {
   flex-wrap: wrap;
 }
 
-.admin-main .btn:not(.btn-secondary):not(.btn-danger),
-.admin-main a.btn:not(.btn-secondary):not(.btn-danger),
+.admin-main .btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost),
+.admin-main a.btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost),
 .admin-main button[type="submit"]:not(.btn-secondary):not(.btn-danger) {
   border: 1px solid transparent;
   background: linear-gradient(145deg, #d84a4f 0%, #c62828 45%, #a61b1b 100%);
@@ -876,8 +897,8 @@ body.admin-sidebar-open {
   box-shadow: 0 2px 10px rgba(166, 27, 27, 0.22);
 }
 
-.admin-main .btn:not(.btn-secondary):not(.btn-danger):hover,
-.admin-main a.btn:not(.btn-secondary):not(.btn-danger):hover,
+.admin-main .btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost):hover,
+.admin-main a.btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost):hover,
 .admin-main button[type="submit"]:not(.btn-secondary):not(.btn-danger):hover {
   box-shadow: 0 4px 14px rgba(166, 27, 27, 0.3);
   text-decoration: none;
@@ -1845,10 +1866,24 @@ body.admin-sidebar-open {
   position: relative;
 }
 
+.admin-topbar button.admin-notifications-toggle,
+.admin-desktop-topbar button.admin-notifications-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 .admin-notifications-badge {
   position: absolute;
-  top: -0.25rem;
-  right: -0.25rem;
+  top: -6px;
+  right: -6px;
+  transform: none;
   min-width: 1.1rem;
   height: 1.1rem;
   border-radius: 999px;
@@ -1907,6 +1942,13 @@ body.admin-sidebar-open {
 }
 
 /* --- UI polish v1: modern PMS refinement without palette changes --- */
+.page-shell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .admin-main {
   max-width: 1360px;
   padding: 1.5rem 1.5rem 3rem;
@@ -1979,7 +2021,14 @@ body.admin-sidebar-open {
   margin-bottom: 1rem;
 }
 
-.content-card,
+/* Visually strong “premium panel” — use class content-card in templates */
+.content-card {
+  border-radius: 28px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.12);
+  padding: 1.25rem 1.35rem;
+}
+
 .form-card,
 .card,
 .panel,
@@ -1988,6 +2037,11 @@ body.admin-sidebar-open {
   border: 1px solid var(--color-border);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
   padding: 1.25rem 1.35rem;
+}
+
+.card.content-card {
+  border-radius: 28px;
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.12);
 }
 
 .card-title {
@@ -2062,7 +2116,6 @@ a.admin-kpi-card:hover,
   font-size: 0.84rem;
 }
 
-.admin-main > table,
 .data-table,
 .admin-table-panel {
   border-radius: 20px;
@@ -2153,35 +2206,39 @@ a.admin-kpi-card:hover,
   gap: 0.65rem;
 }
 
-.btn,
-.admin-main button[type="submit"],
 .admin-main .btn:not(.btn-sm),
+.admin-main button[type="submit"]:not(.btn-sm),
 .admin-main a.btn:not(.btn-sm) {
   min-height: 42px;
   padding: 0 1rem;
   border-radius: 12px;
   font-size: 0.875rem;
   font-weight: 600;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.btn-icon {
+.admin-main .btn-icon:not(.admin-notifications-toggle) {
   width: 38px;
   min-height: 38px;
   padding: 0;
   border-radius: 11px;
 }
 
-.admin-main .btn:not(.btn-secondary):not(.btn-danger),
-.admin-main a.btn:not(.btn-secondary):not(.btn-danger),
+.admin-main .btn-primary,
+.admin-main a.btn-primary,
+.admin-main .btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost),
+.admin-main a.btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost),
 .admin-main button[type="submit"]:not(.btn-secondary):not(.btn-danger) {
   background: var(--color-primary);
   box-shadow: 0 4px 14px rgba(166, 27, 27, 0.2);
 }
 
-.admin-main .btn:not(.btn-secondary):not(.btn-danger):hover,
-.admin-main a.btn:not(.btn-secondary):not(.btn-danger):hover,
+.admin-main .btn-primary:hover,
+.admin-main a.btn-primary:hover,
+.admin-main .btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost):hover,
+.admin-main a.btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost):hover,
 .admin-main button[type="submit"]:not(.btn-secondary):not(.btn-danger):hover {
   background: var(--color-primary-hover);
   box-shadow: 0 7px 18px rgba(166, 27, 27, 0.24);
@@ -2222,6 +2279,13 @@ a.admin-kpi-card:hover,
   border-radius: 12px;
   background: rgba(255, 246, 237, 0.06);
   border: 1px solid rgba(255, 246, 237, 0.16);
+}
+
+.admin-topbar-right .admin-avatar-toggle,
+.admin-desktop-topbar .admin-avatar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .calendar-panel {

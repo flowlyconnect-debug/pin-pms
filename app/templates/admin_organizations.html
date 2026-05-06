@@ -5,6 +5,7 @@
 {% block content %}
   <h1>Organisaatiot</h1>
   <p><a href="{{ url_for('admin.organizations_new') }}">+ Uusi organisaatio</a></p>
+  <div class="data-table-card">
   <table>
     <thead>
       <tr><th>Nimi</th><th>Luotu</th><th>Toiminnot</th></tr>
@@ -21,4 +22,5 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 {% endblock %}
