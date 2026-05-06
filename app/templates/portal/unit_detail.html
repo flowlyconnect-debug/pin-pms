@@ -1,0 +1,24 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Huone #{{ row.id }} · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>{{ row.name }}</h1>
+  <div class="card">
+    <p><strong>Kohde:</strong> {{ row.property_name }}</p>
+    <p><strong>Tyyppi:</strong> {{ row.unit_type or "—" }}</p>
+    <p><strong>Kerros:</strong> {{ row.floor if row.floor is not none else "—" }}</p>
+    <p><strong>Pinta-ala:</strong> {{ row.area_sqm or "—" }}{% if row.area_sqm %} m²{% endif %}</p>
+    <p><strong>Makuuhuoneet:</strong> {{ row.bedrooms }}</p>
+    <p><strong>Maksimivieraat:</strong> {{ row.max_guests }}</p>
+    <p><strong>Kuvaus:</strong> {{ row.description or "—" }}</p>
+    <p><strong>Keittiö:</strong> {{ "Kyllä" if row.has_kitchen else "Ei" }}</p>
+    <p><strong>Kylpyhuone:</strong> {{ "Kyllä" if row.has_bathroom else "Ei" }}</p>
+    <p><strong>Parveke:</strong> {{ "Kyllä" if row.has_balcony else "Ei" }}</p>
+    <p><strong>Terassi:</strong> {{ "Kyllä" if row.has_terrace else "Ei" }}</p>
+    <p><strong>Astianpesukone:</strong> {{ "Kyllä" if row.has_dishwasher else "Ei" }}</p>
+    <p><strong>Pyykinpesukone:</strong> {{ "Kyllä" if row.has_washing_machine else "Ei" }}</p>
+    <p><strong>TV:</strong> {{ "Kyllä" if row.has_tv else "Ei" }}</p>
+    <p><strong>WiFi:</strong> {{ "Kyllä" if row.has_wifi else "Ei" }}</p>
+  </div>
+{% endblock %}

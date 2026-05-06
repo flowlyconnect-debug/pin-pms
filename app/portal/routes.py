@@ -121,6 +121,20 @@ def reservation_detail(user, reservation_id: int):
     return render_template("portal/reservation_detail.html", row=row)
 
 
+@portal_bp.get("/units/<int:unit_id>")
+@require_portal_login
+def unit_detail(user, unit_id: int):
+    try:
+        row = portal_service.get_unit_for_guest(
+            organization_id=user.organization_id,
+            guest_id=user.id,
+            unit_id=unit_id,
+        )
+    except portal_service.PortalServiceError:
+        abort(404)
+    return render_template("portal/unit_detail.html", row=row)
+
+
 @portal_bp.get("/invoices")
 @require_portal_login
 def invoices(user):

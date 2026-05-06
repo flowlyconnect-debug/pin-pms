@@ -11,11 +11,34 @@
     <div class="error">{{ error }}</div>
   {% endif %}
   <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ form.hidden_tag() }}
     <label for="name">Nimi</label>
-    <input id="name" name="name" type="text" required value="{{ form.name }}">
+    {{ form.name(id="name", required=true) }}
+    <h2>Sijainti</h2>
     <label for="address">Osoite</label>
-    <input id="address" name="address" type="text" value="{{ form.address }}">
+    {{ form.address(id="address") }}
+    <label for="city">Kaupunki</label>
+    {{ form.city(id="city") }}
+    <label for="postal_code">Postinumero</label>
+    {{ form.postal_code(id="postal_code") }}
+    <label for="street_address">Katuosoite</label>
+    {{ form.street_address(id="street_address") }}
+    <label for="latitude">Leveysaste</label>
+    {{ form.latitude(id="latitude", step="0.0000001") }}
+    <label for="longitude">Pituusaste</label>
+    {{ form.longitude(id="longitude", step="0.0000001") }}
+    <h2>Tiedot</h2>
+    <label for="year_built">Rakennusvuosi</label>
+    {{ form.year_built(id="year_built", min="0") }}
+    <label for="description">Kuvaus</label>
+    {{ form.description(id="description", rows="4") }}
+    <label for="url">Verkko-osoite</label>
+    {{ form.url(id="url", type="url") }}
+    <h2>Ominaisuudet</h2>
+    <label>{{ form.has_elevator() }} Hissi</label>
+    <label>{{ form.has_parking() }} Pysäköinti</label>
+    <label>{{ form.has_sauna() }} Sauna</label>
+    <label>{{ form.has_courtyard() }} Sisäpiha</label>
     <div class="actions">
       <button type="submit">Luo kohde</button>
     </div>

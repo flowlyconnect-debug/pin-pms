@@ -173,6 +173,7 @@ def get_reservation(*, organization_id: int, guest_id: int, reservation_id: int)
     )
     return {
         "id": row.id,
+        "unit_id": row.unit_id,
         "property_name": row.unit.property.name if row.unit and row.unit.property else "",
         "unit_name": row.unit.name if row.unit else "",
         "guest_name": row.guest_name,
@@ -191,6 +192,40 @@ def get_reservation(*, organization_id: int, guest_id: int, reservation_id: int)
             }
             for image in image_rows
         ],
+    }
+
+
+def get_unit_for_guest(*, organization_id: int, guest_id: int, unit_id: int) -> dict:
+    row = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .join(Reservation, Reservation.unit_id == Unit.id)
+        .filter(
+            Unit.id == unit_id,
+            Property.organization_id == organization_id,
+            Reservation.guest_id == guest_id,
+        )
+        .first()
+    )
+    if row is None:
+        raise PortalServiceError(code="not_found", message="Unit not found.", status=404)
+    return {
+        "id": row.id,
+        "property_name": row.property.name if row.property else "",
+        "name": row.name,
+        "unit_type": row.unit_type,
+        "floor": row.floor,
+        "area_sqm": str(row.area_sqm) if row.area_sqm is not None else None,
+        "bedrooms": row.bedrooms,
+        "has_kitchen": row.has_kitchen,
+        "has_bathroom": row.has_bathroom,
+        "has_balcony": row.has_balcony,
+        "has_terrace": row.has_terrace,
+        "has_dishwasher": row.has_dishwasher,
+        "has_washing_machine": row.has_washing_machine,
+        "has_tv": row.has_tv,
+        "has_wifi": row.has_wifi,
+        "max_guests": row.max_guests,
+        "description": row.description,
     }
 
 

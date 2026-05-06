@@ -25,6 +25,8 @@
           <td>{{ row.name }}</td>
           <td>{{ row.unit_type or "" }}</td>
           <td>
+            <a href="{{ url_for('admin.units_detail', unit_id=row.id) }}">Näytä</a>
+            ·
             <a href="{{ url_for('admin.units_edit', unit_id=row.id) }}">Muokkaa</a>
             ·
             <a href="{{ url_for('admin.units_calendar_sync', unit_id=row.id) }}">Kalenterisynk</a>

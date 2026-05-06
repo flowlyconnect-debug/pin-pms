@@ -6,7 +6,7 @@
   <h1>Varaus #{{ row.id }}</h1>
   <div class="card">
     <p><strong>Kohde:</strong> {{ row.property_name }}</p>
-    <p><strong>Huone:</strong> {{ row.unit_name }}</p>
+    <p><strong>Huone:</strong> {{ row.unit_name }}{% if row.unit_id %} (<a href="{{ url_for('portal.unit_detail', unit_id=row.unit_id) }}">Näytä huone</a>){% endif %}</p>
     <p><strong>Asiakas:</strong> {{ row.guest_name }}</p>
     <p><strong>Alku:</strong> {{ row.start_date }}</p>
     <p><strong>Loppu:</strong> {{ row.end_date }}</p>

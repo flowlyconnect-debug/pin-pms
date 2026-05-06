@@ -251,3 +251,81 @@ def test_portal_isolation_enforced_between_guests(client, regular_user):
     assert page.status_code == 200
     assert b"Other same org" not in page.data
     assert b"Other org request" not in page.data
+
+
+def test_portal_guest_can_open_unit_detail(client, regular_user):
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+
+    _portal_login(client, email=regular_user.email, password=regular_user.password_plain)
+    prop = Property(organization_id=regular_user.organization_id, name="Portal Unit Prop", city="Helsinki")
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(
+        property_id=prop.id,
+        name="U1",
+        unit_type="studio",
+        area_sqm=32.5,
+        bedrooms=1,
+        has_kitchen=True,
+        has_bathroom=True,
+        has_wifi=True,
+        max_guests=2,
+    )
+    db.session.add(unit)
+    db.session.flush()
+    db.session.add(
+        Reservation(
+            unit_id=unit.id,
+            guest_id=regular_user.id,
+            guest_name=regular_user.email,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 3),
+            status="confirmed",
+        )
+    )
+    db.session.commit()
+    response = client.get(f"/portal/units/{unit.id}")
+    assert response.status_code == 200
+    assert b"U1" in response.data
+    assert b"Maksimivieraat" in response.data
+
+
+def test_portal_guest_cannot_open_other_guest_unit_detail(client, regular_user):
+    from werkzeug.security import generate_password_hash
+
+    from app.extensions import db
+    from app.properties.models import Property, Unit
+    from app.reservations.models import Reservation
+    from app.users.models import User, UserRole
+
+    _portal_login(client, email=regular_user.email, password=regular_user.password_plain)
+    prop = Property(organization_id=regular_user.organization_id, name="Portal Unit Restricted")
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="HiddenUnit")
+    db.session.add(unit)
+    db.session.flush()
+    other_user = User(
+        email="other-unit-portal@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=regular_user.organization_id,
+        role=UserRole.USER.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+    db.session.add(
+        Reservation(
+            unit_id=unit.id,
+            guest_id=other_user.id,
+            guest_name=other_user.email,
+            start_date=date(2026, 8, 5),
+            end_date=date(2026, 8, 7),
+            status="confirmed",
+        )
+    )
+    db.session.commit()
+    response = client.get(f"/portal/units/{unit.id}")
+    assert response.status_code == 404

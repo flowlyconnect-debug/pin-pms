@@ -42,6 +42,50 @@ class InvoiceSchema(TypedDict, total=False):
     updated_at: str | None
 
 
+class PropertySchema(TypedDict, total=False):
+    id: int
+    organization_id: int
+    name: str
+    address: str | None
+    city: str | None
+    postal_code: str | None
+    street_address: str | None
+    latitude: str | None
+    longitude: str | None
+    year_built: int | None
+    has_elevator: bool
+    has_parking: bool
+    has_sauna: bool
+    has_courtyard: bool
+    description: str | None
+    url: str | None
+    created_at: str | None
+    updated_at: str | None
+
+
+class UnitSchema(TypedDict, total=False):
+    id: int
+    property_id: int
+    name: str
+    unit_type: str | None
+    floor: int | None
+    area_sqm: str | None
+    bedrooms: int
+    has_kitchen: bool
+    has_bathroom: bool
+    has_balcony: bool
+    has_terrace: bool
+    has_dishwasher: bool
+    has_washing_machine: bool
+    has_tv: bool
+    has_wifi: bool
+    max_guests: int
+    description: str | None
+    floor_plan_image_id: int | None
+    created_at: str | None
+    updated_at: str | None
+
+
 def json_ok(data: Any = None, status: int = 200, meta: Any = None):
     """Return a uniform success response."""
 

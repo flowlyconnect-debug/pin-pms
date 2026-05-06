@@ -226,7 +226,16 @@ def api_search():
         )
 
     properties = (
-        Property.query.filter(Property.organization_id == org_id, Property.name.ilike(ilike))
+        Property.query.filter(
+            Property.organization_id == org_id,
+            (
+                Property.name.ilike(ilike)
+                | Property.address.ilike(ilike)
+                | Property.city.ilike(ilike)
+                | Property.street_address.ilike(ilike)
+                | Property.postal_code.ilike(ilike)
+            ),
+        )
         .order_by(Property.id.desc())
         .limit(20)
         .all()
@@ -237,7 +246,7 @@ def api_search():
                 "type": "property",
                 "id": row.id,
                 "label": row.name,
-                "sublabel": row.address or "",
+                "sublabel": row.street_address or row.address or row.city or "",
                 "url": f"/admin/properties/{row.id}",
             }
         )
@@ -308,7 +317,7 @@ def api_search():
                 "type": "property",
                 "id": row.id,
                 "label": row.name,
-                "sublabel": row.address or "",
+                "sublabel": row.street_address or row.address or row.city or "",
                 "url": f"/admin/properties/{row.id}",
             }
         )
@@ -524,6 +533,18 @@ def create_property():
             organization_id=_org_id(),
             name=payload.get("name", ""),
             address=payload.get("address"),
+            city=payload.get("city"),
+            postal_code=payload.get("postal_code"),
+            street_address=payload.get("street_address"),
+            latitude=payload.get("latitude"),
+            longitude=payload.get("longitude"),
+            year_built=payload.get("year_built"),
+            has_elevator=bool(payload.get("has_elevator", False)),
+            has_parking=bool(payload.get("has_parking", False)),
+            has_sauna=bool(payload.get("has_sauna", False)),
+            has_courtyard=bool(payload.get("has_courtyard", False)),
+            description=payload.get("description"),
+            url=payload.get("url"),
             actor_user_id=_actor_user_id(),
         )
     except property_service.PropertyServiceError as err:
@@ -570,6 +591,20 @@ def create_unit(property_id: int):
             property_id=property_id,
             name=payload.get("name", ""),
             unit_type=payload.get("unit_type"),
+            floor=payload.get("floor"),
+            area_sqm=payload.get("area_sqm"),
+            bedrooms=int(payload.get("bedrooms", 0)),
+            has_kitchen=bool(payload.get("has_kitchen", False)),
+            has_bathroom=bool(payload.get("has_bathroom", True)),
+            has_balcony=bool(payload.get("has_balcony", False)),
+            has_terrace=bool(payload.get("has_terrace", False)),
+            has_dishwasher=bool(payload.get("has_dishwasher", False)),
+            has_washing_machine=bool(payload.get("has_washing_machine", False)),
+            has_tv=bool(payload.get("has_tv", False)),
+            has_wifi=bool(payload.get("has_wifi", True)),
+            max_guests=int(payload.get("max_guests", 2)),
+            description=payload.get("description"),
+            floor_plan_image_id=payload.get("floor_plan_image_id"),
             actor_user_id=_actor_user_id(),
         )
     except property_service.PropertyServiceError as err:

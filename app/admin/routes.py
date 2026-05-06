@@ -39,7 +39,9 @@ from app.admin.forms import (
     EmailTemplateForm,
     EmailTemplateTestSendForm,
     OrganizationForm,
+    PropertyForm,
     SettingForm,
+    UnitForm,
     UserCreateForm,
     UserEditForm,
 )
@@ -869,17 +871,27 @@ def properties_list():
 @admin_bp.route("/properties/new", methods=["GET", "POST"])
 @require_admin_pms_access
 def properties_new():
-    form = {"name": "", "address": ""}
+    form = PropertyForm()
     error: str | None = None
 
-    if request.method == "POST":
-        form["name"] = (request.form.get("name") or "").strip()
-        form["address"] = (request.form.get("address") or "").strip()
+    if form.validate_on_submit():
         try:
             row = property_service.create_property(
                 organization_id=_pms_org_id(),
-                name=form["name"],
-                address=form["address"],
+                name=form.name.data,
+                address=form.address.data,
+                city=form.city.data,
+                postal_code=form.postal_code.data,
+                street_address=form.street_address.data,
+                latitude=form.latitude.data,
+                longitude=form.longitude.data,
+                year_built=form.year_built.data,
+                has_elevator=form.has_elevator.data,
+                has_parking=form.has_parking.data,
+                has_sauna=form.has_sauna.data,
+                has_courtyard=form.has_courtyard.data,
+                description=form.description.data,
+                url=form.url.data,
                 actor_user_id=current_user.id,
             )
         except property_service.PropertyServiceError as err:
@@ -887,6 +899,8 @@ def properties_new():
         else:
             flash("Kohde luotu.")
             return redirect(url_for("admin.properties_detail", property_id=row["id"]))
+    elif request.method == "POST":
+        error = "Tarkista lomakkeen kentät."
 
     return render_template("admin/properties/new.html", form=form, error=error)
 
@@ -1000,21 +1014,28 @@ def properties_edit(property_id: int):
     except property_service.PropertyServiceError:
         abort(404)
 
-    form = {
-        "name": row["name"],
-        "address": row["address"] or "",
-    }
+    form = PropertyForm(data=row)
     error: str | None = None
 
-    if request.method == "POST":
-        form["name"] = (request.form.get("name") or "").strip()
-        form["address"] = (request.form.get("address") or "").strip()
+    if form.validate_on_submit():
         try:
             row = property_service.update_property(
                 organization_id=_pms_org_id(),
                 property_id=property_id,
-                name=form["name"],
-                address=form["address"],
+                name=form.name.data,
+                address=form.address.data,
+                city=form.city.data,
+                postal_code=form.postal_code.data,
+                street_address=form.street_address.data,
+                latitude=form.latitude.data,
+                longitude=form.longitude.data,
+                year_built=form.year_built.data,
+                has_elevator=form.has_elevator.data,
+                has_parking=form.has_parking.data,
+                has_sauna=form.has_sauna.data,
+                has_courtyard=form.has_courtyard.data,
+                description=form.description.data,
+                url=form.url.data,
                 actor_user_id=current_user.id,
             )
         except property_service.PropertyServiceError as err:
@@ -1022,6 +1043,8 @@ def properties_edit(property_id: int):
         else:
             flash("Kohteen tiedot päivitetty.")
             return redirect(url_for("admin.properties_detail", property_id=row["id"]))
+    elif request.method == "POST":
+        error = "Tarkista lomakkeen kentät."
 
     return render_template("admin/properties/edit.html", row=row, form=form, error=error)
 
@@ -1054,18 +1077,32 @@ def units_new(property_id: int):
     except property_service.PropertyServiceError:
         abort(404)
 
-    form = {"name": "", "unit_type": ""}
+    form = UnitForm()
     error: str | None = None
 
-    if request.method == "POST":
-        form["name"] = (request.form.get("name") or "").strip()
-        form["unit_type"] = (request.form.get("unit_type") or "").strip()
+    if form.validate_on_submit():
         try:
             _ = property_service.create_unit(
                 organization_id=_pms_org_id(),
                 property_id=property_id,
-                name=form["name"],
-                unit_type=form["unit_type"],
+                name=form.name.data,
+                unit_type=form.unit_type.data,
+                floor=form.floor.data,
+                area_sqm=form.area_sqm.data,
+                bedrooms=form.bedrooms.data,
+                has_kitchen=form.has_kitchen.data,
+                has_bathroom=(
+                    form.has_bathroom.data if "has_bathroom" in request.form else True
+                ),
+                has_balcony=form.has_balcony.data,
+                has_terrace=form.has_terrace.data,
+                has_dishwasher=form.has_dishwasher.data,
+                has_washing_machine=form.has_washing_machine.data,
+                has_tv=form.has_tv.data,
+                has_wifi=form.has_wifi.data if "has_wifi" in request.form else True,
+                max_guests=form.max_guests.data,
+                description=form.description.data,
+                floor_plan_image_id=form.floor_plan_image_id.data,
                 actor_user_id=current_user.id,
             )
         except property_service.PropertyServiceError as err:
@@ -1073,6 +1110,8 @@ def units_new(property_id: int):
         else:
             flash("Huone luotu.")
             return redirect(url_for("admin.units_list", property_id=property_id))
+    elif request.method == "POST":
+        error = "Tarkista lomakkeen kentät."
 
     return render_template(
         "admin/units/new.html",
@@ -1093,21 +1132,32 @@ def units_edit(unit_id: int):
     except property_service.PropertyServiceError:
         abort(404)
 
-    form = {
-        "name": row["name"],
-        "unit_type": row["unit_type"] or "",
-    }
+    form = UnitForm(data=row)
     error: str | None = None
 
-    if request.method == "POST":
-        form["name"] = (request.form.get("name") or "").strip()
-        form["unit_type"] = (request.form.get("unit_type") or "").strip()
+    if form.validate_on_submit():
         try:
             row = property_service.update_unit(
                 organization_id=_pms_org_id(),
                 unit_id=unit_id,
-                name=form["name"],
-                unit_type=form["unit_type"],
+                name=form.name.data,
+                unit_type=form.unit_type.data,
+                floor=form.floor.data,
+                area_sqm=form.area_sqm.data,
+                bedrooms=form.bedrooms.data,
+                has_kitchen=form.has_kitchen.data,
+                has_bathroom=(
+                    form.has_bathroom.data if "has_bathroom" in request.form else row["has_bathroom"]
+                ),
+                has_balcony=form.has_balcony.data,
+                has_terrace=form.has_terrace.data,
+                has_dishwasher=form.has_dishwasher.data,
+                has_washing_machine=form.has_washing_machine.data,
+                has_tv=form.has_tv.data,
+                has_wifi=form.has_wifi.data if "has_wifi" in request.form else row["has_wifi"],
+                max_guests=form.max_guests.data,
+                description=form.description.data,
+                floor_plan_image_id=form.floor_plan_image_id.data,
                 actor_user_id=current_user.id,
             )
         except property_service.PropertyServiceError as err:
@@ -1115,8 +1165,23 @@ def units_edit(unit_id: int):
         else:
             flash("Huoneen tiedot päivitetty.")
             return redirect(url_for("admin.units_list", property_id=row["property_id"]))
+    elif request.method == "POST":
+        error = "Tarkista lomakkeen kentät."
 
     return render_template("admin/units/edit.html", row=row, form=form, error=error)
+
+
+@admin_bp.get("/units/<int:unit_id>")
+@require_admin_pms_access
+def units_detail(unit_id: int):
+    try:
+        row = property_service.get_unit(
+            organization_id=_pms_org_id(),
+            unit_id=unit_id,
+        )
+    except property_service.PropertyServiceError:
+        abort(404)
+    return render_template("admin/units/detail.html", row=row)
 
 
 @admin_bp.route("/units/<int:unit_id>/calendar-sync", methods=["GET", "POST"])
