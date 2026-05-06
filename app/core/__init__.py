@@ -9,11 +9,11 @@ core_bp = Blueprint("core", __name__)
 
 @core_bp.get("/")
 def index():
-    """Landing page.
+    """Route root users directly to their real destination.
 
-    Authenticated users are redirected to the role-appropriate dashboard so
-    they get the full chrome (sidebar, burger menu, styles) instead of the
-    bare landing fallback. Anonymous visitors see the styled login link.
+    Root must never render the legacy fallback landing HTML, because that can
+    flash briefly before the actual login page is displayed. We always issue
+    a server-side redirect instead.
     """
 
     if current_user.is_authenticated:
@@ -23,7 +23,7 @@ def index():
             return redirect(url_for("admin.admin_home"))
         return redirect(url_for("portal.dashboard"))
 
-    return render_template("index.html", current_user=current_user)
+    return redirect(url_for("auth.login"))
 
 
 @core_bp.get("/health")
