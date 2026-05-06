@@ -7,10 +7,14 @@
 {% block page_title %}Varaukset{% endblock %}
 
 {% block content %}
-  <div class="actions">
-    <a class="btn btn-primary" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Varaukset</h1>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn btn-primary" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a>
+    </div>
   </div>
-  <h1>Varaukset</h1>
   {{ render_filters("reservations", filters) }}
   <form method="post" action="{{ url_for('admin.saved_filter_create') }}" class="actions">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

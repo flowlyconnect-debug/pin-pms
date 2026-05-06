@@ -6,56 +6,50 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <script src="{{ url_for('static', filename='js/admin-calendar.js') }}" defer></script>
-  <style>
-    #calendar { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: .5rem; }
-    .fc-event-title {
-      white-space: normal !important;
-      font-size: 12px;
-      line-height: 1.2;
-    }
-    .fc-event-peruttu { opacity: .55; }
-    .calendar-filters { margin-bottom: .75rem; display: flex; gap: 1.25rem; align-items: flex-end; flex-wrap: wrap; }
-    .calendar-filters label { font-size: .875rem; color: #374151; }
-    .calendar-filters select { margin-top: .25rem; min-width: 12rem; padding: .35rem .5rem; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; }
-  </style>
 {% endblock %}
 
 {% block content %}
-  <h1>Varauskalenteri</h1>
-  <p class="meta">Vedä varausta muuttaaksesi päivämääriä (samat kohdesäännöt myös taustalla). Klikkaus avaa tiedot.</p>
-  <div class="calendar-filters">
-    <label>
-      Tapahtumatyyppi
-      <select id="filter-event-types" aria-label="Suodata tapahtumatyyppi">
-        <option value="reservations">Varaukset</option>
-        <option value="reservations,leases,invoices,maintenance">Kaikki</option>
-        <option value="leases">Vuokrasopimukset</option>
-        <option value="invoices">Laskut</option>
-        <option value="maintenance">Huolto</option>
-      </select>
-    </label>
-    <label>
-      Kohde
-      <select id="filter-property" aria-label="Suodata kohde">
-        <option value="">Kaikki kohteet</option>
-        {% for p in properties %}
-          <option value="{{ p.id }}">{{ p.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>
-      Huone
-      <select id="filter-unit" aria-label="Suodata huone">
-        <option value="">Kaikki huoneet</option>
-        {% for u in units %}
-          <option value="{{ u.id }}" data-property-id="{{ u.property_id }}">{{ u.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Varauskalenteri</h1>
+      <p class="page-subtitle">Vedä varausta muuttaaksesi päivämääriä (samat kohdesäännöt myös taustalla). Klikkaus avaa tiedot.</p>
+    </div>
   </div>
-  <div
-    id="calendar"
-    data-events-url="{{ url_for('admin.calendar_events') }}"
-    data-reservations-base-url="/admin/reservations"
-  ></div>
+  <section class="content-card calendar-panel">
+    <div class="calendar-filters">
+      <label>
+        Tapahtumatyyppi
+        <select id="filter-event-types" aria-label="Suodata tapahtumatyyppi">
+          <option value="reservations">Varaukset</option>
+          <option value="reservations,leases,invoices,maintenance">Kaikki</option>
+          <option value="leases">Vuokrasopimukset</option>
+          <option value="invoices">Laskut</option>
+          <option value="maintenance">Huolto</option>
+        </select>
+      </label>
+      <label>
+        Kohde
+        <select id="filter-property" aria-label="Suodata kohde">
+          <option value="">Kaikki kohteet</option>
+          {% for p in properties %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Huone
+        <select id="filter-unit" aria-label="Suodata huone">
+          <option value="">Kaikki huoneet</option>
+          {% for u in units %}
+            <option value="{{ u.id }}" data-property-id="{{ u.property_id }}">{{ u.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div
+      id="calendar"
+      data-events-url="{{ url_for('admin.calendar_events') }}"
+      data-reservations-base-url="/admin/reservations"
+    ></div>
+  </section>
 {% endblock %}

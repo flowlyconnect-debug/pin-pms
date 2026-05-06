@@ -5,10 +5,14 @@
 {% block title %}Asiakkaat · Pin PMS{% endblock %}
 
 {% block content %}
-  <div class="actions">
-    <a class="btn" href="{{ url_for('admin.guests_new') }}">Uusi asiakas</a>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Asiakkaat</h1>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn" href="{{ url_for('admin.guests_new') }}">Uusi asiakas</a>
+    </div>
   </div>
-  <h1>Asiakkaat</h1>
   {{ render_filters("guests", filters) }}
   <form method="post" action="{{ url_for('admin.guests_bulk') }}" data-bulk-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

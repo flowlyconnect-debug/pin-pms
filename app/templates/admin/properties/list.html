@@ -4,10 +4,14 @@
 {% block page_title %}Kohteet{% endblock %}
 
 {% block content %}
-  <div class="actions">
-    <a class="btn btn-primary" href="{{ url_for('admin.properties_new') }}">Uusi kohde</a>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Kohteet</h1>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn btn-primary" href="{{ url_for('admin.properties_new') }}">Uusi kohde</a>
+    </div>
   </div>
-  <h1>Kohteet</h1>
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
   <table class="data-table">
     <thead>
