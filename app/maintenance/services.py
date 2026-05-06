@@ -111,6 +111,7 @@ def _serialize(row: MaintenanceRequest) -> dict[str, Any]:
         "description": row.description,
         "status": row.status,
         "priority": row.priority,
+        "priority_label": row.priority_label,
         "assigned_to_id": row.assigned_to_id,
         "assigned_to_email": assignee.email if assignee is not None else None,
         "due_date": row.due_date.isoformat() if row.due_date else None,

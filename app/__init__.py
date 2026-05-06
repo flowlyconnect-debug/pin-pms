@@ -351,7 +351,7 @@ def register_models():
     from app.notifications.models import Notification
     from app.organizations.models import Organization
     from app.owners.models import OwnerPayout, OwnerUser, PropertyOwner, PropertyOwnerAssignment
-    from app.properties.models import Property, Unit
+    from app.properties.models import Property, PropertyImage, Unit
     from app.reservations.models import Reservation
     from app.settings.models import Setting
     from app.subscriptions.models import SubscriptionPlan
@@ -418,6 +418,7 @@ def register_models():
         SubscriptionPlan,
         TwoFactorEmailCode,
         Unit,
+        PropertyImage,
         User,
         Tag,
         GuestTag,

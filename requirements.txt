@@ -18,6 +18,7 @@ APScheduler
 reportlab
 icalendar
 boto3
+Pillow
 moto[s3]
 apispec
 structlog

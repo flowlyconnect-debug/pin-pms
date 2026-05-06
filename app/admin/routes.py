@@ -76,6 +76,7 @@ from app.owners import services as owners_service
 from app.owners.models import PropertyOwner
 from app.payments.models import Payment, PaymentRefund
 from app.payments import services as payment_service
+from app.properties import images as property_image_service
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reports import services as report_service
@@ -798,6 +799,79 @@ def properties_detail(property_id: int):
     )
 
 
+@admin_bp.route("/properties/<int:property_id>/images", methods=["GET", "POST"])
+@require_admin_pms_access
+def properties_images(property_id: int):
+    try:
+        property_row = property_service.get_property(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+        )
+    except property_service.PropertyServiceError:
+        abort(404)
+    error = None
+    if request.method == "POST":
+        image_file = request.files.get("image")
+        alt_text = (request.form.get("alt_text") or "").strip()
+        if image_file is None or not image_file.filename:
+            error = "Valitse ladattava kuva."
+        else:
+            try:
+                property_image_service.upload_property_image(
+                    organization_id=_pms_org_id(),
+                    property_id=property_id,
+                    raw=image_file.read(),
+                    content_type=(image_file.mimetype or "").lower(),
+                    alt_text=alt_text,
+                    uploaded_by=current_user.id,
+                )
+                flash("Kuva ladattu.")
+                return redirect(url_for("admin.properties_images", property_id=property_id))
+            except property_image_service.PropertyImageError as err:
+                error = err.message
+    rows = property_image_service.list_property_images(
+        organization_id=_pms_org_id(), property_id=property_id
+    )
+    return render_template(
+        "admin/properties/images.html",
+        row=property_row,
+        images=rows,
+        error=error,
+    )
+
+
+@admin_bp.post("/properties/<int:property_id>/images/<int:image_id>/delete")
+@require_admin_pms_access
+def properties_images_delete(property_id: int, image_id: int):
+    try:
+        property_image_service.delete_property_image(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+            image_id=image_id,
+        )
+        flash("Kuva poistettu.")
+    except property_image_service.PropertyImageError as err:
+        flash(err.message)
+    return redirect(url_for("admin.properties_images", property_id=property_id))
+
+
+@admin_bp.post("/properties/<int:property_id>/images/reorder")
+@require_admin_pms_access
+def properties_images_reorder(property_id: int):
+    ids_raw = request.form.getlist("image_ids")
+    try:
+        ids = [int(x) for x in ids_raw]
+        property_image_service.reorder_property_images(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+            ids=ids,
+        )
+        flash("Kuvien jarjestys paivitetty.")
+    except (ValueError, property_image_service.PropertyImageError):
+        flash("Kuvien jarjestyksen paivitys epaonnistui.")
+    return redirect(url_for("admin.properties_images", property_id=property_id))
+
+
 @admin_bp.route("/properties/<int:property_id>/edit", methods=["GET", "POST"])
 @require_admin_pms_access
 def properties_edit(property_id: int):
@@ -975,7 +1049,12 @@ def units_calendar_sync(unit_id: int):
 @require_admin_pms_access
 def calendar_sync_conflicts():
     service = IcalService()
-    rows = service.detect_conflicts(organization_id=_pms_org_id())
+    try:
+        rows = service.detect_conflicts(organization_id=_pms_org_id())
+    except Exception:  # noqa: BLE001
+        current_app.logger.exception("Kalenteriristiriitojen haku epäonnistui.")
+        flash("Kalenteriristiriitojen lataus epäonnistui. Yritä hetken päästä uudelleen.")
+        rows = []
     return render_template("admin/calendar_sync_conflicts.html", rows=rows)
 
 

@@ -1,0 +1,41 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Kuvat · {{ row.name }} · Pin PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.properties_detail', property_id=row.id) }}">Takaisin kohteelle</a>
+  </div>
+  <h1>Kuvagalleria: {{ row.name }}</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  <div class="card">
+    <form method="post" enctype="multipart/form-data">
+      <label for="image">Kuva (JPEG, PNG, WebP, max 2 MB)</label><br>
+      <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required><br><br>
+      <label for="alt_text">Alt-teksti</label><br>
+      <input id="alt_text" name="alt_text" type="text" maxlength="255" required><br><br>
+      <button class="btn" type="submit">Lataa kuva</button>
+    </form>
+  </div>
+
+  {% if images %}
+    <div class="card" style="margin-top: 1rem;">
+      {% for image in images %}
+        <div style="display:flex;gap:1rem;align-items:center;margin:.5rem 0;">
+          <img src="{{ image.thumbnail_url }}" alt="{{ image.alt_text }}" width="120" height="90" loading="lazy">
+          <span>{{ image.sort_order }}.</span>
+          <span>{{ image.alt_text }}</span>
+          <span>{{ image.content_type }}</span>
+          <span>{{ image.file_size }} B</span>
+          <form method="post" action="{{ url_for('admin.properties_images_delete', property_id=row.id, image_id=image.id) }}">
+            <button class="btn btn-secondary" type="submit">Poista</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>Ei kuvia viela.</p>
+  {% endif %}
+{% endblock %}

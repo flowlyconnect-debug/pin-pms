@@ -23,7 +23,8 @@ from app.billing.pdf import generate_invoice_pdf
 from app.guests.models import Guest
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
-from app.properties.models import Property, Unit
+from app.properties import images as property_image_service
+from app.properties.models import Property, PropertyImage, Unit
 from app.properties import services as property_service
 from app.api.services import get_unit_for_org_calendar_export
 from app.reservations.models import Reservation
@@ -148,6 +149,22 @@ def _serialize_comment(row: Comment) -> dict:
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "edited_at": row.edited_at.isoformat() if row.edited_at else None,
         "is_internal": row.is_internal,
+    }
+
+
+def _serialize_property_image(row: PropertyImage) -> dict:
+    return {
+        "id": row.id,
+        "organization_id": row.organization_id,
+        "property_id": row.property_id,
+        "url": row.url,
+        "thumbnail_url": row.thumbnail_url,
+        "alt_text": row.alt_text,
+        "sort_order": row.sort_order,
+        "file_size": row.file_size,
+        "content_type": row.content_type,
+        "uploaded_by": row.uploaded_by,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 
 
@@ -558,6 +575,94 @@ def create_unit(property_id: int):
     except property_service.PropertyServiceError as err:
         return json_error(err.code, err.message, status=err.status)
     return json_ok(data, status=201)
+
+
+@api_bp.get("/properties/<int:property_id>/images")
+@require_api_key
+@scope_required("properties:read")
+def list_property_images_api(property_id: int):
+    try:
+        rows = property_image_service.list_property_images(
+            organization_id=_org_id(),
+            property_id=property_id,
+        )
+    except property_image_service.PropertyImageError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok([_serialize_property_image(row) for row in rows])
+
+
+@api_bp.post("/properties/<int:property_id>/images")
+@require_api_key
+@scope_required("properties:write")
+def upload_property_image_api(property_id: int):
+    file = request.files.get("image")
+    alt_text = (request.form.get("alt_text") or "").strip()
+    if file is None or not file.filename:
+        return json_error("validation_error", "Field 'image' is required.", status=400)
+    try:
+        row = property_image_service.upload_property_image(
+            organization_id=_org_id(),
+            property_id=property_id,
+            raw=file.read(),
+            content_type=(file.mimetype or "").lower(),
+            alt_text=alt_text,
+            uploaded_by=_actor_user_id() or g.api_key.user_id,
+        )
+    except property_image_service.PropertyImageError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok(_serialize_property_image(row), status=201)
+
+
+@api_bp.delete("/properties/<int:property_id>/images/<int:image_id>")
+@require_api_key
+@scope_required("properties:write")
+def delete_property_image_api(property_id: int, image_id: int):
+    try:
+        property_image_service.delete_property_image(
+            organization_id=_org_id(),
+            property_id=property_id,
+            image_id=image_id,
+        )
+    except property_image_service.PropertyImageError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"ok": True})
+
+
+@api_bp.post("/properties/<int:property_id>/images/reorder")
+@require_api_key
+@scope_required("properties:write")
+def reorder_property_images_api(property_id: int):
+    payload = _payload()
+    raw_ids = payload.get("ids")
+    if not isinstance(raw_ids, list):
+        return json_error("validation_error", "Field 'ids' must be an array.", status=400)
+    try:
+        ids = [int(x) for x in raw_ids]
+        property_image_service.reorder_property_images(
+            organization_id=_org_id(),
+            property_id=property_id,
+            ids=ids,
+        )
+    except ValueError:
+        return json_error("validation_error", "Field 'ids' must contain integer IDs.", status=400)
+    except property_image_service.PropertyImageError as err:
+        return json_error(err.code, err.message, status=err.status)
+    return json_ok({"ok": True})
+
+
+@api_bp.get("/property-images/<path:key>")
+@require_api_key
+@scope_required("properties:read")
+def serve_property_image_local(key: str):
+    if (current_app.config.get("STORAGE_BACKEND") or "local").strip().lower() != "local":
+        return json_error("not_found", "Not found.", status=404)
+    from app.storage.local import LocalStorage
+
+    storage = LocalStorage()
+    path = storage.path_for_key(key=key)
+    if not path.exists() or not path.is_file():
+        return json_error("not_found", "Not found.", status=404)
+    return send_file(path)
 
 
 @api_bp.get("/units/<int:unit_id>/calendar.ics")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import builtins
+
 from app.extensions import db
 from app.models import TimestampMixin
 
@@ -66,6 +68,22 @@ class MaintenanceRequest(TimestampMixin, db.Model):
     reservation = db.relationship("Reservation", lazy="joined")
     assigned_to = db.relationship("User", foreign_keys=[assigned_to_id], lazy="joined")
     created_by = db.relationship("User", foreign_keys=[created_by_id], lazy="joined")
+    PRIORITY_LABELS = {
+        "low": "Matala",
+        "normal": "Normaali",
+        "medium": "Keskitaso",
+        "high": "Korkea",
+        "urgent": "Kiireellinen",
+    }
+
+    @builtins.property
+    def priority_label(self) -> str:
+        return self.PRIORITY_LABELS.get((self.priority or "").strip().lower(), self.priority or "-")
+
+    @classmethod
+    def priority_label_for(cls, value: str | None) -> str:
+        key = (value or "").strip().lower()
+        return cls.PRIORITY_LABELS.get(key, value or "-")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<MaintenanceRequest {self.id} org={self.organization_id} status={self.status!r}>"

@@ -24,7 +24,7 @@ from app.portal.models import (
     PortalCheckInToken,
     PortalMagicLinkToken,
 )
-from app.properties.models import Property, Unit
+from app.properties.models import Property, PropertyImage, Unit
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
 from app.webhooks.events import GUEST_CHECKED_IN, GUEST_CHECKED_OUT
@@ -161,6 +161,16 @@ def get_reservation(*, organization_id: int, guest_id: int, reservation_id: int)
     )
     if row is None:
         raise PortalServiceError(code="not_found", message="Reservation not found.", status=404)
+    image_rows = (
+        PropertyImage.query.filter_by(
+            organization_id=organization_id,
+            property_id=row.unit.property_id if row.unit else None,
+        )
+        .order_by(PropertyImage.sort_order.asc(), PropertyImage.id.asc())
+        .all()
+        if row.unit is not None
+        else []
+    )
     return {
         "id": row.id,
         "property_name": row.unit.property.name if row.unit and row.unit.property else "",
@@ -172,6 +182,15 @@ def get_reservation(*, organization_id: int, guest_id: int, reservation_id: int)
         "amount": str(row.amount) if row.amount is not None else None,
         "currency": row.currency,
         "payment_status": row.payment_status,
+        "images": [
+            {
+                "id": image.id,
+                "url": image.url,
+                "thumbnail_url": image.thumbnail_url,
+                "alt_text": image.alt_text,
+            }
+            for image in image_rows
+        ],
     }
 
 
@@ -232,6 +251,7 @@ def list_maintenance_requests(*, organization_id: int, guest_id: int) -> list[di
             "title": row.title,
             "status": row.status,
             "priority": row.priority,
+            "priority_label": row.priority_label,
             "property_name": row.property.name if row.property else "",
             "unit_name": row.unit.name if row.unit else "",
             "due_date": row.due_date.isoformat() if row.due_date else None,
@@ -256,6 +276,7 @@ def get_maintenance_request(*, organization_id: int, guest_id: int, request_id: 
         "description": row.description or "",
         "status": row.status,
         "priority": row.priority,
+        "priority_label": row.priority_label,
         "property_name": row.property.name if row.property else "",
         "unit_name": row.unit.name if row.unit else "",
         "due_date": row.due_date.isoformat() if row.due_date else None,

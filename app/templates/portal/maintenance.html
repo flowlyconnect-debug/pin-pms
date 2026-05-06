@@ -27,10 +27,10 @@
       <textarea id="description" name="description" rows="4"></textarea>
       <label for="priority">Prioriteetti</label>
       <select id="priority" name="priority">
-        <option value="Matala">Matala</option>
-        <option value="Normaali" selected>Normaali</option>
-        <option value="Korkea">Korkea</option>
-        <option value="Kiireellinen">Kiireellinen</option>
+        <option value="low">Matala</option>
+        <option value="normal" selected>Normaali</option>
+        <option value="high">Korkea</option>
+        <option value="urgent">Kiireellinen</option>
       </select>
       <label for="due_date">Eräpäivä (valinnainen)</label>
       <input id="due_date" name="due_date" type="date">
@@ -50,7 +50,7 @@
           <td>{{ row.id }}</td>
           <td>{{ row.title }}</td>
           <td>{{ row.property_name }}{% if row.unit_name %} / {{ row.unit_name }}{% endif %}</td>
-          <td>{{ row.priority }}</td>
+          <td>{{ row.priority_label }}</td>
           <td>{{ row.status }}</td>
           <td>{{ row.due_date or "—" }}</td>
           <td><a href="{{ url_for('portal.maintenance_detail', request_id=row.id) }}">Näytä</a></td>

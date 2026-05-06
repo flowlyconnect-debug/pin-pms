@@ -400,6 +400,16 @@ class BaseConfig:
     PAYMENT_EXPIRY_SCHEDULER_ENABLED = os.getenv(
         "PAYMENT_EXPIRY_SCHEDULER_ENABLED", "0"
     ).lower() in {"1", "true", "yes"}
+    STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local")
+    STORAGE_LOCAL_ROOT = os.getenv("STORAGE_LOCAL_ROOT", "")
+    STORAGE_PUBLIC_BASE_URL = os.getenv("STORAGE_PUBLIC_BASE_URL", "")
+    S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", "")
+    S3_BUCKET = os.getenv("S3_BUCKET", "")
+    S3_REGION = os.getenv("S3_REGION", "")
+    S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID", "")
+    S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "")
+    S3_PUBLIC_BASE_URL = os.getenv("S3_PUBLIC_BASE_URL", "")
+    CDN_ENABLED = os.getenv("CDN_ENABLED", "0").lower() in {"1", "true", "yes"}
 
 
 class DevelopmentConfig(BaseConfig):

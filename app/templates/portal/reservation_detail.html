@@ -16,5 +16,24 @@
       <p><strong>Summa:</strong> {{ row.amount }} {{ row.currency }}</p>
     {% endif %}
   </div>
+  {% if row.images %}
+    <h2>Kohteen kuvat</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;">
+      {% for image in row.images %}
+        <figure class="card">
+          <a href="{{ image.url }}" target="_blank" rel="noopener">
+            <img
+              src="{{ image.thumbnail_url }}"
+              data-full-src="{{ image.url }}"
+              alt="{{ image.alt_text }}"
+              loading="lazy"
+              style="width:100%;height:auto;"
+            >
+          </a>
+          <figcaption>{{ image.alt_text }}</figcaption>
+        </figure>
+      {% endfor %}
+    </div>
+  {% endif %}
 {% endblock %}
 

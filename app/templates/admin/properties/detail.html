@@ -10,6 +10,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.properties_list') }}">Takaisin kohteisiin</a>
     <a class="btn" href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Muokkaa kohdetta</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.properties_images', property_id=row.id) }}">Kuvagalleria</a>
     <a class="btn btn-secondary" href="{{ url_for('admin.units_list', property_id=row.id) }}">Huoneet</a>
     <a class="btn" href="{{ url_for('admin.units_new', property_id=row.id) }}">Uusi huone</a>
   </div>

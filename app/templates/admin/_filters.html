@@ -6,10 +6,10 @@
   <input id="{{ resource }}-filters-q" type="search" name="q" value="{{ filters.q or '' }}" placeholder="Hae listasta">
   <label for="{{ resource }}-filters-status">Tila</label>
   <select id="{{ resource }}-filters-status" name="status">
-    <option value="">All</option>
-    <option value="confirmed" {% if filters.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
-    <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Pending</option>
-    <option value="cancelled" {% if filters.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+    <option value="">Kaikki</option>
+    <option value="confirmed" {% if filters.status == 'confirmed' %}selected{% endif %}>Vahvistettu</option>
+    <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Odottaa</option>
+    <option value="cancelled" {% if filters.status == 'cancelled' %}selected{% endif %}>Peruttu</option>
   </select>
   <label for="{{ resource }}-filters-from">Alkaen</label>
   <input id="{{ resource }}-filters-from" type="date" name="from" value="{{ request.args.get('from', '') }}">

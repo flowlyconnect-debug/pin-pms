@@ -41,3 +41,27 @@ def test_admin_calendar_get_returns_200_and_nonce_scripts(client, admin_user):
     assert any(script.get("src", "").endswith("/static/js/admin-calendar.js") for script in parser.scripts)
     # Inline event handlers are forbidden under strict CSP.
     assert re.search(r"\son[a-zA-Z]+\s*=", html) is None
+
+
+def test_calendar_sync_view_renders_when_no_feeds(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    response = client.get("/admin/calendar-sync/conflicts")
+    assert response.status_code == 200
+    assert "Ristiriitoja ei löytynyt." in response.get_data(as_text=True)
+
+
+def test_calendar_sync_view_renders_when_scheduler_disabled(client, admin_user, monkeypatch):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    def _raise_scheduler_error(*args, **kwargs):
+        raise RuntimeError("scheduler offline")
+
+    monkeypatch.setattr(
+        "app.admin.routes.IcalService.detect_conflicts",
+        _raise_scheduler_error,
+    )
+
+    response = client.get("/admin/calendar-sync/conflicts")
+    assert response.status_code == 200
+    assert "Kalenteriristiriitojen lataus epäonnistui." in response.get_data(as_text=True)

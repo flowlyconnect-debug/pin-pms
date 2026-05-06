@@ -42,10 +42,10 @@
     <textarea id="description" name="description" rows="4">{{ form.description }}</textarea>
     <label for="priority">Prioriteetti</label>
     <select id="priority" name="priority">
-      <option value="Matala" {% if form.priority == "Matala" %}selected{% endif %}>Matala</option>
-      <option value="Normaali" {% if form.priority == "Normaali" %}selected{% endif %}>Normaali</option>
-      <option value="Korkea" {% if form.priority == "Korkea" %}selected{% endif %}>Korkea</option>
-      <option value="Kiireellinen" {% if form.priority == "Kiireellinen" %}selected{% endif %}>Kiireellinen</option>
+      <option value="low" {% if form.priority == "low" %}selected{% endif %}>Matala</option>
+      <option value="normal" {% if form.priority == "normal" %}selected{% endif %}>Normaali</option>
+      <option value="high" {% if form.priority == "high" %}selected{% endif %}>Korkea</option>
+      <option value="urgent" {% if form.priority == "urgent" %}selected{% endif %}>Kiireellinen</option>
     </select>
     <label for="status">Tila</label>
     <select id="status" name="status">

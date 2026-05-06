@@ -11,7 +11,7 @@
   <div class="card">
     <p><strong>Otsikko:</strong> {{ row.title }}</p>
     <p><strong>Tila:</strong> {{ row.status }}</p>
-    <p><strong>Prioriteetti:</strong> {{ row.priority }}</p>
+    <p><strong>Prioriteetti:</strong> {{ row.priority_label }}</p>
     <p><strong>Kohde:</strong> {{ row.property_name or "—" }} (id {{ row.property_id }})</p>
     {% if row.unit_id %}
       <p><strong>Huone:</strong> {{ row.unit_name or row.unit_id }}</p>
@@ -32,7 +32,7 @@
     {% endif %}
   </div>
 
-  {% if row.status not in ["resolved", "peruttu"] %}
+  {% if row.status not in ["resolved", "cancelled"] %}
     <h2>Vaihda tila</h2>
     <form method="post" action="{{ url_for('admin.maintenance_requests_set_status', request_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

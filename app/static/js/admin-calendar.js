@@ -20,6 +20,7 @@
     var reservationsBaseUrl = el.dataset.reservationsBaseUrl || "/admin/reservations";
     var csrfMeta = document.querySelector('meta[name="csrf-token"]');
     var csrfToken = csrfMeta ? csrfMeta.getAttribute("content") : "";
+    var fiDateFormat = new Intl.DateTimeFormat("fi-FI");
 
     function syncUnitOptionsForProperty() {
       if (!unitEl || !propEl) {
@@ -92,10 +93,10 @@
           (props.status || "") +
           "\n" +
           "Alku: " +
-          (info.event.start ? info.event.start.toLocaleDateString() : "") +
+          (info.event.start ? fiDateFormat.format(info.event.start) : "") +
           "\n" +
           "Loppu: " +
-          (info.event.end ? info.event.end.toLocaleDateString() : "");
+          (info.event.end ? fiDateFormat.format(info.event.end) : "");
       },
       eventClick: function (info) {
         info.jsEvent.preventDefault();
