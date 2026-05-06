@@ -10,6 +10,7 @@ from typing import Any, Mapping
 from flask import Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from sqlalchemy import func
 from sqlalchemy.orm import noload
 
 from app.audit import record as audit_record
@@ -152,6 +153,182 @@ def _display_guest_name(*, guest: Guest | None, guest_name: str) -> str:
             return str(guest.email).strip()
     trimmed = (guest_name or "").strip()
     return trimmed or "Guest"
+
+
+def availability_matrix(
+    *,
+    organization_id: int,
+    start_date: date,
+    end_date: date,
+    property_id: int | None = None,
+    include_cancelled: bool = False,
+) -> dict:
+    if end_date < start_date:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Invalid date range.",
+            status=400,
+        )
+
+    if property_id is not None:
+        prop = Property.query.filter_by(id=property_id, organization_id=organization_id).first()
+        if prop is None:
+            raise ReservationServiceError(
+                code="validation_error",
+                message="Invalid property filter.",
+                status=400,
+            )
+
+    date_range = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    date_range_iso = [d.isoformat() for d in date_range]
+
+    has_unit_active = hasattr(Unit, "is_active")
+    blocked_expr = (
+        Unit.is_active.is_(False)
+        if has_unit_active
+        else func.lower(func.coalesce(Unit.unit_type, "")).in_(("blocked", "out_of_service", "inactive"))
+    )
+
+    units_query = (
+        db.session.query(
+            Property.id.label("property_id"),
+            Property.name.label("property_name"),
+            Unit.id.label("unit_id"),
+            Unit.name.label("unit_name"),
+            Unit.unit_type.label("unit_type"),
+            blocked_expr.label("unit_blocked"),
+        )
+        .select_from(Unit)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+        .order_by(Property.name.asc(), Unit.name.asc(), Unit.id.asc())
+    )
+    if property_id is not None:
+        units_query = units_query.filter(Property.id == property_id)
+    unit_rows = units_query.all()
+
+    unit_map: dict[int, dict] = {}
+    property_map: dict[int, dict] = {}
+    for row in unit_rows:
+        property_bucket = property_map.setdefault(
+            row.property_id,
+            {"id": row.property_id, "name": row.property_name, "units": []},
+        )
+        day_map = {
+            day_iso: {"date": day_iso, "status": "blocked" if row.unit_blocked else "free"}
+            for day_iso in date_range_iso
+        }
+        unit_payload = {
+            "id": row.unit_id,
+            "name": row.unit_name,
+            "type": row.unit_type,
+            "days": day_map,
+            "_arrivals": set(),
+            "_departures": set(),
+            "_blocked": bool(row.unit_blocked),
+        }
+        property_bucket["units"].append(unit_payload)
+        unit_map[row.unit_id] = unit_payload
+
+    if unit_map:
+        reservation_query = (
+            db.session.query(
+                Reservation.id.label("reservation_id"),
+                Reservation.unit_id.label("unit_id"),
+                Reservation.guest_name.label("guest_name"),
+                Reservation.start_date.label("start_date"),
+                Reservation.end_date.label("end_date"),
+            )
+            .select_from(Reservation)
+            .join(Unit, Reservation.unit_id == Unit.id)
+            .join(Property, Unit.property_id == Property.id)
+            .filter(
+                Property.organization_id == organization_id,
+                Reservation.start_date <= end_date,
+                Reservation.end_date >= start_date,
+            )
+            .order_by(Reservation.start_date.asc(), Reservation.id.asc())
+        )
+        if property_id is not None:
+            reservation_query = reservation_query.filter(Property.id == property_id)
+        if not include_cancelled:
+            reservation_query = reservation_query.filter(Reservation.status != "cancelled")
+        reservation_rows = reservation_query.all()
+
+        for row in reservation_rows:
+            unit_payload = unit_map.get(row.unit_id)
+            if unit_payload is None or unit_payload["_blocked"]:
+                continue
+            occupancy_start = max(row.start_date, start_date)
+            occupancy_end = min(row.end_date - timedelta(days=1), end_date)
+            cur = occupancy_start
+            while cur <= occupancy_end:
+                day_iso = cur.isoformat()
+                unit_payload["days"][day_iso] = {
+                    "date": day_iso,
+                    "status": "reserved",
+                    "guest": (row.guest_name or "").strip() or "Guest",
+                    "reservation_id": row.reservation_id,
+                }
+                cur += timedelta(days=1)
+            if start_date <= row.start_date <= end_date:
+                unit_payload["_arrivals"].add(row.start_date.isoformat())
+            if start_date <= row.end_date <= end_date:
+                unit_payload["_departures"].add(row.end_date.isoformat())
+
+        maintenance_rows = (
+            MaintenanceRequest.query.with_entities(
+                MaintenanceRequest.id.label("request_id"),
+                MaintenanceRequest.unit_id.label("unit_id"),
+                MaintenanceRequest.due_date.label("due_date"),
+            )
+            .filter(
+                MaintenanceRequest.organization_id == organization_id,
+                MaintenanceRequest.unit_id.isnot(None),
+                MaintenanceRequest.due_date >= start_date,
+                MaintenanceRequest.due_date <= end_date,
+                MaintenanceRequest.status.notin_(("resolved", "cancelled")),
+            )
+            .all()
+        )
+        for row in maintenance_rows:
+            unit_payload = unit_map.get(row.unit_id)
+            if unit_payload is None or unit_payload["_blocked"] or row.due_date is None:
+                continue
+            day_iso = row.due_date.isoformat()
+            unit_payload["days"][day_iso] = {
+                "date": day_iso,
+                "status": "maintenance",
+                "request_id": row.request_id,
+            }
+
+        for unit_payload in unit_map.values():
+            if unit_payload["_blocked"]:
+                continue
+            for day_iso in unit_payload["_departures"]:
+                existing = unit_payload["days"][day_iso]
+                if existing["status"] not in {"maintenance", "blocked"}:
+                    unit_payload["days"][day_iso] = {"date": day_iso, "status": "checkout"}
+            for day_iso in unit_payload["_arrivals"]:
+                existing = unit_payload["days"][day_iso]
+                if existing["status"] == "free":
+                    unit_payload["days"][day_iso] = {"date": day_iso, "status": "checkin"}
+
+    properties_payload = []
+    for prop in property_map.values():
+        formatted_units = []
+        for unit in prop["units"]:
+            formatted_units.append(
+                {
+                    "id": unit["id"],
+                    "name": unit["name"],
+                    "type": unit["type"],
+                    "days": [unit["days"][d] for d in date_range_iso],
+                }
+            )
+        properties_payload.append({"id": prop["id"], "name": prop["name"], "units": formatted_units})
+
+    return {"properties": properties_payload, "date_range": date_range_iso}
 
 
 def get_calendar_events(

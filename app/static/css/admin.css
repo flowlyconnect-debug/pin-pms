@@ -2333,3 +2333,101 @@ a.admin-kpi-card:hover,
 .fc-event-peruttu {
   opacity: 0.55;
 }
+
+.availability-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.availability-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.availability-checkbox input {
+  width: auto;
+}
+
+.availability-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.availability-table-wrap,
+.availability-preview-wrap {
+  overflow-x: auto;
+}
+
+.availability-table {
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.availability-table th,
+.availability-table td {
+  min-width: 96px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.availability-property-row th {
+  text-align: left;
+  background: var(--color-surface-2);
+}
+
+.availability-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 180px !important;
+  text-align: left !important;
+  background: var(--color-surface);
+}
+
+.availability-status-free {
+  background: #ecfdf5;
+}
+
+.availability-status-reserved {
+  background: #fef2f2;
+}
+
+.availability-status-checkin,
+.availability-status-checkout {
+  background: #fffbeb;
+}
+
+.availability-status-maintenance {
+  background: #f3f4f6;
+}
+
+.availability-status-blocked {
+  background: #1f2937;
+  color: #fff;
+}
+
+.availability-preview-table {
+  min-width: 620px;
+}
+
+.availability-preview-free {
+  background: #ecfdf5;
+}
+.availability-preview-reserved {
+  background: #fef2f2;
+}
+.availability-preview-checkin,
+.availability-preview-checkout {
+  background: #fffbeb;
+}
+.availability-preview-maintenance {
+  background: #f3f4f6;
+}
+.availability-preview-blocked {
+  background: #1f2937;
+  color: #fff;
+}

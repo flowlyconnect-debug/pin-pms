@@ -1,0 +1,100 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Saatavuus · Pin PMS{% endblock %}
+{% block page_title %}Saatavuus{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Saatavuus</h1>
+      <p class="page-subtitle">{{ start_date.strftime("%d.%m.%Y") }} - {{ end_date.strftime("%d.%m.%Y") }}</p>
+    </div>
+  </div>
+
+  <section class="content-card">
+    <form method="get" class="availability-toolbar">
+      <label>
+        Alkaa
+        <input type="date" name="from" value="{{ start_date.isoformat() }}">
+      </label>
+      <label>
+        Päiviä
+        <input type="number" name="days" min="1" max="31" value="{{ days }}">
+      </label>
+      <label>
+        Kohde
+        <select name="property_id">
+          <option value="">Kaikki kohteet</option>
+          {% for property in properties %}
+            <option value="{{ property.id }}" {% if selected_property_id == property.id %}selected{% endif %}>{{ property.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="availability-checkbox">
+        <input type="checkbox" name="include_cancelled" value="1" {% if include_cancelled %}checked{% endif %}>
+        Näytä perutut varaukset
+      </label>
+      <div class="availability-actions">
+        <a class="btn btn-secondary" href="{{ url_for('admin.availability_page', from=prev_from, days=days, property_id=selected_property_id, include_cancelled=1 if include_cancelled else None) }}">Edellinen 7 päivää</a>
+        <a class="btn btn-secondary" href="{{ url_for('admin.availability_page', from=next_from, days=days, property_id=selected_property_id, include_cancelled=1 if include_cancelled else None) }}">Seuraava 7 päivää</a>
+        <button class="btn" type="submit">Päivitä</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="content-card availability-card">
+    <div class="availability-table-wrap">
+      <table class="availability-table">
+        <thead>
+          <tr>
+            <th class="availability-sticky-col">Kohde / Yksikkö</th>
+            {% for day_iso in matrix.date_range %}
+              <th>{{ day_iso[5:] }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for property in matrix.properties %}
+            <tr class="availability-property-row">
+              <th class="availability-sticky-col" colspan="{{ 1 + (matrix.date_range|length) }}">{{ property.name }}</th>
+            </tr>
+            {% for unit in property.units %}
+              <tr>
+                <th class="availability-sticky-col">{{ unit.name }}</th>
+                {% for day in unit.days %}
+                  {% set status = day.status %}
+                  {% set cell_class = "availability-status-" ~ status %}
+                  {% if status == "reserved" %}
+                    <td class="{{ cell_class }}" title="{{ day.guest }} · Varaus #{{ day.reservation_id }}">
+                      <a href="{{ url_for('admin.reservations_edit', reservation_id=day.reservation_id) }}">
+                        {{ day.guest }}
+                      </a>
+                    </td>
+                  {% elif status == "maintenance" %}
+                    <td class="{{ cell_class }}" title="Huolto #{{ day.request_id }}">
+                      <a href="{{ url_for('admin.maintenance_requests_detail', request_id=day.request_id) }}">Huolto</a>
+                    </td>
+                  {% elif status in ["checkout", "checkin"] %}
+                    <td class="{{ cell_class }}" title="Klikkaa luodaksesi varauksen">
+                      <a href="{{ url_for('admin.reservations_new') }}">{{ "Vaihto" if status == "checkout" else "Saapuu" }}</a>
+                    </td>
+                  {% elif status == "blocked" %}
+                    <td class="{{ cell_class }}" title="Yksikkö estetty">Estetty</td>
+                  {% else %}
+                    <td class="{{ cell_class }}" title="Klikkaa luodaksesi varauksen">
+                      <a href="{{ url_for('admin.reservations_new') }}">Vapaa</a>
+                    </td>
+                  {% endif %}
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="{{ 1 + (matrix.date_range|length) }}"><em>Ei kohteita tai yksiköitä.</em></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

@@ -156,5 +156,36 @@
     </section>
   </section>
 
+  <section class="card content-card">
+    <div class="card-header">
+      <h2>Tämän viikon saatavuus</h2>
+      <a class="btn btn-secondary btn-sm" href="{{ url_for('admin.availability_page') }}">Avaa täysi näkymä</a>
+    </div>
+    <div class="availability-preview-wrap">
+      <table class="availability-preview-table">
+        <thead>
+          <tr>
+            <th>Kohde / Yksikkö</th>
+            {% for day in availability_preview.date_range %}
+              <th>{{ day[5:] }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for property in availability_preview.properties %}
+            {% for unit in property.units[:3] %}
+              <tr>
+                <td>{{ property.name }} · {{ unit.name }}</td>
+                {% for day in unit.days %}
+                  <td class="availability-preview-{{ day.status }}" title="{{ day.status }}">{{ day.status[0]|upper }}</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <script type="application/json" id="dashboard-data">{{ dashboard_chart_data | tojson }}</script>
 {% endblock %}

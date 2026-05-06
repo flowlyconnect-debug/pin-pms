@@ -10,7 +10,8 @@ from __future__ import annotations
 import hashlib
 import json
 import csv
-from datetime import date, datetime, timezone
+import time
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from io import BytesIO
 from io import StringIO
@@ -92,6 +93,8 @@ from app.comments.services import CommentService, CommentServiceError
 from app.core.decorators import require_api_tenant_entity, require_tenant_access
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
+_AVAILABILITY_CACHE_TTL_SECONDS = 30
+_availability_cache: dict[tuple, tuple[float, dict]] = {}
 
 
 def _is_admin_or_superadmin() -> bool:
@@ -212,6 +215,15 @@ def admin_home():
         "unit_status_overview": summary.get("unit_status_overview", []),
         "range_key": summary.get("range_key", selected_range),
     }
+    today = date.today()
+    availability_preview = _get_cached_availability_matrix(
+        organization_id=selected_org_id,
+        start_date=today,
+        end_date=today + timedelta(days=6),
+        property_id=None,
+        include_cancelled=False,
+    )
+    availability_preview["properties"] = availability_preview["properties"][:3]
     return render_template(
         "admin/dashboard.html",
         summary=summary,
@@ -219,6 +231,7 @@ def admin_home():
         selected_organization_id=selected_org_id,
         dashboard_chart_data=dashboard_chart_data,
         selected_range=selected_range,
+        availability_preview=availability_preview,
     )
 
 
@@ -334,6 +347,110 @@ def _parse_calendar_event_types() -> set[str]:
         return {"reservations"}
     values = {part.strip().lower() for part in raw.split(",") if part.strip()}
     return values or {"reservations"}
+
+
+def _parse_availability_from_date() -> date:
+    raw = (request.args.get("from") or "").strip()
+    if not raw:
+        return date.today()
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        abort(400)
+
+
+def _parse_availability_days() -> int:
+    raw = (request.args.get("days") or "").strip()
+    if not raw:
+        return 14
+    try:
+        days = int(raw)
+    except ValueError:
+        abort(400)
+    return max(1, min(days, 31))
+
+
+def _availability_cache_key(*, organization_id: int, start_date: date, end_date: date, property_id: int | None, include_cancelled: bool) -> tuple:
+    return (
+        current_user.id,
+        organization_id,
+        start_date.isoformat(),
+        end_date.isoformat(),
+        property_id,
+        include_cancelled,
+    )
+
+
+def _get_cached_availability_matrix(
+    *,
+    organization_id: int,
+    start_date: date,
+    end_date: date,
+    property_id: int | None,
+    include_cancelled: bool,
+) -> dict:
+    now = time.time()
+    key = _availability_cache_key(
+        organization_id=organization_id,
+        start_date=start_date,
+        end_date=end_date,
+        property_id=property_id,
+        include_cancelled=include_cancelled,
+    )
+    hit = _availability_cache.get(key)
+    if hit and now - hit[0] <= _AVAILABILITY_CACHE_TTL_SECONDS:
+        return hit[1]
+    payload = reservation_service.availability_matrix(
+        organization_id=organization_id,
+        start_date=start_date,
+        end_date=end_date,
+        property_id=property_id,
+        include_cancelled=include_cancelled,
+    )
+    _availability_cache[key] = (now, payload)
+    return payload
+
+
+@admin_bp.get("/availability")
+@require_admin_pms_access
+def availability_page():
+    org_id = _pms_org_id()
+    start_d = _parse_availability_from_date()
+    days = _parse_availability_days()
+    end_d = start_d + timedelta(days=days - 1)
+    property_id = _parse_optional_calendar_filter_int("property_id")
+    include_cancelled = (request.args.get("include_cancelled") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+    properties, _ = _reservation_edit_form_context(organization_id=org_id)
+    try:
+        matrix = _get_cached_availability_matrix(
+            organization_id=org_id,
+            start_date=start_d,
+            end_date=end_d,
+            property_id=property_id,
+            include_cancelled=include_cancelled,
+        )
+    except reservation_service.ReservationServiceError as exc:
+        flash(exc.message, "error")
+        return redirect(url_for("admin.calendar_page"))
+
+    return render_template(
+        "admin/availability.html",
+        matrix=matrix,
+        properties=properties,
+        selected_property_id=property_id,
+        include_cancelled=include_cancelled,
+        start_date=start_d,
+        end_date=end_d,
+        days=days,
+        prev_from=(start_d - timedelta(days=7)).isoformat(),
+        next_from=(start_d + timedelta(days=7)).isoformat(),
+    )
 
 
 @admin_bp.get("/calendar")
