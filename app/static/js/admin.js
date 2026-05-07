@@ -81,6 +81,8 @@
     initOrgSwitcher();
     initTooltips();
     initConflictsUi();
+    initMobileMoreSheet();
+    initSidebarNavTooltips();
   }
 
   function initialsFromName(name) {
@@ -148,6 +150,50 @@
     document.addEventListener("keydown", function (ev) {
       if (ev.key === "Escape" && activeTooltipTarget) {
         hideTooltip(activeTooltipTarget);
+      }
+    });
+  }
+
+  function initSidebarNavTooltips() {
+    document.querySelectorAll(".admin-nav-link").forEach(function (link) {
+      var label = link.querySelector(".admin-nav-text");
+      if (!label) return;
+      var text = (label.textContent || "").trim();
+      if (!text) return;
+      link.setAttribute("data-tooltip", text);
+      link.setAttribute("title", text);
+    });
+  }
+
+  function initMobileMoreSheet() {
+    var sheet = document.querySelector("[data-mobile-more-sheet]");
+    var openTrigger = document.querySelector("[data-mobile-more-open]");
+    if (!sheet || !openTrigger) return;
+
+    function setOpen(open) {
+      sheet.hidden = !open;
+      document.body.classList.toggle("admin-mobile-sheet-open", open);
+    }
+
+    openTrigger.addEventListener("click", function () {
+      setOpen(true);
+    });
+
+    sheet.querySelectorAll("[data-mobile-more-close]").forEach(function (closeButton) {
+      closeButton.addEventListener("click", function () {
+        setOpen(false);
+      });
+    });
+
+    sheet.querySelectorAll("a").forEach(function (link) {
+      link.addEventListener("click", function () {
+        setOpen(false);
+      });
+    });
+
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape") {
+        setOpen(false);
       }
     });
   }

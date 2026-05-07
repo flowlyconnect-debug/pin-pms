@@ -97,19 +97,17 @@
       <div class="admin-main-wrap">
         <header class="admin-topbar">
           <div class="admin-topbar-left">
-            <button type="button" class="admin-menu-toggle" aria-controls="admin-sidebar" aria-expanded="false" aria-label="Avaa valikko">
-              <span class="admin-menu-bars" aria-hidden="true"></span>
-            </button>
-            <span class="admin-topbar-breadcrumb">{{ breadcrumb_text }}</span>
+            <a class="admin-brand admin-brand--mobile" href="{{ url_for('admin.admin_home') }}" aria-label="Pin PMS etusivu">
+              <span class="admin-brand-mark" aria-hidden="true">P</span>
+              <span class="admin-brand-copy">
+                <span class="admin-brand-name">Pin PMS</span>
+              </span>
+            </a>
           </div>
-          <button type="button" class="admin-global-search-trigger" data-command-open aria-label="Avaa haku">
-            <span class="admin-global-search-copy">
-              <span class="admin-global-search-icon" aria-hidden="true">⌕</span>
-              <span class="admin-global-search-placeholder">Hae varauksia, asiakkaita, laskuja…</span>
-            </span>
-            <kbd class="admin-global-search-kbd" data-kbd-hint>Ctrl K</kbd>
-          </button>
           <div class="admin-topbar-right">
+            <button type="button" class="admin-icon-btn" data-command-open aria-label="Avaa haku">
+              <span class="admin-global-search-icon" aria-hidden="true">⌕</span>
+            </button>
             {% set notification_panel_id = "admin-notifications-panel-mobile" %}
             {% include "admin/_notification_bell.html" %}
             <details class="admin-avatar-menu">
@@ -144,6 +142,9 @@
                 </nav>
               </div>
             </details>
+            <button type="button" class="admin-menu-toggle" aria-controls="admin-sidebar" aria-expanded="false" aria-label="Avaa valikko">
+              <span class="admin-menu-bars" aria-hidden="true"></span>
+            </button>
           </div>
         </header>
         <main id="main-content" class="admin-main" role="main" tabindex="-1">
@@ -222,6 +223,47 @@
             {% block content %}{% endblock %}
           </div>
         </main>
+      </div>
+    </div>
+
+    <nav class="admin-mobile-bottom-nav" aria-label="Mobiilin pikanavigaatio">
+      <a href="{{ url_for('admin.admin_home') }}" class="admin-mobile-bottom-link{% if ep == 'admin.admin_home' %} is-active{% endif %}"{% if ep == 'admin.admin_home' %} aria-current="page"{% endif %}>
+        {{ nav_icon_dashboard() }}
+        <span>Etusivu</span>
+      </a>
+      <a href="{{ url_for('admin.properties_list') }}" class="admin-mobile-bottom-link{% if ep.startswith('admin.properties_') or ep.startswith('admin.units_') %} is-active{% endif %}"{% if ep.startswith('admin.properties_') or ep.startswith('admin.units_') %} aria-current="page"{% endif %}>
+        {{ nav_icon_building() }}
+        <span>Kohteet</span>
+      </a>
+      <a href="{{ url_for('admin.reservations_list') }}" class="admin-mobile-bottom-link{% if ep.startswith('admin.reservations_') %} is-active{% endif %}"{% if ep.startswith('admin.reservations_') %} aria-current="page"{% endif %}>
+        {{ nav_icon_bookings() }}
+        <span>Varaukset</span>
+      </a>
+      <a href="{{ url_for('admin.invoices_list') }}" class="admin-mobile-bottom-link{% if ep.startswith('admin.invoices_') %} is-active{% endif %}"{% if ep.startswith('admin.invoices_') %} aria-current="page"{% endif %}>
+        {{ nav_icon_invoice() }}
+        <span>Laskut</span>
+      </a>
+      <button type="button" class="admin-mobile-bottom-link admin-mobile-bottom-more-trigger" data-mobile-more-open aria-label="Lisää toimintoja">
+        <span class="admin-mobile-bottom-more-icon" aria-hidden="true">⋯</span>
+        <span>Lisää</span>
+      </button>
+    </nav>
+
+    <div class="admin-mobile-more-sheet" data-mobile-more-sheet hidden>
+      <button type="button" class="admin-mobile-more-sheet-backdrop" data-mobile-more-close aria-label="Sulje lisänavigaatio"></button>
+      <div class="admin-mobile-more-sheet-panel" role="dialog" aria-modal="true" aria-label="Lisänavigaatio">
+        <div class="admin-mobile-more-sheet-head">
+          <p>Lisää toimintoja</p>
+          <button type="button" class="admin-mobile-more-close" data-mobile-more-close aria-label="Sulje">✕</button>
+        </div>
+        <div class="admin-mobile-more-list">
+          <a href="{{ url_for('admin.guests_list') }}">{{ nav_icon_user() }}<span>Asiakkaat</span></a>
+          <a href="{{ url_for('admin.leases_list') }}">{{ nav_icon_document() }}<span>Vuokrasopimukset</span></a>
+          <a href="{{ url_for('admin.maintenance_requests_list') }}">{{ nav_icon_maintenance() }}<span>Huolto</span></a>
+          <a href="{{ url_for('admin.calendar_page') }}">{{ nav_icon_calendar() }}<span>Kalenteri</span></a>
+          <a href="{{ url_for('admin.reports_index') }}">{{ nav_icon_reports() }}<span>Raportit</span></a>
+          <a href="{{ url_for('admin.settings_list') }}">{{ nav_icon_settings() }}<span>Asetukset</span></a>
+        </div>
       </div>
     </div>
 
