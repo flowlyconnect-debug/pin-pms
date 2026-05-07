@@ -173,3 +173,32 @@ button.btn-danger:focus-visible,
   outline: none;
   box-shadow: 0 0 0 3px var(--primary-soft);
 }
+
+.copyable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.copyable:hover {
+  background: var(--bg-alt);
+}
+
+.copyable-icon {
+  opacity: 0;
+  transition: opacity 150ms ease;
+  color: var(--text-soft);
+}
+
+.copyable:hover .copyable-icon,
+.copyable:focus-visible .copyable-icon {
+  opacity: 1;
+}

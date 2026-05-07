@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, Funnel, RefreshCw } from "lucide-react";
+import { Copyable } from "../../components/ui/Copyable";
 
 type AuditEventDiff = {
   field: string;
@@ -357,6 +358,23 @@ export function AuditLogPage() {
                           {event.summary}
                         </a>
                         <span style={{ color: "var(--text-soft)", fontSize: 12 }}>{event.time_label}</span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                        {event.actor_email ? (
+                          <Copyable value={event.actor_email}>
+                            <span style={{ fontSize: 12, color: "var(--text-soft)" }}>Email: {event.actor_email}</span>
+                          </Copyable>
+                        ) : null}
+                        {event.entity_id !== null ? (
+                          <Copyable value={String(event.entity_id)}>
+                            <span style={{ fontSize: 12, color: "var(--text-soft)" }}>ID: {event.entity_id}</span>
+                          </Copyable>
+                        ) : null}
+                        {event.entity_ref ? (
+                          <Copyable value={event.entity_ref}>
+                            <span style={{ fontSize: 12, color: "var(--text-soft)" }}>Viite: {event.entity_ref}</span>
+                          </Copyable>
+                        ) : null}
                       </div>
                       <button
                         type="button"
