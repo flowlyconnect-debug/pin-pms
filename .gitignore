@@ -31,7 +31,10 @@ wheels/
 venv/
 env/
 ENV/
+.venv-fresh/
 .python-version
+requirements.lock
+requirements-dev.lock
 
 # ---------------------------------------------------------------------------
 # Testing / coverage / type checkers / linters
