@@ -2,25 +2,35 @@
 <form method="get" class="filter-bar">
   <input type="hidden" name="sort" value="{{ filters.sort or 'created_at' }}">
   <input type="hidden" name="dir" value="{{ filters.direction or 'desc' }}">
-  <label for="{{ resource }}-filters-q">Haku</label>
-  <input id="{{ resource }}-filters-q" type="search" name="q" value="{{ filters.q or '' }}" placeholder="Haku">
-  <label for="{{ resource }}-filters-status">Tila</label>
-  <select id="{{ resource }}-filters-status" name="status">
-    <option value="">Kaikki tilat</option>
-    <option value="confirmed" {% if filters.status == 'confirmed' %}selected{% endif %}>Vahvistettu</option>
-    <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Avoin / odottaa</option>
-    <option value="open" {% if filters.status == 'open' %}selected{% endif %}>Avoin</option>
-    <option value="paid" {% if filters.status == 'paid' %}selected{% endif %}>Maksettu</option>
-    <option value="overdue" {% if filters.status == 'overdue' %}selected{% endif %}>Erääntynyt</option>
-    <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Aktiivinen</option>
-    <option value="cancelled" {% if filters.status == 'cancelled' %}selected{% endif %}>Peruttu</option>
-    <option value="draft" {% if filters.status == 'draft' %}selected{% endif %}>Luonnos</option>
-  </select>
-  <label for="{{ resource }}-filters-from">Alkaen</label>
-  <input id="{{ resource }}-filters-from" type="date" name="from" value="{{ request.args.get('from', '') }}">
-  <label for="{{ resource }}-filters-to">Asti</label>
-  <input id="{{ resource }}-filters-to" type="date" name="to" value="{{ request.args.get('to', '') }}">
-  <button type="submit" class="btn btn-secondary" data-variant="primary">Suodata</button>
+  <div class="filter-bar-field">
+    <label for="{{ resource }}-filters-q">Haku</label>
+    <input id="{{ resource }}-filters-q" type="search" name="q" value="{{ filters.q or '' }}" placeholder="Haku">
+  </div>
+  <div class="filter-bar-field">
+    <label for="{{ resource }}-filters-status">Tila</label>
+    <select id="{{ resource }}-filters-status" name="status">
+      <option value="">Kaikki tilat</option>
+      <option value="confirmed" {% if filters.status == 'confirmed' %}selected{% endif %}>Vahvistettu</option>
+      <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Avoin / odottaa</option>
+      <option value="open" {% if filters.status == 'open' %}selected{% endif %}>Avoin</option>
+      <option value="paid" {% if filters.status == 'paid' %}selected{% endif %}>Maksettu</option>
+      <option value="overdue" {% if filters.status == 'overdue' %}selected{% endif %}>Erääntynyt</option>
+      <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Aktiivinen</option>
+      <option value="cancelled" {% if filters.status == 'cancelled' %}selected{% endif %}>Peruttu</option>
+      <option value="draft" {% if filters.status == 'draft' %}selected{% endif %}>Luonnos</option>
+    </select>
+  </div>
+  <div class="filter-bar-field">
+    <label for="{{ resource }}-filters-from">Alkaen</label>
+    <input id="{{ resource }}-filters-from" type="date" name="from" value="{{ request.args.get('from', '') }}">
+  </div>
+  <div class="filter-bar-field">
+    <label for="{{ resource }}-filters-to">Asti</label>
+    <input id="{{ resource }}-filters-to" type="date" name="to" value="{{ request.args.get('to', '') }}">
+  </div>
+  <div class="filter-bar-actions">
+    <button type="submit" class="btn btn-primary" data-variant="primary">Suodata</button>
+  </div>
 </form>
 {% endmacro %}
 

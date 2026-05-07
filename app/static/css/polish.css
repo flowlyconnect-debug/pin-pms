@@ -326,19 +326,35 @@ html body .availability-table th.is-today {
 }
 
 /* ──────────────────────────────────────────────────────────────────
- * 12. Page header / topbar — keep duplicate breadcrumb tidy
+ * 12. Page header / topbar — title ALWAYS left-aligned on every page
+ *     admin.css line 631 forces text-align: center; we hard-override.
  * ────────────────────────────────────────────────────────────────── */
-html body .admin-desktop-topbar .admin-topbar-breadcrumb {
-  font-size: 13px !important;
-  color: #78716C !important;
-  margin: 0 !important;
+html body .admin-desktop-topbar .admin-topbar-heading,
+html body .admin-topbar .admin-topbar-heading {
+  text-align: left !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
 }
-html body .admin-desktop-topbar .admin-topbar-title {
+html body .admin-desktop-topbar .admin-topbar-title,
+html body .admin-topbar .admin-topbar-title {
+  text-align: left !important;
   font-size: 22px !important;
   font-weight: 700 !important;
   letter-spacing: -0.015em !important;
   color: #0C0A09 !important;
-  margin: 0 0 2px 0 !important;
+  margin: 0 !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
+html body .admin-desktop-topbar .admin-topbar-breadcrumb,
+html body .admin-topbar .admin-topbar-breadcrumb {
+  text-align: left !important;
+  font-size: 13px !important;
+  color: #78716C !important;
+  margin: 0 !important;
 }
 
 /* ──────────────────────────────────────────────────────────────────
@@ -475,6 +491,83 @@ html body .property-feature-checkbox:focus-visible {
   outline: 2px solid #FECACA !important;
   outline-offset: 1px !important;
   box-shadow: none !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * 16. Filter bar — proper field-grouped layout (Laskut etc.)
+ *     Each label+input pair lives in a .filter-bar-field wrapper so
+ *     they stay together when the grid wraps.
+ * ────────────────────────────────────────────────────────────────── */
+html body form.filter-bar {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 2fr) minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(150px, 1fr) auto !important;
+  gap: 12px !important;
+  align-items: end !important;
+  margin: 0 0 16px 0 !important;
+  padding: 16px !important;
+  background: #FFFFFF !important;
+  border: 1px solid #E7E5E4 !important;
+  border-radius: 12px !important;
+}
+html body form.filter-bar .filter-bar-field {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+}
+html body form.filter-bar .filter-bar-field label {
+  margin: 0 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #57534E !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+html body form.filter-bar .filter-bar-field input,
+html body form.filter-bar .filter-bar-field select {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 8px 10px !important;
+  font-size: 14px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  border: 1px solid #D6D3D1 !important;
+  border-radius: 6px !important;
+  background: #FFFFFF !important;
+  color: #0C0A09 !important;
+  box-shadow: none !important;
+}
+html body form.filter-bar .filter-bar-field input:focus,
+html body form.filter-bar .filter-bar-field select:focus {
+  outline: none !important;
+  border-color: #B91C1C !important;
+  box-shadow: 0 0 0 3px #FEF2F2 !important;
+}
+html body form.filter-bar .filter-bar-actions {
+  display: flex !important;
+  align-items: end !important;
+  height: 100% !important;
+  padding-bottom: 0 !important;
+}
+html body form.filter-bar .filter-bar-actions button {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 18px !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 980px) {
+  html body form.filter-bar {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  html body form.filter-bar .filter-bar-actions {
+    grid-column: 1 / -1 !important;
+  }
+}
+@media (max-width: 600px) {
+  html body form.filter-bar {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* Same treatment for radios, just round */
