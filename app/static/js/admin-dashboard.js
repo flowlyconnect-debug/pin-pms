@@ -151,7 +151,15 @@ function renderStatCard(model) {
   return `
     <article class="dashboard-stat-card dashboard-stat-card--${model.intent || "default"}">
       <div class="dashboard-stat-card__head">
-        <p class="dashboard-stat-card__label">${escapeHtml(model.label || "")}</p>
+        <p class="dashboard-stat-card__label">
+          ${escapeHtml(model.label || "")}
+          <button
+            type="button"
+            class="ui-tooltip-trigger"
+            data-tooltip="Muutos verrattuna edelliseen kuukauteen."
+            aria-label="Lisätieto trendistä"
+          >i</button>
+        </p>
         <span class="dashboard-stat-card__icon" aria-hidden="true">${escapeHtml(model.icon || "")}</span>
       </div>
       <p class="dashboard-stat-card__value">${escapeHtml(String(model.value || ""))}</p>

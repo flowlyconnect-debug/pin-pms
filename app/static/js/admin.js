@@ -64,8 +64,8 @@
       });
     });
 
-    var themeSelect = document.querySelector("[data-theme-select]");
-    if (themeSelect && themeSelect.form) {
+    document.querySelectorAll("[data-theme-select]").forEach(function (themeSelect) {
+      if (!themeSelect.form) return;
       themeSelect.addEventListener("change", function () {
         var theme = (themeSelect.value || "auto").toLowerCase();
         if (theme === "light" || theme === "dark") {
@@ -75,7 +75,79 @@
         }
         themeSelect.form.submit();
       });
+    });
+
+    initAvatars();
+    initTooltips();
+  }
+
+  function initialsFromName(name) {
+    var trimmed = (name || "").trim();
+    if (!trimmed) return "PM";
+    var parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
+  function hueFromName(name) {
+    var input = (name || "PM").toLowerCase();
+    var hash = 0;
+    for (var i = 0; i < input.length; i += 1) {
+      hash = (hash << 5) - hash + input.charCodeAt(i);
+      hash |= 0;
     }
+    return Math.abs(hash) % 360;
+  }
+
+  function initAvatars() {
+    document.querySelectorAll("[data-avatar]").forEach(function (avatar) {
+      var name = avatar.getAttribute("data-avatar-name") || "Pindora";
+      var src = (avatar.getAttribute("data-avatar-src") || "").trim();
+      var initialsNode = avatar.querySelector(".admin-avatar__initials");
+      var imageNode = avatar.querySelector(".admin-avatar__img");
+      var initials = initialsFromName(name);
+
+      if (initialsNode) initialsNode.textContent = initials;
+      avatar.style.setProperty("--avatar-hue", String(hueFromName(name)));
+
+      if (imageNode && src) {
+        imageNode.src = src;
+        imageNode.hidden = false;
+        avatar.classList.add("has-image");
+      } else if (imageNode) {
+        imageNode.hidden = true;
+        avatar.classList.remove("has-image");
+      }
+    });
+  }
+
+  function initTooltips() {
+    var activeTooltipTarget = null;
+
+    function showTooltip(target) {
+      var text = target.getAttribute("data-tooltip");
+      if (!text) return;
+      target.classList.add("tooltip-visible");
+      activeTooltipTarget = target;
+    }
+
+    function hideTooltip(target) {
+      target.classList.remove("tooltip-visible");
+      if (activeTooltipTarget === target) activeTooltipTarget = null;
+    }
+
+    document.querySelectorAll("[data-tooltip]").forEach(function (target) {
+      target.addEventListener("mouseenter", function () { showTooltip(target); });
+      target.addEventListener("mouseleave", function () { hideTooltip(target); });
+      target.addEventListener("focus", function () { showTooltip(target); });
+      target.addEventListener("blur", function () { hideTooltip(target); });
+    });
+
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && activeTooltipTarget) {
+        hideTooltip(activeTooltipTarget);
+      }
+    });
   }
 
   if (document.readyState === "loading") {

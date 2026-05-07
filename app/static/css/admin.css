@@ -3129,3 +3129,213 @@ a.admin-kpi-card:hover,
     max-width: 100%;
   }
 }
+
+/* Premium micro-interactions and accessibility refinements */
+.ui-transition {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.dashboard-stat-card,
+.admin-kpi-card,
+.admin-nav-link,
+.admin-main tbody tr td,
+.btn,
+.row-actions__menu a,
+.row-actions__menu button,
+.admin-global-search-trigger,
+.admin-menu-toggle {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.dashboard-stat-card:hover,
+.admin-kpi-card:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: scale(1.005);
+}
+
+.admin-main tbody tr:hover td,
+.data-table tbody tr:hover td,
+.ui-table tbody tr:hover td {
+  background: var(--bg-alt);
+}
+
+.admin-nav-link:hover {
+  background: #1c1917;
+  transform: translateX(2px);
+  transition-duration: 50ms, 150ms, 150ms, 150ms, 50ms;
+}
+
+.admin-main input,
+.admin-main select,
+.admin-main textarea {
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.admin-main input:focus,
+.admin-main select:focus,
+.admin-main textarea:focus,
+.admin-main input:focus-visible,
+.admin-main select:focus-visible,
+.admin-main textarea:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  outline: none;
+}
+
+.admin-main a:focus-visible,
+.admin-nav-link:focus-visible,
+.btn:focus-visible,
+.row-actions__trigger:focus-visible,
+.row-actions__menu a:focus-visible,
+.row-actions__menu button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.admin-confirm-dialog[open] {
+  animation: admin-modal-slide-up 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.admin-confirm-dialog[open]::backdrop {
+  animation: admin-modal-backdrop-fade 200ms ease;
+}
+
+@keyframes admin-modal-backdrop-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes admin-modal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ui-tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-alt);
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+}
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(6px);
+  min-width: 180px;
+  max-width: 240px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #312e2b;
+  background: #1c1917;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease, transform 150ms ease;
+  z-index: 2200;
+  text-align: left;
+}
+
+[data-tooltip].tooltip-visible::after,
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.admin-avatar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--avatar-hue, 12) 75% 52%),
+    hsl(calc(var(--avatar-hue, 12) + 36) 75% 42%)
+  );
+}
+
+.admin-avatar--sm { width: 24px; height: 24px; }
+.admin-avatar--md { width: 32px; height: 32px; }
+.admin-avatar--lg { width: 40px; height: 40px; }
+
+.admin-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-avatar:not(.has-image) .admin-avatar__img {
+  display: none;
+}
+
+.admin-avatar.has-image .admin-avatar__initials {
+  display: none;
+}
+
+.dashboard-stat-card__label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.table-load-skeleton {
+  min-height: 298px;
+}
+
+[data-table-content] {
+  min-height: 298px;
+}
+
+.admin-nav-link,
+.btn,
+.row-actions__trigger,
+.row-actions__menu a,
+.row-actions__menu button,
+.admin-global-search-trigger,
+.admin-menu-toggle {
+  min-height: 32px;
+}
