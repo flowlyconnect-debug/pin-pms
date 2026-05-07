@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pin PMS — Bugfix & Polish Pass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAFAF9;
+    --bg-alt: #F5F5F4;
+    --surface: #FFFFFF;
+    --border: #E7E5E4;
+    --border-strong: #D6D3D1;
+    --text: #0C0A09;
+    --text-muted: #57534E;
+    --text-soft: #78716C;
+    --primary: #B91C1C;
+    --primary-hover: #991B1B;
+    --primary-soft: #FEF2F2;
+    --primary-soft-border: #FECACA;
+    --success: #15803D;
+    --success-soft: #DCFCE7;
+    --warning: #B45309;
+    --warning-soft: #FEF3C7;
+    --info: #1D4ED8;
+    --info-soft: #DBEAFE;
+    --danger: #DC2626;
+    --danger-soft: #FEE2E2;
+
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow-xs: 0 1px 2px rgba(12, 10, 9, 0.04);
+    --shadow-sm: 0 1px 3px rgba(12, 10, 9, 0.06), 0 1px 2px rgba(12, 10, 9, 0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 64px 32px; }
+
+  .hero {
+    padding: 80px 32px 48px;
+    background: linear-gradient(180deg, #FFF7ED 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+  }
+  .hero-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: var(--warning-soft);
+    color: var(--warning);
+    border: 1px solid #FDE68A;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #0C0A09 0%, #57534E 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p { font-size: 18px; color: var(--text-muted); max-width: 720px; margin: 0 auto; }
+
+  section { margin-bottom: 64px; }
+  h2 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--text);
+    color: white;
+    font-weight: 700;
+    text-align: center;
+    line-height: 32px;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .section-sub { color: var(--text-muted); font-size: 17px; margin-bottom: 28px; max-width: 800px; }
+  h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; letter-spacing: -0.01em; }
+  h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+
+  /* Bug list */
+  .bug-list { display: grid; gap: 12px; margin-bottom: 32px; }
+  .bug {
+    display: grid;
+    grid-template-columns: 48px 1fr auto;
+    gap: 16px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text);
+    border-radius: var(--radius);
+    align-items: center;
+  }
+  .bug.critical { border-left-color: var(--danger); }
+  .bug.high { border-left-color: var(--primary); }
+  .bug.med { border-left-color: var(--warning); }
+  .bug.low { border-left-color: var(--info); }
+  .bug-num {
+    width: 32px; height: 32px;
+    background: var(--bg-alt);
+    border-radius: 8px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 32px;
+    color: var(--text-muted);
+  }
+  .bug.critical .bug-num { background: var(--danger-soft); color: var(--danger); }
+  .bug.high .bug-num { background: var(--primary-soft); color: var(--primary); }
+  .bug.med .bug-num { background: var(--warning-soft); color: var(--warning); }
+  .bug.low .bug-num { background: var(--info-soft); color: var(--info); }
+  .bug-content h4 { margin-bottom: 4px; font-size: 15px; }
+  .bug-content p { color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+  .bug-priority {
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .bug-priority.critical { background: var(--danger-soft); color: var(--danger); }
+  .bug-priority.high { background: var(--primary-soft); color: var(--primary); }
+  .bug-priority.med { background: var(--warning-soft); color: var(--warning); }
+  .bug-priority.low { background: var(--info-soft); color: var(--info); }
+
+  /* Visual demo */
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .demo {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .demo-label {
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .demo.bad { border-color: #FCA5A5; }
+  .demo.good { border-color: #86EFAC; }
+  .demo.bad .demo-label { background: #FEF2F2; color: #991B1B; }
+  .demo.good .demo-label { background: #F0FDF4; color: #166534; }
+  .demo-content { padding: 16px; }
+
+  table.demo-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.demo-table th { text-align: left; padding: 10px 12px; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  table.demo-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  table.demo-table tr:last-child td { border-bottom: none; }
+
+  /* Bad table example */
+  table.bad-table th { background: #0C0A09; color: white; }
+  table.bad-table tr:hover td { background: #0C0A09; color: white; }
+
+  /* Good table example */
+  table.good-table th { background: var(--bg-alt); color: var(--text-soft); border-bottom: 1px solid var(--border); }
+  table.good-table tr:hover td { background: var(--bg-alt); }
+
+  /* Checkbox demos */
+  .cb-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; }
+  .cb-bad {
+    width: 20px; height: 20px;
+    background: #8B5CF6;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 12px;
+  }
+  .cb-good {
+    width: 18px; height: 18px;
+    background: var(--primary);
+    border: 1.5px solid var(--primary);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 12px;
+  }
+  .cb-empty {
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--surface);
+  }
+
+  /* Prompt blocks */
+  .prompt-block {
+    background: #0C0A09;
+    color: #E7E5E4;
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 16px 0;
+  }
+  .prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #292524;
+    gap: 12px;
+  }
+  .prompt-tag {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #A8A29E;
+    font-weight: 600;
+  }
+  .prompt-copy {
+    background: #1C1917;
+    color: #E7E5E4;
+    border: 1px solid #292524;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .prompt-copy:hover { background: #292524; }
+  .prompt-block pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; line-height: 1.6; }
+
+  /* Notes */
+  .note {
+    background: var(--info-soft);
+    border-left: 3px solid var(--info);
+    padding: 16px 20px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 14px;
+    margin: 20px 0;
+  }
+  .note strong { color: var(--info); }
+  .note.warn { background: var(--warning-soft); border-left-color: var(--warning); }
+  .note.warn strong { color: var(--warning); }
+  .note.crit { background: var(--danger-soft); border-left-color: var(--danger); }
+  .note.crit strong { color: var(--danger); }
+
+  /* Root cause section */
+  .root-cause {
+    background: var(--surface);
+    border: 2px solid var(--danger);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin: 24px 0;
+  }
+  .root-cause h3 { color: var(--danger); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .root-cause p { color: var(--text); margin-bottom: 12px; }
+  .root-cause code { background: var(--bg-alt); padding: 2px 6px; border-radius: 4px; }
+
+  /* Fix card */
+  .fix-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .fix-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .fix-title { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 10px; }
+  .fix-time {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--bg-alt);
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .ascii-art {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: #0C0A09;
+    color: #86EFAC;
+    padding: 24px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  @media (max-width: 800px) {
+    .demo-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 36px; }
+    .bug { grid-template-columns: 40px 1fr; }
+    .bug-priority { grid-column: 2; justify-self: start; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <span class="hero-tag">Bugfix & Polish Pass</span>
+  <h1>Korjaussuunnitelma</h1>
+  <p>Cursor on tehnyt töitä, mutta useita asioita on mennyt pieleen — mustat headerit, mustat hover-tilat, lila checkboxit, ja muutama unohtunut kohta. Tässä mitä on rikki ja miten se korjataan.</p>
+</div>
+
+<div class="container">
+
+<!-- ROOT CAUSE -->
+<section>
+  <div class="root-cause">
+    <h3>🔍 Pääsyy useimmille bugeille</h3>
+    <p><strong>Dark mode -tokenit ovat vuotaneet light modeen.</strong> Cursor on todennäköisesti käyttänyt <code>--sidebar</code> tai <code>--text</code> -muuttujaa hover-tiloissa ja taulukon header'eissä, vaikka pitäisi käyttää <code>--bg-alt</code>.</p>
+    <p>Toinen virhe: <strong>Prompt 8 (lomakkeet & checkboxit) on jäänyt ajamatta tai se ei tunnistanut nykyisiä komponentteja.</strong> Lila checkboxit ovat edelleen siellä.</p>
+    <p>Kolmas virhe: <strong>Trend-indikaattori ei tarkista onko arvo todella positiivinen</strong> — se näyttää "0,0% ↗" vihreällä vaikka arvo on nolla.</p>
+  </div>
+</section>
+
+<!-- BUG LIST -->
+<section>
+  <h2><span class="section-num">1</span>Havaitut bugit (priorisoituna)</h2>
+  <p class="section-sub">12 ongelmaa kuvistasi. Numerointi vastaa korjausten järjestystä alempana.</p>
+
+  <div class="bug-list">
+
+    <div class="bug critical">
+      <div class="bug-num">1</div>
+      <div class="bug-content">
+        <h4>Hover muuttaa rivin mustaksi (taulukoissa & checkboxeissa)</h4>
+        <p>Kun hiiri viedään taulukon riville, se muuttuu kokonaan mustaksi (musta tausta + tumma teksti = lukukelvoton). Sama ongelma checkbox-rivien hoverissa. Pitäisi olla vaalea harmaa <code>--bg-alt</code>.</p>
+      </div>
+      <div class="bug-priority critical">Kriittinen</div>
+    </div>
+
+    <div class="bug critical">
+      <div class="bug-num">2</div>
+      <div class="bug-content">
+        <h4>Taulukoiden headerit mustia</h4>
+        <p>Kohteet- ja muiden taulukoiden header-rivit (ID, NIMI, OSOITE jne.) ovat mustalla taustalla valkoisella tekstillä. Pitäisi olla light gray <code>--bg-alt</code> + muted text.</p>
+      </div>
+      <div class="bug-priority critical">Kriittinen</div>
+    </div>
+
+    <div class="bug critical">
+      <div class="bug-num">3</div>
+      <div class="bug-content">
+        <h4>Lila checkboxit edelleen olemassa</h4>
+        <p>Saatavuus- ja muilla sivuilla checkboxit ovat <code>#8B5CF6</code> lila. Prompt 8 ei joko ajettu tai ei tunnistanut komponentteja. Pitäisi olla brändin punainen <code>--primary</code>.</p>
+      </div>
+      <div class="bug-priority critical">Kriittinen</div>
+    </div>
+
+    <div class="bug high">
+      <div class="bug-num">4</div>
+      <div class="bug-content">
+        <h4>Mustat napit ("Toteuta", "Avaa täysi näkymä", "Vaihda")</h4>
+        <p>Useat primary-tason napit ovat mustia eikä punaisia. Joko Button-prompt asetti väärän variantin tai globaali button-tyyli ottaa <code>--text</code>:n taustaksi.</p>
+      </div>
+      <div class="bug-priority high">Korkea</div>
+    </div>
+
+    <div class="bug high">
+      <div class="bug-num">5</div>
+      <div class="bug-content">
+        <h4>Trend "↗ 0,0% vs. ed. kk" vihreänä vaikka arvo on 0</h4>
+        <p>Stat-kortit näyttävät vihreää nuolta nollalla. Pitäisi: jos trend === 0 → näytä "→" neutraalilla värillä. Jos trend &lt; 0 → punainen ↘. Jos trend &gt; 0 → vihreä ↗.</p>
+      </div>
+      <div class="bug-priority high">Korkea</div>
+    </div>
+
+    <div class="bug high">
+      <div class="bug-num">6</div>
+      <div class="bug-content">
+        <h4>Sparklines tuskin näkyvät</h4>
+        <p>Stat-korttien pohjassa olevat mini-graafit ovat liian pieniä / haaleita. Tarvitsevat enemmän kontrastia, kookkaamman koon ja näkyvämmän fillin.</p>
+      </div>
+      <div class="bug-priority high">Korkea</div>
+    </div>
+
+    <div class="bug high">
+      <div class="bug-num">7</div>
+      <div class="bug-content">
+        <h4>Organisaatio-vaihdin EDELLEEN etusivulla</h4>
+        <p>"Organisaatio: [Flowly] [Vaihda]" -rivi näkyy edelleen Hallintapaneelin yläosassa, vaikka Part 2 -prompt C käski siirtää sen sidebariin. Tämä prompti ei joko ajettu tai jäi puolitiehen.</p>
+      </div>
+      <div class="bug-priority high">Korkea</div>
+    </div>
+
+    <div class="bug med">
+      <div class="bug-num">8</div>
+      <div class="bug-content">
+        <h4>Päivämäärät muodossa "05-07" (ei suomalainen)</h4>
+        <p>Saatavuus-taulukon header'eissä päivät ovat "05-07", "05-08"… Pitäisi olla "ke 7.5." tai "7.5." Prompt 10 (Locale & formatting) on jäänyt ajamatta tai ei kata näitä header'ejä.</p>
+      </div>
+      <div class="bug-priority med">Keski</div>
+    </div>
+
+    <div class="bug med">
+      <div class="bug-num">9</div>
+      <div class="bug-content">
+        <h4>Saatavuus-taulukon "R" / "F" ilman selitystä</h4>
+        <p>Mitä R ja F tarkoittavat? "Reserved" / "Free"? Käyttäjä joutuu arvaamaan. Tarvitaan: legend taulukon yläpuolelle, värikoodaus (vihreä = vapaa, sininen = varattu), ja hover-tooltip.</p>
+      </div>
+      <div class="bug-priority med">Keski</div>
+    </div>
+
+    <div class="bug med">
+      <div class="bug-num">10</div>
+      <div class="bug-content">
+        <h4>"i"-info-ikonit stat-otsikoiden vieressä</h4>
+        <p>"KÄYTTÖASTE ⓘ" — info-ikonit ovat siellä mutta tooltipia ei välttämättä ole. Joko: poista ne, tai lisää oikeat tooltipit jotka selittävät metriikan laskutavan.</p>
+      </div>
+      <div class="bug-priority med">Keski</div>
+    </div>
+
+    <div class="bug low">
+      <div class="bug-num">11</div>
+      <div class="bug-content">
+        <h4>"Liian vähän dataa graafiin" -banner haalea</h4>
+        <p>Etusivun info-banner on lähes näkymätön. Tarvitsee enemmän kontrastia ja selkeämmän ikonin.</p>
+      </div>
+      <div class="bug-priority low">Matala</div>
+    </div>
+
+    <div class="bug low">
+      <div class="bug-num">12</div>
+      <div class="bug-content">
+        <h4>"Yksiköiden tilanne" -linkit alleviivattuina punaisina</h4>
+        <p>"Pindora HQ · Pindora Toimisto" -linkit näyttävät 1990-luvun web-linkeiltä. Pitäisi olla siisti tumma teksti, hover → primary.</p>
+      </div>
+      <div class="bug-priority low">Matala</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- VISUAL DEMOS -->
+<section>
+  <h2><span class="section-num">2</span>Visuaalisia esimerkkejä korjauksista</h2>
+  <p class="section-sub">Näin asioiden pitäisi näyttää.</p>
+
+  <h3>Taulukon header & hover</h3>
+  <div class="demo-grid">
+    <div class="demo bad">
+      <div class="demo-label">⚠ Nyt — musta header & hover</div>
+      <div class="demo-content">
+        <table class="demo-table bad-table">
+          <thead><tr><th>ID</th><th>Nimi</th><th>Osoite</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Pindora HQ</td><td>Uutiskatu 2</td></tr>
+            <tr><td>2</td><td>Pindora Varasto</td><td>Tehdaskatu 5</td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:11px; color:var(--text-muted); margin-top:8px">↑ Hover → koko rivi musta, teksti katoaa</p>
+      </div>
+    </div>
+    <div class="demo good">
+      <div class="demo-label">✓ Uusi — vaalea hover</div>
+      <div class="demo-content">
+        <table class="demo-table good-table">
+          <thead><tr><th>ID</th><th>Nimi</th><th>Osoite</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Pindora HQ</td><td>Uutiskatu 2</td></tr>
+            <tr><td>2</td><td>Pindora Varasto</td><td>Tehdaskatu 5</td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:11px; color:var(--text-muted); margin-top:8px">↑ Hover → vaalea harmaa <code>--bg-alt</code></p>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 32px">Checkbox-värit</h3>
+  <div class="demo-grid">
+    <div class="demo bad">
+      <div class="demo-label">⚠ Nyt — lila ei kuulu brändiin</div>
+      <div class="demo-content">
+        <div class="cb-row"><div class="cb-bad">✓</div>Hissi</div>
+        <div class="cb-row"><div class="cb-bad">✓</div>Pysäköinti</div>
+        <div class="cb-row"><div class="cb-bad">✓</div>Sauna</div>
+      </div>
+    </div>
+    <div class="demo good">
+      <div class="demo-label">✓ Uusi — brändin punainen</div>
+      <div class="demo-content">
+        <div class="cb-row"><div class="cb-good">✓</div>Hissi</div>
+        <div class="cb-row"><div class="cb-good">✓</div>Pysäköinti</div>
+        <div class="cb-row"><div class="cb-empty"></div>Sauna</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 32px">Trend-indikaattori</h3>
+  <div class="demo-grid">
+    <div class="demo bad">
+      <div class="demo-label">⚠ Nyt</div>
+      <div class="demo-content">
+        <div style="padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); font-weight: 600; margin-bottom: 8px;">KÄYTTÖASTE</div>
+          <div style="font-size: 24px; font-weight: 700;">50,0 %</div>
+          <div style="font-size: 12px; color: var(--success); font-weight: 500; margin-top: 4px;">↗ 0,0% vs. ed. kk</div>
+          <p style="font-size:11px; color:var(--text-muted); margin-top:6px">Vihreä nuoli + 0% = väärin</p>
+        </div>
+      </div>
+    </div>
+    <div class="demo good">
+      <div class="demo-label">✓ Uusi</div>
+      <div class="demo-content">
+        <div style="padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); font-weight: 600; margin-bottom: 8px;">KÄYTTÖASTE</div>
+          <div style="font-size: 24px; font-weight: 700;">50,0 %</div>
+          <div style="font-size: 12px; color: var(--text-soft); font-weight: 500; margin-top: 4px;">→ Ei muutosta vs. ed. kk</div>
+          <p style="font-size:11px; color:var(--text-muted); margin-top:6px">Neutraali nuoli + neutraali väri</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 32px">Saatavuus-taulukko</h3>
+  <div class="demo-grid">
+    <div class="demo bad">
+      <div class="demo-label">⚠ Nyt</div>
+      <div class="demo-content">
+        <table class="demo-table" style="font-size: 12px;">
+          <thead><tr><th>Kohde</th><th>05-07</th><th>05-08</th><th>05-09</th></tr></thead>
+          <tbody>
+            <tr><td>Pindora Toimisto</td><td>R</td><td>R</td><td>R</td></tr>
+            <tr><td>Pindora Varasto</td><td>F</td><td>F</td><td>F</td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:11px; color:var(--text-muted); margin-top:6px">"R" / "F" = ?</p>
+      </div>
+    </div>
+    <div class="demo good">
+      <div class="demo-label">✓ Uusi</div>
+      <div class="demo-content">
+        <div style="display: flex; gap: 12px; margin-bottom: 8px; font-size: 11px;">
+          <div style="display: flex; align-items: center; gap: 4px;"><span style="width: 10px; height: 10px; background: #DCFCE7; border: 1px solid #86EFAC; border-radius: 3px;"></span>Vapaa</div>
+          <div style="display: flex; align-items: center; gap: 4px;"><span style="width: 10px; height: 10px; background: #DBEAFE; border: 1px solid #93C5FD; border-radius: 3px;"></span>Varattu</div>
+        </div>
+        <table class="demo-table" style="font-size: 12px;">
+          <thead><tr><th>Kohde</th><th>ke 7.5.</th><th>to 8.5.</th><th>pe 9.5.</th></tr></thead>
+          <tbody>
+            <tr><td>Pindora Toimisto</td>
+              <td style="background: #DBEAFE; color: #1D4ED8; text-align: center; font-weight: 600;">●</td>
+              <td style="background: #DBEAFE; color: #1D4ED8; text-align: center; font-weight: 600;">●</td>
+              <td style="background: #DBEAFE; color: #1D4ED8; text-align: center; font-weight: 600;">●</td>
+            </tr>
+            <tr><td>Pindora Varasto</td>
+              <td style="background: #DCFCE7; color: #15803D; text-align: center; font-weight: 600;">●</td>
+              <td style="background: #DCFCE7; color: #15803D; text-align: center; font-weight: 600;">●</td>
+              <td style="background: #DCFCE7; color: #15803D; text-align: center; font-weight: 600;">●</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FIX PROMPTS -->
+<section>
+  <h2><span class="section-num">3</span>Korjaus-promptit (aja järjestyksessä)</h2>
+  <p class="section-sub">12 promptia, kriittiset ensin. Jokainen oma Cursor-sessiossa.</p>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">🔥 Fix 1 — Mustat hoverit & taulukko-headerit (kriittinen)</div>
+      <span class="fix-time">~30 min</span>
+    </div>
+    <p>Tämä korjaa todennäköisesti useita ongelmia kerralla. Pääsyy: <code>--bg-alt</code>:n sijaan käytetään <code>--text</code> tai <code>--sidebar</code> -muuttujaa.</p>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 1 · Hover & header colors</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Korjaa rikkinäiset hover-tilat ja mustat taulukko-header'it.
+
+ONGELMA:
+Kuvasta näkyy että:
+- Taulukoiden header-rivit ovat MUSTIA (bg #0C0A09 + valkoinen teksti)
+- Rivien hover muuttaa koko rivin mustaksi
+- Pitäisi olla vaalea harmaa: bg-alt #F5F5F4
+
+JUURISYY (tarkista ensin):
+Etsi src/-kansiosta kaikki kohdat joissa käytetään:
+- background: var(--text)
+- background: var(--sidebar)
+- background: black tai #000 tai #0C0A09 (suoraan)
+- :hover { background: ... } -säännöt
+
+erityisesti seuraavissa tiedostoissa:
+- Table-komponentti (jos olemassa)
+- src/styles/tables.css tai vastaava
+- Tailwind-tapauksessa: bg-black, bg-stone-900, hover:bg-black
+
+TEE NÄIN:
+
+1. Avaa src/styles/tokens.css (tai missä CSS-muuttujat ovat) ja
+   varmista että nämä ovat oikein:
+   --bg-alt: #F5F5F4;
+   --bg-hover: #F5F5F4;  (lisää tämä jos puuttuu)
+   --table-header-bg: #F5F5F4;
+   --table-row-hover: #F5F5F4;
+   --table-header-text: #78716C;
+
+2. Etsi & korvaa (käytä tarkkoja regex-hakuja Cursorissa):
+   - "background: var(--text)" → "background: var(--bg-alt)"
+     (varmista että et muuta text-color-sääntöjä)
+   - "background: var(--sidebar)" non-sidebar-konteksteissa
+     → "background: var(--bg-alt)"
+
+3. Tailwind-projekti:
+   - thead: korvaa "bg-stone-900 text-white" →
+     "bg-stone-100 text-stone-500"
+   - tr:hover: korvaa "hover:bg-stone-900 hover:text-white" →
+     "hover:bg-stone-100"
+   - Erityisesti checkbox-rivit (Saatavuus-sivu): hover-väri ei
+     saa muuttaa tekstin tai checkboxin näkyvyyttä
+
+4. Varmista että tämä CSS toimii globaalisti:
+
+table thead th {
+  background: var(--bg-alt) !important;
+  color: var(--text-soft);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+table tbody tr:hover {
+  background: var(--bg-alt);
+}
+table tbody tr:hover td {
+  background: var(--bg-alt);
+  color: var(--text);  /* säilytä tekstin väri! */
+}
+
+5. Testaa kaikilla sivuilla:
+   - Etusivu (Yksiköiden tilanne, Tämän viikon saatavuus)
+   - Kohteet
+   - Asiakkaat
+   - Laskut
+   - Saatavuus
+
+Älä muuta sidebar-tyyliä — sidebarin pitää säilyä mustana.</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">🔥 Fix 2 — Lila checkboxit pois (kriittinen)</div>
+      <span class="fix-time">~20 min</span>
+    </div>
+    <p>Lila <code>#8B5CF6</code> on edelleen siellä. Cursor ei tunnistanut komponentteja viime kerralla. Nyt tehdään tarkempi prompt.</p>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 2 · Purple → red checkboxes</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Poista KAIKKI lila checkbox-värit ja korvaa brändin punaisella.
+
+ETSI ENSIN missä lila on:
+- grep -r "8B5CF6" src/
+- grep -r "#8b5cf6" src/
+- grep -r "violet-" src/         (Tailwind: violet-500, violet-600 jne.)
+- grep -r "purple-" src/         (Tailwind: purple-500, purple-600 jne.)
+- grep -ri "rgba(139" src/       (8B = 139 desimaalina)
+- Etsi myös accent-color: jossain CSS:ssä
+
+KORVAA TÄMÄN MUKAAN:
+
+1. Tailwind-luokat:
+   - "bg-violet-500" → "bg-red-700" (vastaa primary --primary #B91C1C)
+   - "bg-purple-500" → "bg-red-700"
+   - "text-violet-*" → "text-red-700"
+   - "border-violet-*" → "border-red-700"
+   - "ring-violet-*" → "ring-red-100"
+   - "checked:bg-violet-*" → "checked:bg-red-700"
+
+2. CSS-muuttujat:
+   - Etsi: --accent: #8B5CF6 → vaihda --primary tai poista
+   - input[type="checkbox"]:checked { background: #8B5CF6 } → var(--primary)
+   - accent-color: #8B5CF6 → accent-color: var(--primary)
+
+3. Inline styles:
+   - style={{ color: '#8B5CF6' }} → poista, käytä CSS-luokkia
+
+4. Jos käytätte Radix Checkbox tai Headless UI:
+   - Komponentin tyylissä bg-violet/purple → bg-red-700
+
+5. Native checkbox-tyyli (jos käytetään):
+
+input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+
+   tai täydellinen kustomointi:
+
+input[type="checkbox"] {
+  appearance: none;
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+  position: relative;
+  transition: all 150ms ease;
+}
+input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px; top: 2px;
+  width: 5px; height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+6. Varmista nämä sivut:
+   - Saatavuus-sivu (joukkovalinta-checkboxit taulukon vasemmalla)
+   - Kohteet → Muokkaa (Ominaisuudet-osio: Hissi, Pysäköinti...)
+   - Laskut-sivu (joukkovalinnat)
+
+7. Aja `npm run build` ja tarkista että ei TypeScript-virheitä.
+
+Yhden PR:n koko muutos.</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">🔥 Fix 3 — Mustat napit punaisiksi (kriittinen)</div>
+      <span class="fix-time">~20 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 3 · Black buttons → primary red</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Korjaa ne napit jotka ovat mustia mutta pitäisi olla punaisia.
+
+ONGELMA:
+Useat primary-toiminnot ovat MUSTIA: "Toteuta", "Avaa täysi näkymä",
+"Vaihda" (Organisaatio-vaihtaja), ja mahdollisesti muita.
+
+ETSI ENSIN:
+- grep -r "bg-black" src/
+- grep -r "bg-stone-900" src/
+- grep -r "bg-neutral-900" src/
+- grep -r "background: var(--text)" src/
+- Etsi button-elementit: <button className="bg-black ...">
+
+KORVAA SEN MUKAAN ONKO NAPPI:
+
+A) PRIMARY TOIMINTO (klikkaus laukaisee tärkeimmän action'in):
+   - "Toteuta" (Suodatin-applies)
+   - "Avaa täysi näkymä"
+   - "Tallenna"
+   - "Lähetä"
+   → bg-red-700 hover:bg-red-800 text-white shadow-sm
+     (vastaa --primary / --primary-hover)
+
+B) SECONDARY TOIMINTO:
+   - "Vaihda" (organisaatio)
+   - "Peruuta"
+   → bg-white border border-stone-300 text-stone-900
+     hover:bg-stone-100
+
+C) DESTRUCTIVE:
+   - "Poista"
+   → bg-red-600 hover:bg-red-700 text-white
+
+VARMISTA MYÖS:
+- Padding: py-2 px-4 (md size) tai 9px 16px
+- Border-radius: rounded-md (6px)
+- Font: text-sm font-medium
+- Transition: transition-colors duration-150
+- Focus: focus-visible:outline-none focus-visible:ring-2
+  focus-visible:ring-red-200
+
+ÄLÄ koske:
+- Sidebar-nav-itemeihin (eivät ole nappeja)
+- Topbar icon-button:eihin (Bell, Avatar)
+
+Käy läpi nämä sivut ja varmista jokainen näkyvä button:
+- Etusivu (Hallintapaneeli) → "Vaihda", info-banner-buttonit
+- Saatavuus → "Toteuta", "Avaa täysi näkymä"
+- Laskut → "Uusi lasku", "Merkitse myöhässä", "Suodata", "Toteuta"
+- Kohteet → "Uusi kohde", "Tallenna kohde"</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">⚡ Fix 4 — Trend-indikaattori (korkea)</div>
+      <span class="fix-time">~15 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 4 · Trend zero/negative/positive</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Korjaa trend-indikaattori käyttäytymään oikein.
+
+ONGELMA: Stat-kortti näyttää "↗ 0,0% vs. ed. kk" vihreällä vaikka
+arvo on 0%. Pitäisi olla:
+- trend > 0  → vihreä ↗ "+X%"
+- trend < 0  → punainen ↘ "-X%"
+- trend === 0 → harmaa → "Ei muutosta"
+
+1. Etsi StatCard-komponentti (todennäköisesti
+   src/components/ui/StatCard.tsx tai dashboard/StatCard.tsx)
+
+2. Korjaa trend-rendering-logiikka:
+
+function TrendIndicator({ trend }: { trend: number }) {
+  if (trend === 0 || trend === null || trend === undefined) {
+    return (
+      <div className="text-stone-500 text-xs font-medium flex items-center gap-1">
+        <span aria-hidden>→</span>
+        <span>Ei muutosta vs. ed. kk</span>
+      </div>
+    )
+  }
+  const isPositive = trend > 0
+  const formatted = new Intl.NumberFormat('fi-FI', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1
+  }).format(Math.abs(trend))
+
+  return (
+    <div className={`text-xs font-medium flex items-center gap-1 ${
+      isPositive ? 'text-green-700' : 'text-red-700'
+    }`}>
+      <span aria-hidden>{isPositive ? '↗' : '↘'}</span>
+      <span>
+        {isPositive ? '+' : '−'}{formatted}% vs. ed. kk
+      </span>
+    </div>
+  )
+}
+
+3. HUOM! Joillakin metriikoilla NEGATIIVINEN trend voi olla HYVÄ
+   (esim. kulut alempana = hyvä). Lisää prop "inverted":
+
+interface TrendIndicatorProps {
+  trend: number
+  inverted?: boolean  // true jos pieneneminen = hyvä
+}
+
+   Käytä:
+   - Käyttöaste, Tulot, Nettokassavirta → inverted={false}
+   - Kulut → inverted={true}
+
+   Logiikka:
+   const isGood = inverted ? trend < 0 : trend > 0
+   const color = isGood ? 'text-green-700' : 'text-red-700'
+
+4. Varmista että fi-FI-formatointi on käytössä (1,5 ei 1.5).</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">⚡ Fix 5 — Sparklines näkyväksi (korkea)</div>
+      <span class="fix-time">~15 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 5 · Sparkline visibility</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Tee sparklines näkyviksi stat-korteissa.
+
+ONGELMA: Sparklines ovat liian pieniä ja haaleita, tuskin näkyy.
+
+1. Etsi Sparkline-komponentti src/components/ui/Sparkline.tsx
+
+2. Päivitä oletus-koot ja värit:
+
+interface SparklineProps {
+  data: number[]
+  width?: number    // default 100 (oli 60)
+  height?: number   // default 32 (oli 20)
+  stroke?: string
+  fill?: string
+  intent?: 'default' | 'success' | 'warning' | 'danger' | 'neutral'
+}
+
+   Värit intentin mukaan:
+   - default → stroke #B91C1C, fill rgba(185, 28, 28, 0.12)
+   - success → stroke #15803D, fill rgba(21, 128, 61, 0.12)
+   - warning → stroke #B45309, fill rgba(180, 83, 9, 0.12)
+   - danger  → stroke #DC2626, fill rgba(220, 38, 38, 0.12)
+   - neutral → stroke #78716C, fill rgba(120, 113, 108, 0.12)
+
+3. Stroke-leveys 1.5 → 2 (näkyvämpi)
+
+4. Lisää viimeinen piste pisteenä:
+   <circle
+     cx={lastX}
+     cy={lastY}
+     r={3}
+     fill={stroke}
+   />
+
+5. Käytä stat-korteissa intent-arvoa:
+   - Käyttöaste → intent="default" (punainen brändiväri)
+   - Tulot     → intent="success"
+   - Kulut     → intent="warning"
+   - Netto     → trend > 0 ? "success" : "danger"
+
+6. Älä renderöi sparklinea jos data.length < 2 tai kaikki arvot
+   ovat samoja (flat-line näyttäisi rikkinäiseltä) — näytä sen
+   sijaan teksti "Ei vertailutietoa".</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">⚡ Fix 6 — Organisaatio-vaihdin sidebariin (korkea)</div>
+      <span class="fix-time">~30 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 6 · Move org switcher to sidebar</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Siirrä Organisaatio-vaihdin sidebarin yläosaan ja poista
+se Hallintapaneelin yläreunasta.
+
+ONGELMA:
+"Organisaatio: [Flowly ▾] [Vaihda]" -rivi näkyy edelleen etusivulla
+otsikon "Hallintapaneeli" alla. Sen pitäisi olla vain sidebarissa.
+
+1. POISTA etusivulta (DashboardPage.tsx tai vastaava):
+   Poista koko jsx-blokki joka renderöi:
+   - Label "Organisaatio"
+   - Pudotusvalikko org-listalle
+   - "Vaihda" -nappi
+
+   Säilytä logic state:n hallinta missä se onkin (Context tms.)
+
+2. LISÄÄ sidebariin:
+   Sidebar-komponentti (todennäköisesti src/components/layout/Sidebar.tsx).
+   Aseta heti Logo-osion alapuolelle, ennen "PÄÄTOIMINNOT" -labelia:
+
+<div className="px-2 py-2 mb-3">
+  <button
+    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md
+               hover:bg-stone-800 transition-colors text-left"
+    onClick={() => setOrgPickerOpen(true)}
+  >
+    <div className="w-7 h-7 rounded-md bg-gradient-to-br
+                    from-red-700 to-red-900 flex items-center
+                    justify-center text-white text-xs font-semibold
+                    flex-shrink-0">
+      {orgInitials}
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="text-sm font-semibold text-white truncate">
+        {currentOrg.name}
+      </div>
+      <div className="text-[10px] text-stone-400 uppercase tracking-wider">
+        Organisaatio
+      </div>
+    </div>
+    <ChevronsUpDown size={14} className="text-stone-400" />
+  </button>
+</div>
+
+3. Pudotusvalikon (jos useita organisaatioita) avaa Radix
+   Popover-komponentti tai HeadlessUI Menu — älä rakenna omaa.
+   - Lista sisältää: nykyinen org checkmarkilla + muut orgit
+   - Hover bg-stone-800
+   - Klikkaus vaihtaa orgin ja sulkee popoverin
+   - Footer: "+ Luo uusi organisaatio" (jos sallittu)
+
+4. Jos käyttäjällä on vain YKSI organisaatio:
+   - Älä näytä ChevronsUpDown-ikonia
+   - Älä avaa popoveria klikatessa
+   - Näytä vain org-tunnus + nimi
+
+5. Vapautettu tila etusivulla:
+   - Hallintapaneelin otsikko nousee 24px ylemmäs
+   - Tarkista että kaikki vertikaali-spacing pysyy 8px-gridissä
+
+6. Säilytä logic mistä org-data tulee (Context, useQuery jne.).
+   Vain UI-paikkaa siirretään.</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">📅 Fix 7 — Päivämäärä-formatointi taulukoissa (keski)</div>
+      <span class="fix-time">~15 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 7 · Date format in headers</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Vaihda päivämäärä-headerit suomalaiseen muotoon.
+
+ONGELMA: Saatavuus-taulukon header'eissä päivät ovat "05-07", "05-08"
+ISO-muodossa. Pitäisi olla "ke 7.5." tai "7.5."
+
+1. Etsi src/lib/format.ts (luotu Prompt 10:ssä) — varmista että
+   on olemassa, jos ei luo:
+
+export const formatShortDate = (d: Date | string) =>
+  new Intl.DateTimeFormat('fi-FI', {
+    day: 'numeric',
+    month: 'numeric'
+  }).format(new Date(d))
+// → "7.5."
+
+export const formatShortDateWithDay = (d: Date | string) => {
+  const date = new Date(d)
+  const weekday = new Intl.DateTimeFormat('fi-FI', { weekday: 'short' })
+    .format(date)
+  const day = formatShortDate(date)
+  return `${weekday} ${day}`
+}
+// → "ke 7.5."
+
+2. Etsi Saatavuus-sivu (src/pages/Availability tai Saatavuus):
+   Etsi kohta jossa päivien header'it generoidaan. Todennäköisesti:
+
+   <th>{date.toISOString().slice(5,10)}</th>
+   tai
+   <th>{format(date, 'MM-dd')}</th>
+
+   Korvaa:
+
+   <th>
+     <div className="text-[11px] text-stone-500 uppercase tracking-wider">
+       {formatShortDateWithDay(date)}
+     </div>
+   </th>
+
+3. Korosta TÄMÄ PÄIVÄ:
+   const isToday = isSameDay(date, new Date())
+   <th className={isToday ? 'bg-red-50 text-red-900 font-semibold' : ''}>
+
+4. Tarkista myös muut paikat joissa "MM-DD" tai "YYYY-MM-DD" näkyy
+   käyttäjälle:
+   - Kalenteri-sivu
+   - Audit-loki
+   - Raportit
+
+   Ei API-vastauksia (ne saavat olla ISO).</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">📅 Fix 8 — Saatavuus-taulukko: legend + värit (keski)</div>
+      <span class="fix-time">~30 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 8 · Availability table redesign</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Tee Saatavuus-taulukosta luettava — legend, värit, tooltipit.
+
+ONGELMA: "R" ja "F" -kirjaimet ilman selitystä.
+
+1. Lisää LEGEND taulukon yläpuolelle:
+
+<div className="flex items-center gap-4 mb-3 text-xs">
+  <div className="flex items-center gap-1.5">
+    <span className="w-3 h-3 rounded-sm bg-green-100 border border-green-300"/>
+    <span className="text-stone-600">Vapaa</span>
+  </div>
+  <div className="flex items-center gap-1.5">
+    <span className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-300"/>
+    <span className="text-stone-600">Varattu</span>
+  </div>
+  <div className="flex items-center gap-1.5">
+    <span className="w-3 h-3 rounded-sm bg-amber-100 border border-amber-300"/>
+    <span className="text-stone-600">Pidätys</span>
+  </div>
+  <div className="flex items-center gap-1.5">
+    <span className="w-3 h-3 rounded-sm bg-red-100 border border-red-300"/>
+    <span className="text-stone-600">Konflikti</span>
+  </div>
+</div>
+
+2. KORVAA "R" / "F" -kirjaimet värikoodatuilla soluilla.
+
+   Solu-renderöinti:
+
+function StatusCell({ status, date, unit }) {
+  const config = {
+    free:     { bg: 'bg-green-50',  text: 'text-green-700',  label: 'Vapaa' },
+    booked:   { bg: 'bg-blue-50',   text: 'text-blue-700',   label: 'Varattu' },
+    held:     { bg: 'bg-amber-50',  text: 'text-amber-700',  label: 'Pidätys' },
+    conflict: { bg: 'bg-red-50',    text: 'text-red-700',    label: 'Konflikti' },
+  }[status] ?? { bg: '', text: 'text-stone-400', label: '–' }
+
+  return (
+    <Tooltip content={`${config.label} · ${formatDate(date)} · ${unit}`}>
+      <td className={`${config.bg} ${config.text} text-center
+                      font-medium cursor-pointer
+                      hover:ring-2 hover:ring-inset hover:ring-stone-300
+                      transition-all`}>
+        <span className="inline-block w-2 h-2 rounded-full bg-current"/>
+      </td>
+    </Tooltip>
+  )
+}
+
+3. Käytä Radix Tooltip (tai HeadlessUI / oma) että hover näyttää:
+   "Varattu · 7.5.2026 · Pindora Toimisto"
+   Asenna jos puuttuu: npm install @radix-ui/react-tooltip
+
+4. Klikkaus solusta avaa varauksen detail-sivun tai modaalin.
+
+5. Aktiivinen viikko (tämän viikon) korostettuna:
+   - Kuluvan päivän sarake: hieman tummempi border-vasen 2px primary
+
+6. Mobile (≤ 768px):
+   - Taulukko vaakasuunnassa scrollattava
+   - Kohde-nimi sticky vasemmalle
+   - Päivä-headerit sticky-top</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">ℹ Fix 9 — Info-ikonit stat-otsikoissa (keski)</div>
+      <span class="fix-time">~20 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 9 · Stat info tooltips</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Tee info-ikoneista hyödyllisiä — anna niille oikeat tooltipit.
+
+ONGELMA: "KÄYTTÖASTE ⓘ" -info-ikonit ovat näkyvissä mutta tooltipia
+ei ole tai se on tyhjä.
+
+1. Asenna Radix Tooltip jos puuttuu:
+   npm install @radix-ui/react-tooltip
+
+2. Luo InfoTooltip-komponentti src/components/ui/InfoTooltip.tsx:
+
+import * as Tooltip from '@radix-ui/react-tooltip'
+import { Info } from 'lucide-react'
+
+export function InfoTooltip({ content }: { content: string }) {
+  return (
+    <Tooltip.Provider delayDuration={200}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type="button"
+            className="text-stone-400 hover:text-stone-600
+                       transition-colors"
+            aria-label="Lisätietoja"
+          >
+            <Info size={12} />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            className="bg-stone-900 text-white text-xs px-2.5 py-1.5
+                       rounded-md max-w-[260px] z-50
+                       data-[state=delayed-open]:animate-in
+                       data-[state=delayed-open]:fade-in-0"
+            sideOffset={6}
+          >
+            {content}
+            <Tooltip.Arrow className="fill-stone-900" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  )
+}
+
+3. Käytä stat-korteissa OIKEILLA selityksillä:
+
+<StatCard
+  label={
+    <span className="flex items-center gap-1.5">
+      Käyttöaste
+      <InfoTooltip content="Vuokratut yksiköt jaettuna kaikilla yksiköillä. Lasketaan tämän hetken tilanteesta." />
+    </span>
+  }
+  ...
+/>
+
+   Selitykset eri stateille:
+   - Käyttöaste: "Vuokratut yksiköt / kaikki yksiköt × 100. Päivittyy reaaliajassa."
+   - Tulot tässä kuussa: "Maksettujen laskujen summa kuluvana kalenterikuukautena."
+   - Kulut tässä kuussa: "Kirjattujen kulujen summa kuluvana kalenterikuukautena."
+   - Nettokassavirta: "Tulot − Kulut kuluvana kuukautena. Avoimet saatavat eivät ole mukana."
+
+4. JOS et halua tooltippia ollenkaan:
+   - Poista ⓘ-ikoni stat-otsikoista
+   - Älä jätä klikattavaa elementtiä jolla ei ole sisältöä</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">🎨 Fix 10 — Info-banner näkyväksi (matala)</div>
+      <span class="fix-time">~10 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 10 · Info banner contrast</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Tee "Liian vähän dataa graafiin" -banner näkyväksi.
+
+ONGELMA: Banner on lähes näkymätön, liian haalea.
+
+1. Etsi banner-komponentti tai inline-koodi etusivulla.
+
+2. Korvaa modernilla Alert-komponentilla:
+
+<div className="flex items-start gap-3 px-4 py-3 mb-6
+                bg-blue-50 border border-blue-200 rounded-lg">
+  <Info size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+  <div className="flex-1">
+    <div className="text-sm text-blue-900 font-medium">
+      Liian vähän dataa graafiin
+    </div>
+    <div className="text-xs text-blue-700 mt-0.5">
+      Lisää varauksia tai kuluja nähdäksesi kuukausittaisen trendin.
+    </div>
+  </div>
+  <button
+    className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+    onClick={dismiss}
+    aria-label="Sulje"
+  >
+    <X size={16} />
+  </button>
+</div>
+
+3. Tee Alert-komponentista yleinen src/components/ui/Alert.tsx:
+   - Variants: 'info' | 'success' | 'warning' | 'danger'
+   - Optional dismiss
+   - Optional action button
+
+   Käytetään myöhemmin muuallakin (esim. konflikti-bannerissa).</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">🎨 Fix 11 — "Yksiköiden tilanne" linkit (matala)</div>
+      <span class="fix-time">~10 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 11 · Yksiköiden tilanne unit links</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Päivitä "Yksiköiden tilanne tänään" -listan tyyli.
+
+ONGELMA:
+"Pindora HQ · Pindora Toimisto" -linkit näyttävät 1990-luvun
+web-linkeiltä — punaisia, alleviivattuja.
+
+1. Etsi etusivulta lista (Yksiköiden tilanne tänään).
+
+2. Päivitä rivi-tyyli:
+
+<a
+  href={`/kohteet/${unit.propertyId}/yksikot/${unit.id}`}
+  className="flex items-center justify-between py-3 px-1
+             border-b border-stone-200 last:border-b-0
+             hover:bg-stone-50 transition-colors -mx-1 px-1
+             rounded-md no-underline"
+>
+  <div className="flex items-center gap-3 min-w-0">
+    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+      unit.status === 'occupied' ? 'bg-blue-500' :
+      unit.status === 'free' ? 'bg-green-500' :
+      'bg-stone-300'
+    }`}/>
+    <div className="min-w-0">
+      <div className="text-sm font-medium text-stone-900 truncate">
+        {unit.propertyName} · {unit.name}
+      </div>
+      {unit.tenant && (
+        <div className="text-xs text-stone-500 truncate">
+          {unit.tenant}
+        </div>
+      )}
+    </div>
+  </div>
+  <ChevronRight size={16} className="text-stone-400 flex-shrink-0" />
+</a>
+
+3. POISTA:
+   - text-decoration: underline
+   - color: red / brand
+   - Kaikki link-tyylit jotka tekevät linkistä "näkyvän"
+
+4. Hover:
+   - Vaalea harmaa tausta (bg-stone-50)
+   - Ei väri muuttuva tekstissä
+   - ChevronRight-nuoli liukuu 2px oikealle
+
+5. Status-pallot:
+   - vihreä (free) → bg-green-500
+   - sininen (occupied) → bg-blue-500
+   - harmaa (unknown) → bg-stone-300</pre>
+    </div>
+  </div>
+
+  <div class="fix-card">
+    <div class="fix-head">
+      <div class="fix-title">🔍 Fix 12 — Lopullinen QA-pass (kaikki)</div>
+      <span class="fix-time">~30 min</span>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-tag">FIX 12 · Final QA sweep</span>
+        <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+      </div>
+<pre>Tehtävä: Lopullinen tarkastuskierros — käy kaikki sivut läpi.
+
+Kun fixit 1-11 on ajettu, tee tämä QA-pass:
+
+1. Käy nämä sivut läpi yksitellen:
+   - Etusivu (Hallintapaneeli)
+   - Kohteet (lista + detail + Muokkaa)
+   - Asiakkaat
+   - Varaukset
+   - Vuokrasopimukset
+   - Laskut (lista + detail + Uusi)
+   - Huolto
+   - Kulut
+   - Saatavuus
+   - Kalenteri
+   - Konfliktit (Kalenteriristiriidat)
+   - Raportit
+   - Audit-loki
+   - Ilmoitukset
+   - Käyttäjät
+   - Organisaatiot
+   - API-avaimet
+   - Webhookit
+   - Sähköpostipohjat
+   - Varmuuskopiot
+   - Asetukset
+   - Tilannehallinta
+
+2. Tarkista jokaisella sivulla:
+
+   a) Värit:
+      ☐ Ei mustaa hover-tilaa millään riveillä
+      ☐ Ei mustia taulukko-headereita
+      ☐ Ei lila checkboxeita
+      ☐ Ei yllättäviä mustia nappeja (vain destructive saa olla
+         tumma jos haluat)
+
+   b) Taulukot:
+      ☐ Header light-bg (bg-stone-100), text-stone-500 uppercase
+      ☐ Hover-rivi vaalea (bg-stone-50)
+      ☐ Tila-badget värikoodatut + dot
+
+   c) Napit:
+      ☐ Primary punainen (bg-red-700)
+      ☐ Secondary valkoinen + border
+      ☐ Ghost transparent
+
+   d) Lomakkeet:
+      ☐ Inputit border-stone-300
+      ☐ Focus-rengas red-100
+      ☐ Checkboxit punaiset, ei lila
+
+   e) Lukujen muoto:
+      ☐ Eurot "1 240,00 €"
+      ☐ Päivät "7.5.2026" tai "ke 7.5."
+      ☐ Prosentit "50,0 %"
+
+   f) Linkit:
+      ☐ Ei punaisia alleviivattuja tekstilinkkejä taulukoissa
+      ☐ Käytä koko-rivi-klikkausta tai kebab-menua
+
+3. Aja:
+   - npm run build  → ei TypeScript-virheitä
+   - Lighthouse audit Chromessa → Accessibility ≥ 90
+   - Tarkista responsive: 375px, 768px, 1024px, 1440px
+
+4. Ota uudet screenshotit jokaisesta sivusta ja vertaa
+   alkuperäisiin (docs/design-progress/before/) — talleta uudet
+   docs/design-progress/after/-kansioon.
+
+5. Listaa CHANGELOG.md:hen muutokset:
+   ## [Design Refresh] - 2026-05-XX
+   - Korjattu: mustat hover-tilat ja taulukko-headerit
+   - Korjattu: lila checkbox-värit → brändin punainen
+   - Korjattu: trend-indikaattori käyttäytyy oikein nollalla
+   - Lisätty: organisaatio-vaihdin sidebariin
+   - jne.
+
+Jos löydät uusia bugeja → tee niistä lista, älä yritä korjata
+samassa PR:ssä.</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ORDER -->
+<section>
+  <h2><span class="section-num">4</span>Suositeltu järjestys</h2>
+  <p class="section-sub">Aja kriittisimmät ensin. Yksi kerrallaan, ei kaikkia samanaikaisesti.</p>
+
+  <div class="ascii-art">
+PÄIVÄ 1 — Kriittiset (~1.5h)
+├─ Fix 1   Hover & header colors             (30 min)
+├─ Fix 2   Lila checkboxit                   (20 min)
+├─ Fix 3   Mustat napit punaisiksi           (20 min)
+└─ commit & deploy → näytä tiimille!
+
+PÄIVÄ 2 — Korkea prioriteetti (~1h)
+├─ Fix 4   Trend-indikaattori                (15 min)
+├─ Fix 5   Sparklines näkyväksi              (15 min)
+└─ Fix 6   Org-vaihdin sidebariin            (30 min)
+              ↓ commit
+
+PÄIVÄ 3 — Keski prioriteetti (~1.5h)
+├─ Fix 7   Päivämäärä-formatointi            (15 min)
+├─ Fix 8   Saatavuus-taulukko legend         (30 min)
+└─ Fix 9   Info-tooltipit                    (20 min)
+              ↓ commit
+
+PÄIVÄ 4 — Polish (~50 min)
+├─ Fix 10  Info-banner kontrasti             (10 min)
+├─ Fix 11  Yksiköiden tilanne -linkit        (10 min)
+└─ Fix 12  Lopullinen QA-pass                (30 min)
+              ↓ commit & deploy → DONE!
+
+YHTEENSÄ ~5h hands-on aikaa
+        → 4 työpäivää, kahvitaukoja sekaan
+  </div>
+
+  <div class="note crit" style="margin-top: 32px">
+    <strong>Tärkeä HUOMIO:</strong> Aja Fix 1 ENSIMMÄISENÄ. Se korjaa mustat hover-tilat ja header'it, jotka ovat kriittisin käyttökokemus-ongelma juuri nyt. Käyttäjät eivät pysty käyttämään taulukoita kunnolla, kunnes tämä on korjattu.
+  </div>
+
+  <div class="note">
+    <strong>Vinkki Cursorin käyttöön:</strong> Kun ajat fix-prompteja, lisää joka kerta loppuun "Kerro mitkä tiedostot muutit ja mitä rivejä." → näin näet helpommin mitä tapahtui ja voit reviewata diff:in. Jos Cursor sanoo "ei löytynyt kohdetta", aja `grep` -komento jonka annoin promptissa nähdäksesi missä kyseiset värit ovat.
+  </div>
+</section>
+
+<div style="text-align: center; padding: 64px 0 32px; color: var(--text-muted); font-size: 14px;">
+  Pin PMS Bugfix & Polish Pass • Toukokuu 2026
+</div>
+
+</div>
+
+<script>
+function copyPrompt(btn) {
+  const block = btn.closest('.prompt-block');
+  const pre = block.querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    const original = btn.innerText;
+    btn.innerText = '✓ Kopioitu';
+    btn.style.background = '#15803D';
+    btn.style.color = 'white';
+    setTimeout(() => {
+      btn.innerText = original;
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 1500);
+  });
+}
+</script>
+
+</body>
+</html>
