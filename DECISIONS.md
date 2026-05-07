@@ -35,3 +35,11 @@
 - **In use:** Yes, heavily.
 - **Decision:** keep.
 - **Rationale:** Business-critical payment flows remain untouched without explicit dead-code proof and test-backed safety.
+
+## Template pruning review — 2026-05-07
+
+- **Scan scope:** `app/templates/**/*` (110 template files found).
+- **Obsolete-name scan:** searched `*.old.html`, `*.bak.html`, `*.backup.html`, `*copy*.html`, `*old*.html`, `*bak*.html`.
+- **Result:** no matching obsolete/copy template filenames were found.
+- **Decision:** remove nothing.
+- **Safety note:** because no candidate files matched obsolete naming patterns, no template deletions were performed and no `render_template`/Jinja reference checks were needed for deletion safety in this pass.
