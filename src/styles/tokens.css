@@ -1,5 +1,6 @@
 :root {
   --bg: #FAFAF9;
+  --bg-alt: #F5F4F1;
   --surface: #FFFFFF;
   --border: #E7E5E4;
   --border-strong: #D6D3D1;
@@ -52,6 +53,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0C0A09;
+    --bg-alt: #292524;
     --surface: #1C1917;
     --border: #292524;
     --border-strong: #44403C;

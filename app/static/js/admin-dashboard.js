@@ -82,6 +82,10 @@
     statCardsHost.innerHTML = cardModels.map(renderStatCard).join("");
   }
 
+  document.querySelectorAll("[data-chart-skeleton]").forEach((node) => {
+    node.remove();
+  });
+
   const commonOptions = {
     responsive: true,
     maintainAspectRatio: false,

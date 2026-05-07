@@ -32,7 +32,19 @@
     <input type="hidden" name="idempotency_key" value="{{ request.headers.get('X-Request-Id', '') }}">
     {{ render_bulk_bar("reservations") }}
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
-  <div class="data-table-card">
+  <div data-table-load-shell>
+  <div class="table-load-skeleton" data-table-skeleton aria-hidden="true">
+    {% for _ in range(6) %}
+      <div class="table-load-skeleton__row">
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="data-table-card" data-table-content hidden>
   <table class="data-table">
     <thead>
       <tr>
@@ -75,6 +87,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   </div>
   </form>
   <p class="meta">

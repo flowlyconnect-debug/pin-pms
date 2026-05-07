@@ -17,6 +17,7 @@
     <script src="{{ url_for('static', filename='js/admin-toast.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-confirm.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-loading.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-table-skeleton.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-filters.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-bulk.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-notifications.js') }}" defer></script>
@@ -179,13 +180,6 @@
                 <div data-flash-category="{{ category }}" data-flash-message="{{ message }}"></div>
               {% endfor %}
             </div>
-          {% endif %}
-          {% if flashed_messages %}
-              <div class="flash-wrap">
-                {% for category, message in flashed_messages %}
-                  <div class="flash{% if category in ['warning'] %} is-warning{% elif category in ['error', 'danger'] %} is-danger{% endif %}">{{ message }}</div>
-                {% endfor %}
-              </div>
           {% endif %}
           <div class="page-shell">
             {% block content %}{% endblock %}

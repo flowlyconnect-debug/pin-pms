@@ -1,4 +1,5 @@
 {% extends "admin/base.html" %}
+{% from "admin/_empty_state.html" import empty_state %}
 
 {% block title %}Kohteet · Pin PMS{% endblock %}
 {% block page_title %}Kohteet{% endblock %}
@@ -45,9 +46,7 @@
       {% else %}
         <tr>
           <td colspan="4" class="table-empty">
-            <div class="table-empty-icon">🏢</div>
-            <div>Ei vielä kohteita</div>
-            <div class="form-help">Luo ensimmäinen kohde aloittaaksesi hallinnan.</div>
+            {{ empty_state("🏢", "Ei kohteita", "Luo ensimmäinen kohde aloittaaksesi hallinnan.", url_for('admin.properties_new'), "Uusi kohde") }}
           </td>
         </tr>
       {% endfor %}

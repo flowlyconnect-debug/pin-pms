@@ -19,7 +19,19 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {{ render_bulk_bar("guests") }}
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
-  <div class="data-table-card ui-table-shell">
+  <div data-table-load-shell>
+  <div class="table-load-skeleton" data-table-skeleton aria-hidden="true">
+    {% for _ in range(6) %}
+      <div class="table-load-skeleton__row">
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+        <span class="skeleton skeleton-text" style="height: 14px;"></span>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="data-table-card ui-table-shell" data-table-content hidden>
   <table class="data-table ui-table">
     <thead>
       <tr>
@@ -61,6 +73,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   </div>
   </form>
 {% endblock %}

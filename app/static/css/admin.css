@@ -1069,6 +1069,17 @@ body.admin-sidebar-open {
 }
 
 /* —— Buttons —— */
+/*
+ * Yhtenäinen Button-järjestelmä. Spesifikaatio:
+ * - Variantit: primary | secondary | ghost | danger
+ * - Koot: sm | md (oletus) | lg
+ * - md: padding 9px 16px, font-size 14px, font-weight 500, border-radius 6px
+ * - Transition: all 150ms ease
+ * - Focus-visible: outline-offset 2px + 3px primary-soft ring
+ * - Loading: spinner korvaa ikonin (.btn[data-loading="true"])
+ *
+ * Token-perusta: app/static/css/tokens.css (--primary, --surface, --bg-alt, …).
+ */
 .actions {
   margin-top: 1rem;
   display: flex;
@@ -1077,65 +1088,173 @@ body.admin-sidebar-open {
   flex-wrap: wrap;
 }
 
-.admin-main .btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost),
-.admin-main a.btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost),
-.admin-main button[type="submit"]:not(.btn-secondary):not(.btn-danger) {
+.btn,
+.admin-main .btn,
+.admin-main a.btn,
+.admin-main button.btn,
+.admin-main button[type="submit"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 8px);
+  padding: 9px 16px;
+  border-radius: var(--radius-sm, 6px);
   border: 1px solid transparent;
-  background: linear-gradient(145deg, #d84a4f 0%, #c62828 45%, #a61b1b 100%);
-  color: #fff;
-  border-radius: var(--admin-radius-sm);
-  padding: 0.52rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  font-family: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
-  display: inline-block;
-  transition: box-shadow 0.12s ease, transform 0.1s ease;
-  box-shadow: 0 2px 10px rgba(166, 27, 27, 0.22);
+  user-select: none;
+  transition: all 150ms ease;
+  background: var(--surface);
+  color: var(--text);
 }
 
-.admin-main .btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost):hover,
-.admin-main a.btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost):hover,
-.admin-main button[type="submit"]:not(.btn-secondary):not(.btn-danger):hover {
-  box-shadow: 0 4px 14px rgba(166, 27, 27, 0.3);
-  text-decoration: none;
+.btn:disabled,
+.btn[aria-disabled="true"],
+.btn[data-loading="true"] {
+  opacity: 0.65;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn:focus,
+.admin-main .btn:focus,
+.admin-main button:focus {
+  outline: none;
+}
+
+.btn:focus-visible,
+.admin-main .btn:focus-visible,
+.admin-main button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+/* Variants */
+.btn-primary,
+.admin-main .btn-primary,
+.admin-main a.btn-primary,
+.admin-main button.btn-primary,
+.admin-main button[type="submit"]:not(.btn-secondary):not(.btn-ghost):not(.btn-danger) {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-primary:hover,
+.admin-main .btn-primary:hover,
+.admin-main a.btn-primary:hover,
+.admin-main button.btn-primary:hover,
+.admin-main button[type="submit"]:not(.btn-secondary):not(.btn-ghost):not(.btn-danger):hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
   color: #fff;
 }
 
-.admin-main .btn:focus-visible,
-.admin-main button:focus-visible {
-  outline: 2px solid var(--admin-accent);
-  outline-offset: 2px;
-}
-
+.btn-secondary,
 .admin-main .btn-secondary,
 .admin-main a.btn-secondary,
 .admin-main button.btn-secondary {
-  border: 1px solid var(--admin-border) !important;
-  background: var(--admin-surface) !important;
-  color: var(--admin-text) !important;
-  box-shadow: var(--admin-shadow) !important;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
 }
 
+.btn-secondary:hover,
 .admin-main .btn-secondary:hover,
 .admin-main a.btn-secondary:hover,
 .admin-main button.btn-secondary:hover {
-  background: #faf9f7 !important;
-  border-color: #d4cec5 !important;
-  color: var(--admin-text) !important;
+  background: var(--bg-alt);
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
+.btn-ghost,
+.admin-main .btn-ghost,
+.admin-main a.btn-ghost,
+.admin-main button.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: transparent;
+}
+
+.btn-ghost:hover,
+.admin-main .btn-ghost:hover,
+.admin-main a.btn-ghost:hover,
+.admin-main button.btn-ghost:hover {
+  background: var(--bg-alt);
+  color: var(--text);
+}
+
+.btn-danger,
 .admin-main .btn-danger,
 .admin-main a.btn-danger,
-.admin-main button.btn-danger,
+.admin-main button.btn-danger {
+  background: #DC2626;
+  color: #fff;
+  border-color: #DC2626;
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-danger:hover,
 .admin-main .btn-danger:hover,
 .admin-main a.btn-danger:hover,
 .admin-main button.btn-danger:hover {
-  border-color: #991b1b !important;
-  background: linear-gradient(145deg, #dc2626 0%, #b91c1c 100%) !important;
-  color: #fff !important;
-  box-shadow: 0 2px 10px rgba(185, 28, 28, 0.25) !important;
+  background: #B91C1C;
+  border-color: #B91C1C;
+  color: #fff;
+}
+
+/* Sizes */
+.btn-sm,
+.admin-main .btn-sm,
+.admin-main a.btn-sm,
+.admin-main button.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.btn-md,
+.admin-main .btn-md {
+  padding: 9px 16px;
+  font-size: 14px;
+}
+
+.btn-lg,
+.admin-main .btn-lg,
+.admin-main a.btn-lg,
+.admin-main button.btn-lg {
+  padding: 12px 20px;
+  font-size: 15px;
+}
+
+.btn-icon {
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  aspect-ratio: 1;
+}
+
+.btn-icon.btn-sm {
+  width: 28px;
+  height: 28px;
+}
+
+.btn-icon.btn-lg {
+  width: 44px;
+  height: 44px;
+}
+
+/* Block layout helper */
+.btn-block {
+  display: flex;
+  width: 100%;
 }
 
 /* —— Meta & flash —— */
@@ -1201,28 +1320,6 @@ body.admin-sidebar-open {
 .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
 .card-title { font-size: var(--fs-lg); font-weight: 600; color: var(--color-text); margin: 0; }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.55rem 1rem;
-  border-radius: var(--r-md);
-  font-weight: 500;
-  transition: all var(--t-fast);
-  border: 1px solid transparent;
-  cursor: pointer;
-  font-size: var(--fs-sm);
-}
-.btn-primary { background: var(--color-primary); color: #fff; }
-.btn-primary:hover { background: var(--color-primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
-.btn-secondary { background: var(--color-surface); color: var(--color-text); border-color: var(--color-border-strong); }
-.btn-secondary:hover { background: var(--color-surface-2); }
-.btn-danger { background: var(--color-danger); color: #fff; }
-.btn-ghost { background: transparent; color: var(--color-text-muted); }
-.btn-ghost:hover { background: var(--color-surface-2); color: var(--color-text); }
-.btn-sm { padding: 0.35rem 0.75rem; font-size: var(--fs-xs); }
-.btn-icon { padding: 0.5rem; aspect-ratio: 1; }
-
 .badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: var(--fs-xs); font-weight: 500; }
 .badge-success { background: var(--color-success-soft); color: var(--color-success); }
 .badge-warning { background: var(--color-warning-soft); color: var(--color-warning); }
@@ -1241,6 +1338,8 @@ body.admin-sidebar-open {
 @keyframes skeleton-load { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .skeleton-line { height: 0.85rem; margin: 0.45rem 0; }
 .skeleton-card { padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--r-md); background: var(--color-surface); }
+.skeleton-text { border-radius: 8px; }
+.skeleton-circle { border-radius: 999px; width: 40px; height: 40px; }
 
 .admin-main input[type="text"],
 .admin-main input[type="email"],
@@ -1458,7 +1557,14 @@ body.admin-sidebar-open {
 }
 
 .btn-loading-spinner {
-  margin-right: 0.4rem;
+  margin-right: 0;
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: currentColor;
+}
+
+.btn-secondary .btn-loading-spinner,
+.btn-ghost .btn-loading-spinner {
+  border-color: rgba(0, 0, 0, 0.18);
 }
 
 @keyframes admin-spin {
@@ -1992,6 +2098,10 @@ body.admin-sidebar-open {
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
+.dashboard-stat-card--loading {
+  pointer-events: none;
+}
+
 .dashboard-stat-card:hover {
   border-color: var(--color-border-strong);
   box-shadow: var(--shadow-sm);
@@ -2130,6 +2240,30 @@ body.admin-sidebar-open {
 .dashboard-mini-chart-card canvas {
   width: 100%;
   height: 140px;
+}
+
+.dashboard-chart-skeleton {
+  height: 130px;
+  margin-bottom: 0.35rem;
+}
+
+.table-load-skeleton {
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 12px;
+  background: var(--color-surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.table-load-skeleton__row {
+  display: grid;
+  grid-template-columns: 0.7fr 1.4fr 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.table-load-skeleton__row:last-child {
+  margin-bottom: 0;
 }
 
 .dashboard-chart-empty {
@@ -2541,51 +2675,6 @@ a.admin-kpi-card:hover,
 
 .actions {
   gap: 0.65rem;
-}
-
-.admin-main .btn:not(.btn-sm),
-.admin-main button[type="submit"]:not(.btn-sm),
-.admin-main a.btn:not(.btn-sm) {
-  min-height: 42px;
-  padding: 0 1rem;
-  border-radius: 12px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.admin-main .btn-icon:not(.admin-notifications-toggle) {
-  width: 38px;
-  min-height: 38px;
-  padding: 0;
-  border-radius: 11px;
-}
-
-.admin-main .btn-primary,
-.admin-main a.btn-primary,
-.admin-main .btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost),
-.admin-main a.btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost),
-.admin-main button[type="submit"]:not(.btn-secondary):not(.btn-danger) {
-  background: var(--color-primary);
-  box-shadow: 0 4px 14px rgba(166, 27, 27, 0.2);
-}
-
-.admin-main .btn-primary:hover,
-.admin-main a.btn-primary:hover,
-.admin-main .btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost):hover,
-.admin-main a.btn:not(.btn-secondary):not(.btn-danger):not(.btn-ghost):hover,
-.admin-main button[type="submit"]:not(.btn-secondary):not(.btn-danger):hover {
-  background: var(--color-primary-hover);
-  box-shadow: 0 7px 18px rgba(166, 27, 27, 0.24);
-}
-
-.admin-main .btn-secondary,
-.admin-main a.btn-secondary,
-.admin-main button.btn-secondary {
-  border-color: var(--color-border) !important;
-  background: var(--color-surface) !important;
 }
 
 .admin-sidebar-nav {

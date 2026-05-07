@@ -36,7 +36,16 @@
     </section>
   {% endif %}
 
-  <section class="dashboard-kpi-modern-grid" id="dashboard-stat-cards" aria-label="Keskeiset tunnusluvut"></section>
+  <section class="dashboard-kpi-modern-grid" id="dashboard-stat-cards" aria-label="Keskeiset tunnusluvut">
+    {% for _ in range(4) %}
+      <article class="dashboard-stat-card dashboard-stat-card--loading" aria-hidden="true">
+        <div class="skeleton skeleton-text" style="width: 45%; height: 11px;"></div>
+        <div class="skeleton skeleton-text" style="width: 62%; height: 32px;"></div>
+        <div class="skeleton skeleton-text" style="width: 55%; height: 12px;"></div>
+        <div class="skeleton skeleton-text" style="width: 75%; height: 12px;"></div>
+      </article>
+    {% endfor %}
+  </section>
 
   <section class="dashboard-columns">
     <article class="card content-card">
@@ -93,11 +102,13 @@
   <section class="dashboard-mini-charts-grid">
     <article class="card content-card dashboard-mini-chart-card">
       <h2>Viikkonäkymä</h2>
+      <div class="dashboard-chart-skeleton skeleton skeleton-card" data-chart-skeleton></div>
       <canvas id="revenue-chart" height="130"></canvas>
       <p class="meta">{{ summary.range_label or "Tänään" }}</p>
     </article>
     <article class="card content-card dashboard-mini-chart-card">
       <h2>Käyttöaste</h2>
+      <div class="dashboard-chart-skeleton skeleton skeleton-card" data-chart-skeleton></div>
       <canvas id="occupancy-chart" height="130"></canvas>
     </article>
   </section>
