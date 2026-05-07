@@ -38,6 +38,13 @@
   --text-xl: 22px;
   --text-2xl: 28px;
   --text-3xl: 32px;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --tracking-page: -0.015em;
+  --tracking-section: -0.01em;
+  --tracking-stat: -0.02em;
+  --tracking-label: 0.08em;
 
   --radius-sm: 6px;
   --radius: 10px;
@@ -80,4 +87,58 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+}
+
+.heading-page,
+h1 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-page);
+}
+
+.heading-section,
+h2 {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-section);
+}
+
+.heading-card,
+h3 {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.text-stat {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-stat);
+  line-height: 1;
+}
+
+.text-label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.text-body {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+}
+
+.text-meta,
+.text-small {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.text-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }

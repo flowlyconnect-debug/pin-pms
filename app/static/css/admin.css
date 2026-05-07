@@ -2437,3 +2437,65 @@ a.admin-kpi-card:hover,
   background: #1f2937;
   color: #fff;
 }
+
+/* Typography system (v2) */
+.admin-main h1,
+.page-title,
+.admin-desktop-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.admin-main h2 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--color-text);
+}
+
+.admin-main h3,
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-main p,
+.admin-main td,
+.admin-main li {
+  font-size: var(--text-base);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.meta,
+.page-subtitle,
+.dashboard-chart-empty,
+.dashboard-kpi-modern-delta,
+.admin-kpi-meta,
+.admin-main small {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.admin-main th,
+.admin-nav-group-title,
+.admin-kpi-label,
+.dashboard-kpi-modern-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.admin-kpi-value,
+.kpi-card-value,
+.dashboard-kpi-modern-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
