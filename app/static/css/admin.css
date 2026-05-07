@@ -839,9 +839,16 @@ body.admin-mobile-sheet-open {
   font-weight: 600;
 }
 
-.admin-quick-availability-list li span:last-child {
+.admin-quick-availability-list li span:not(:first-child) {
   color: var(--color-text-muted);
   font-size: 12px;
+}
+
+.admin-quick-availability-list li a {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .admin-quick-availability-link {

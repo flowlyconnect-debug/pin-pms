@@ -4,6 +4,9 @@ from app.models import TimestampMixin
 
 class Reservation(TimestampMixin, db.Model):
     __tablename__ = "reservations"
+    __table_args__ = (
+        db.Index("ix_reservations_unit_start_end", "unit_id", "start_date", "end_date"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     unit_id = db.Column(

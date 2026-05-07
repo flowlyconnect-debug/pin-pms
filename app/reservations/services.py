@@ -44,9 +44,7 @@ _RESERVATION_EDIT_STATUSES = frozenset({"confirmed", "cancelled"})
 _PAYMENT_STATUSES = frozenset({"pending", "paid", "cancelled"})
 _CALENDAR_EVENT_TYPES = frozenset({"reservations", "leases", "invoices", "maintenance"})
 _QUICK_AVAILABILITY_RANGES = frozenset({"today", "tomorrow", "weekend", "7d"})
-_QUICK_AVAILABILITY_BLOCKING_STATUSES = frozenset(
-    {"reserved", "maintenance", "blocked", "checkin"}
-)
+_QUICK_AVAILABILITY_FREE_STATUSES = frozenset({"free", "checkout"})
 
 
 @dataclass
@@ -381,28 +379,59 @@ def get_quick_availability(
         include_cancelled=False,
     )
 
-    available_rooms: list[dict[str, object]] = []
+    free_unit_rows: list[dict[str, object]] = []
     for prop in matrix["properties"]:
         for unit in prop["units"]:
-            if any(
-                day["status"] in _QUICK_AVAILABILITY_BLOCKING_STATUSES
-                for day in unit["days"]
-            ):
+            free_days = sum(
+                1 for day in unit["days"] if day["status"] in _QUICK_AVAILABILITY_FREE_STATUSES
+            )
+            if free_days == 0:
                 continue
-            available_rooms.append(
+            free_unit_rows.append(
                 {
-                    "id": unit["id"],
-                    "name": unit["name"],
-                    "property_id": prop["id"],
-                    "property_name": prop["name"],
+                    "property": prop["name"],
+                    "unit": unit["name"],
+                    "unit_id": unit["id"],
+                    "free_days": free_days,
                 }
             )
+
+    unit_ids = [int(row["unit_id"]) for row in free_unit_rows]
+    next_reservation_by_unit: dict[int, date] = {}
+    if unit_ids:
+        next_rows = (
+            db.session.query(
+                Reservation.unit_id.label("unit_id"),
+                func.min(Reservation.start_date).label("next_start"),
+            )
+            .select_from(Reservation)
+            .join(Unit, Reservation.unit_id == Unit.id)
+            .join(Property, Unit.property_id == Property.id)
+            .filter(
+                Property.organization_id == organization_id,
+                Reservation.unit_id.in_(unit_ids),
+                Reservation.status != "cancelled",
+                Reservation.end_date > start_date,
+            )
+            .group_by(Reservation.unit_id)
+            .all()
+        )
+        next_reservation_by_unit = {
+            row.unit_id: row.next_start for row in next_rows if row.next_start is not None
+        }
+
+    free_units: list[dict[str, object]] = []
+    for row in free_unit_rows:
+        unit_id = int(row["unit_id"])
+        next_start = next_reservation_by_unit.get(unit_id)
+        next_in_days = max(0, (next_start - start_date).days) if next_start else None
+        free_units.append({**row, "next_reservation_in_days": next_in_days})
 
     return {
         "range": normalized,
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
-        "available_rooms": available_rooms,
+        "free_units": free_units,
     }
 
 

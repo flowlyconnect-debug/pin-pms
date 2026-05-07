@@ -1476,7 +1476,20 @@ def reservations_new():
     }
     error: str | None = None
 
-    if request.method == "POST":
+    if request.method == "GET":
+        allowed_unit_ids = {str(unit.id) for unit in units}
+        unit_id = (request.args.get("unit_id") or "").strip()
+        if unit_id in allowed_unit_ids:
+            form["unit_id"] = unit_id
+        for field in ("start_date", "end_date"):
+            value = (request.args.get(field) or "").strip()
+            try:
+                if value:
+                    date.fromisoformat(value)
+            except ValueError:
+                continue
+            form[field] = value
+    elif request.method == "POST":
         form["unit_id"] = (request.form.get("unit_id") or "").strip()
         form["guest_id"] = (request.form.get("guest_id") or "").strip()
         form["guest_search"] = (request.form.get("guest_search") or "").strip()

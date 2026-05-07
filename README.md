@@ -455,6 +455,14 @@ Main admin pages:
 - `/admin/backups` (superadmin only) — list / create / download / restore
 - `/admin/settings` (superadmin only)
 
+Admin topbar quick actions:
+
+- "Vapaat huoneet" opens a quick availability lookup for units that are free
+  today, tomorrow, this weekend, or during the next 7 days.
+- Results show the property, unit, free day count, and next reservation timing.
+- Each result links directly to creating a new reservation with `unit_id`,
+  `start_date`, and `end_date` prefilled.
+
 Access:
 
 - `admin` and `superadmin` can access PMS management UI
