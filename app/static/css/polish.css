@@ -1,274 +1,281 @@
 /*
- * polish.css — final corrective overrides
+ * polish.css — final corrective overrides (v2)
  *
- * Loaded LAST so it can defeat any earlier rule. Use !important sparingly,
- * only on the rules where we've seen earlier styles win when they
- * shouldn't (mostly hover-states, headers, buttons and form controls).
+ * Loaded LAST. Uses html-prefixed selectors to maximise specificity
+ * and !important wherever we've measured an earlier rule winning.
+ *
+ * If something here ever fights you back, that means another rule has
+ * !important too — search admin.css for the property name + !important.
  */
 
-/* ───────────────────────────────────────────────────────────────
- * 1. Native form controls — accent colour
- *    Browser default for checkboxes & radios on some Windows builds
- *    is purple (#8B5CF6). Force the brand red instead.
- * ─────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────────
+ * 1. Native form controls — accent colour (kills purple checkboxes)
+ * ────────────────────────────────────────────────────────────────── */
 :root {
-  accent-color: var(--primary);
+  accent-color: var(--primary, #B91C1C);
 }
 
 input[type="checkbox"],
 input[type="radio"],
 progress,
 meter {
-  accent-color: var(--primary) !important;
+  accent-color: var(--primary, #B91C1C) !important;
 }
 
-/* ───────────────────────────────────────────────────────────────
- * 2. Tables — header & row hover
- *    Earlier rules sometimes leak the dark sidebar colour into
- *    table headers / hover. Pin the header to the light surface
- *    and the hover to a very subtle warm-grey wash.
- * ─────────────────────────────────────────────────────────────── */
-.admin-main table thead,
-.admin-main table thead tr,
-.admin-main table thead th,
-main table thead,
-main table thead tr,
-main table thead th,
-.data-table thead th,
-.ui-table thead th,
-.admin-table-panel thead th {
-  background: var(--bg-alt, #F5F5F4) !important;
-  color: var(--text-soft, #78716C) !important;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border, #E7E5E4);
+/* ──────────────────────────────────────────────────────────────────
+ * 2. Tables — header & row hover (FORCE light bg, dark text)
+ *    The dark-mode tokens were leaking; we now hard-code the values
+ *    to guarantee a light table in light mode regardless of cascade.
+ * ────────────────────────────────────────────────────────────────── */
+html body :is(.admin-main, main) :is(.data-table, .ui-table, .admin-table-panel, table) thead,
+html body :is(.admin-main, main) :is(.data-table, .ui-table, .admin-table-panel, table) thead tr,
+html body :is(.admin-main, main) :is(.data-table, .ui-table, .admin-table-panel, table) thead th,
+html body .admin-main table thead,
+html body .admin-main table thead tr,
+html body .admin-main table thead th,
+html body .data-table thead th,
+html body .ui-table thead th,
+html body .admin-table-panel thead th {
+  background: #F5F5F4 !important;
+  background-color: #F5F5F4 !important;
+  color: #57534E !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  border-bottom: 1px solid #E7E5E4 !important;
 }
 
-.admin-main table tbody tr:hover,
-.admin-main table tbody tr:hover td,
-main table tbody tr:hover,
-main table tbody tr:hover td,
-.data-table tbody tr:hover,
-.data-table tbody tr:hover td,
-.ui-table tbody tr:hover,
-.ui-table tbody tr:hover td,
-.admin-table-panel tbody tr:hover,
-.admin-table-panel tbody tr:hover td {
-  background: var(--bg-alt, #F5F5F4) !important;
-  color: var(--text, #0C0A09) !important;
+html body :is(.admin-main, main) :is(.data-table, .ui-table, .admin-table-panel, table) tbody tr,
+html body :is(.admin-main, main) :is(.data-table, .ui-table, .admin-table-panel, table) tbody td {
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
+  color: #0C0A09 !important;
 }
 
-/* Defeat any tailwind-style dark utility that might have leaked in */
-.admin-main tbody tr.bg-black,
-.admin-main tbody tr.bg-stone-900,
-.admin-main tbody tr.bg-neutral-900,
-.admin-main tbody tr.bg-zinc-900,
-.admin-main tbody td.bg-black,
-.admin-main tbody td.bg-stone-900,
-.admin-main tbody td.bg-neutral-900,
-.admin-main tbody td.bg-zinc-900 {
-  background: var(--surface, #FFFFFF) !important;
-  color: var(--text, #0C0A09) !important;
+html body :is(.admin-main, main) :is(.data-table, .ui-table, .admin-table-panel, table) tbody tr:nth-child(even) td {
+  background: #FAFAF9 !important;
+  background-color: #FAFAF9 !important;
 }
 
-/* ───────────────────────────────────────────────────────────────
- * 3. Buttons — make any button that *should* be primary actually red
- *    Targets buttons that have data-variant="primary" but also
- *    accidentally got the .btn-secondary class.
- * ─────────────────────────────────────────────────────────────── */
-button[data-variant="primary"],
-a[data-variant="primary"],
-.btn-primary,
-.admin-main button[data-variant="primary"],
-.admin-main a[data-variant="primary"],
-.admin-main .btn-primary {
-  background: var(--primary, #B91C1C) !important;
+html body :is(.admin-main, main) :is(.data-table, .ui-table, .admin-table-panel, table) tbody tr:hover,
+html body :is(.admin-main, main) :is(.data-table, .ui-table, .admin-table-panel, table) tbody tr:hover td {
+  background: #F5F5F4 !important;
+  background-color: #F5F5F4 !important;
+  color: #0C0A09 !important;
+}
+
+/* Row link inside cells must remain readable too */
+html body .admin-main table tbody td a,
+html body .admin-main table tbody td a:visited,
+html body .data-table tbody td a,
+html body .data-table tbody td a:visited {
+  color: #B91C1C !important;
+  text-decoration: none !important;
+}
+html body .admin-main table tbody td a:hover,
+html body .data-table tbody td a:hover {
+  color: #991B1B !important;
+  text-decoration: underline !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * 3. KILL nav-link tooltips
+ *    admin.js auto-attaches data-tooltip="<text>" to every nav link
+ *    which renders an extra floating bubble showing the same label
+ *    that is already visible. Just hide them.
+ * ────────────────────────────────────────────────────────────────── */
+html body .admin-sidebar [data-tooltip]::after,
+html body .admin-sidebar [data-tooltip]::before,
+html body .admin-nav-link[data-tooltip]::after,
+html body .admin-nav-link[data-tooltip]::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * 4. HIDE the org-switcher widget (user requested removal)
+ *    Renders right under the brand block in the sidebar.
+ * ────────────────────────────────────────────────────────────────── */
+html body .admin-sidebar [data-org-switcher],
+html body .admin-org-switcher {
+  display: none !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * 5. Buttons — force primary actually red
+ * ────────────────────────────────────────────────────────────────── */
+html body button[data-variant="primary"],
+html body a[data-variant="primary"],
+html body .btn-primary,
+html body .admin-main button[data-variant="primary"],
+html body .admin-main a[data-variant="primary"],
+html body .admin-main .btn-primary {
+  background: #B91C1C !important;
   color: #FFFFFF !important;
-  border: 1px solid var(--primary, #B91C1C) !important;
+  border: 1px solid #B91C1C !important;
 }
-
-button[data-variant="primary"]:hover,
-a[data-variant="primary"]:hover,
-.btn-primary:hover,
-.admin-main button[data-variant="primary"]:hover,
-.admin-main a[data-variant="primary"]:hover,
-.admin-main .btn-primary:hover {
-  background: var(--primary-hover, #991B1B) !important;
-  border-color: var(--primary-hover, #991B1B) !important;
+html body button[data-variant="primary"]:hover,
+html body a[data-variant="primary"]:hover,
+html body .btn-primary:hover,
+html body .admin-main button[data-variant="primary"]:hover,
+html body .admin-main a[data-variant="primary"]:hover,
+html body .admin-main .btn-primary:hover {
+  background: #991B1B !important;
+  border-color: #991B1B !important;
   color: #FFFFFF !important;
 }
 
-/* The "Päivitä" submit button on the availability filter and similar
- * naked submit buttons inside an admin form should default to primary. */
-.admin-main form button[type="submit"]:not(.btn-secondary):not(.btn-ghost):not(.btn-danger):not([data-variant="secondary"]):not([data-variant="ghost"]):not([data-variant="danger"]) {
-  background: var(--primary, #B91C1C) !important;
+/* Naked submit buttons inside admin forms default to primary */
+html body .admin-main form button[type="submit"]:not(.btn-secondary):not(.btn-ghost):not(.btn-danger):not([data-variant="secondary"]):not([data-variant="ghost"]):not([data-variant="danger"]) {
+  background: #B91C1C !important;
   color: #FFFFFF !important;
-  border: 1px solid var(--primary, #B91C1C) !important;
+  border: 1px solid #B91C1C !important;
 }
 
-.admin-main form button[type="submit"]:not(.btn-secondary):not(.btn-ghost):not(.btn-danger):not([data-variant="secondary"]):not([data-variant="ghost"]):not([data-variant="danger"]):hover {
-  background: var(--primary-hover, #991B1B) !important;
-  border-color: var(--primary-hover, #991B1B) !important;
+/* Secondary buttons must be light, not black */
+html body button.btn-secondary:not([data-variant="primary"]),
+html body a.btn-secondary:not([data-variant="primary"]),
+html body .admin-main button.btn-secondary:not([data-variant="primary"]),
+html body .admin-main a.btn-secondary:not([data-variant="primary"]) {
+  background: #FFFFFF !important;
+  color: #0C0A09 !important;
+  border: 1px solid #D6D3D1 !important;
+}
+html body button.btn-secondary:not([data-variant="primary"]):hover,
+html body a.btn-secondary:not([data-variant="primary"]):hover,
+html body .admin-main button.btn-secondary:not([data-variant="primary"]):hover,
+html body .admin-main a.btn-secondary:not([data-variant="primary"]):hover {
+  background: #F5F5F4 !important;
+  color: #0C0A09 !important;
 }
 
-/* "Toteuta" bulk-action button: the macro applies both .btn-secondary
- * and data-variant="primary"; data-variant should win. */
-.admin-bulk-bar button[data-variant="primary"],
-.admin-bulk-bar button[data-bulk-submit] {
-  background: var(--primary, #B91C1C) !important;
-  color: #FFFFFF !important;
-  border: 1px solid var(--primary, #B91C1C) !important;
-}
-.admin-bulk-bar button[data-variant="primary"]:hover,
-.admin-bulk-bar button[data-bulk-submit]:hover {
-  background: var(--primary-hover, #991B1B) !important;
-  border-color: var(--primary-hover, #991B1B) !important;
-}
+/* ──────────────────────────────────────────────────────────────────
+ * 6. Trend indicator (zero/positive/negative)
+ * ────────────────────────────────────────────────────────────────── */
+.dashboard-stat-card__trend.is-neutral { color: #78716C !important; }
+.dashboard-stat-card__trend.is-up      { color: #15803D !important; }
+.dashboard-stat-card__trend.is-down    { color: #B91C1C !important; }
 
-/* ───────────────────────────────────────────────────────────────
- * 4. Trend indicator — neutral colour & arrow when value is zero
- * ─────────────────────────────────────────────────────────────── */
-.dashboard-stat-card__trend.is-neutral {
-  color: var(--text-soft, #78716C) !important;
-}
-.dashboard-stat-card__trend.is-up {
-  color: var(--success, #15803D);
-}
-.dashboard-stat-card__trend.is-down {
-  color: var(--primary, #B91C1C);
-}
-
-/* ───────────────────────────────────────────────────────────────
- * 5. Sparklines — make them visible
- * ─────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────────
+ * 7. Sparklines — visible, colourful
+ * ────────────────────────────────────────────────────────────────── */
 .dashboard-stat-card__sparkline {
   width: 100% !important;
   height: 32px !important;
   margin-top: 8px;
   opacity: 1 !important;
+  display: block !important;
 }
 .dashboard-stat-card__sparkline polyline {
-  stroke: var(--primary, #B91C1C);
-  stroke-width: 2;
-  fill: none;
+  stroke: #B91C1C !important;
+  stroke-width: 2 !important;
+  fill: none !important;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .dashboard-stat-card__sparkline polygon {
-  fill: var(--primary, #B91C1C);
-  fill-opacity: 0.12;
-  stroke: none;
+  fill: #B91C1C !important;
+  fill-opacity: 0.12 !important;
+  stroke: none !important;
 }
-.dashboard-stat-card--success .dashboard-stat-card__sparkline polyline {
-  stroke: var(--success, #15803D);
-}
-.dashboard-stat-card--success .dashboard-stat-card__sparkline polygon {
-  fill: var(--success, #15803D);
-  fill-opacity: 0.12;
-}
-.dashboard-stat-card--warning .dashboard-stat-card__sparkline polyline {
-  stroke: var(--warning, #B45309);
-}
-.dashboard-stat-card--warning .dashboard-stat-card__sparkline polygon {
-  fill: var(--warning, #B45309);
-  fill-opacity: 0.12;
-}
-.dashboard-stat-card--danger .dashboard-stat-card__sparkline polyline {
-  stroke: #DC2626;
-}
-.dashboard-stat-card--danger .dashboard-stat-card__sparkline polygon {
-  fill: #DC2626;
-  fill-opacity: 0.12;
-}
+.dashboard-stat-card--success .dashboard-stat-card__sparkline polyline { stroke: #15803D !important; }
+.dashboard-stat-card--success .dashboard-stat-card__sparkline polygon  { fill: #15803D !important; }
+.dashboard-stat-card--warning .dashboard-stat-card__sparkline polyline { stroke: #B45309 !important; }
+.dashboard-stat-card--warning .dashboard-stat-card__sparkline polygon  { fill: #B45309 !important; }
+.dashboard-stat-card--danger  .dashboard-stat-card__sparkline polyline { stroke: #DC2626 !important; }
+.dashboard-stat-card--danger  .dashboard-stat-card__sparkline polygon  { fill: #DC2626 !important; }
 
-/* ───────────────────────────────────────────────────────────────
- * 6. Info banner — better contrast
- * ─────────────────────────────────────────────────────────────── */
-.empty-state-banner-info {
-  background: var(--info-soft, #DBEAFE) !important;
-  border-left: 3px solid var(--info, #1D4ED8) !important;
+/* ──────────────────────────────────────────────────────────────────
+ * 8. Info banner contrast
+ * ────────────────────────────────────────────────────────────────── */
+html body .empty-state-banner-info {
+  background: #DBEAFE !important;
+  border-left: 3px solid #1D4ED8 !important;
   color: #1E3A8A !important;
   padding: 12px 16px !important;
   border-radius: 0 8px 8px 0 !important;
 }
-.empty-state-banner-info p {
+html body .empty-state-banner-info p {
   color: #1E3A8A !important;
   font-size: 14px !important;
   font-weight: 500 !important;
+  margin: 0 !important;
 }
 
-/* ───────────────────────────────────────────────────────────────
- * 7. Yksiköiden tilanne — clean unit links (not red underlined)
- * ─────────────────────────────────────────────────────────────── */
-.dashboard-upcoming-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+/* ──────────────────────────────────────────────────────────────────
+ * 9. Yksiköiden tilanne list — clean rows, force readable colours
+ * ────────────────────────────────────────────────────────────────── */
+html body .dashboard-upcoming-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
-.dashboard-upcoming-list li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--border, #E7E5E4);
-  border-radius: 6px;
+html body .dashboard-upcoming-list li {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
+  border-bottom: 1px solid #E7E5E4 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #0C0A09 !important;
   transition: background-color 150ms ease;
 }
-.dashboard-upcoming-list li:last-child {
-  border-bottom: none;
+html body .dashboard-upcoming-list li:last-child {
+  border-bottom: none !important;
 }
-.dashboard-upcoming-list li:hover {
-  background: var(--bg-alt, #F5F5F4);
+html body .dashboard-upcoming-list li:hover {
+  background: #F5F5F4 !important;
+  color: #0C0A09 !important;
 }
-.dashboard-upcoming-list li::before {
-  content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-soft, #78716C);
-  flex-shrink: 0;
+html body .dashboard-upcoming-list li::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #78716C !important;
+  flex-shrink: 0 !important;
 }
-.dashboard-upcoming-list li[data-state="occupied"]::before,
-.dashboard-upcoming-list li[data-state="reserved"]::before {
-  background: var(--info, #1D4ED8);
+html body .dashboard-upcoming-list li[data-state="occupied"]::before,
+html body .dashboard-upcoming-list li[data-state="reserved"]::before {
+  background: #1D4ED8 !important;
 }
-.dashboard-upcoming-list li[data-state="free"]::before,
-.dashboard-upcoming-list li[data-state="available"]::before {
-  background: var(--success, #15803D);
+html body .dashboard-upcoming-list li[data-state="free"]::before,
+html body .dashboard-upcoming-list li[data-state="available"]::before {
+  background: #15803D !important;
 }
-.dashboard-upcoming-list li[data-state="maintenance"]::before {
-  background: var(--warning, #B45309);
+html body .dashboard-upcoming-list li[data-state="maintenance"]::before {
+  background: #B45309 !important;
 }
-.dashboard-upcoming-list li a {
-  color: var(--text, #0C0A09) !important;
+html body .dashboard-upcoming-list li a {
+  color: #0C0A09 !important;
   text-decoration: none !important;
-  font-weight: 500;
+  font-weight: 500 !important;
 }
-.dashboard-upcoming-list li a:hover {
-  color: var(--primary, #B91C1C) !important;
+html body .dashboard-upcoming-list li:hover a {
+  color: #B91C1C !important;
 }
-.dashboard-upcoming-list li a strong {
-  font-weight: 600;
+html body .dashboard-upcoming-list li a strong {
+  font-weight: 600 !important;
 }
 
-/* ───────────────────────────────────────────────────────────────
- * 8. Availability table — proper status colours, dot indicators
- * ─────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────────
+ * 10. Availability table colours + legend
+ * ────────────────────────────────────────────────────────────────── */
 .availability-legend {
-  display: flex;
+  display: flex !important;
   gap: 16px;
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 12px;
   padding: 10px 14px;
-  background: var(--surface, #FFFFFF);
-  border: 1px solid var(--border, #E7E5E4);
+  background: #FFFFFF;
+  border: 1px solid #E7E5E4;
   border-radius: 8px;
   font-size: 12px;
-  color: var(--text-muted, #57534E);
+  color: #57534E;
 }
 .availability-legend-item {
   display: inline-flex;
@@ -282,64 +289,220 @@ a[data-variant="primary"]:hover,
   border-radius: 3px;
   border: 1px solid;
 }
-.availability-legend-swatch--free       { background: #DCFCE7; border-color: #86EFAC; }
-.availability-legend-swatch--reserved   { background: #DBEAFE; border-color: #93C5FD; }
-.availability-legend-swatch--maintenance{ background: #FEF3C7; border-color: #FDE68A; }
-.availability-legend-swatch--checkout   { background: #FED7AA; border-color: #FDBA74; }
-.availability-legend-swatch--checkin    { background: #BBF7D0; border-color: #86EFAC; }
-.availability-legend-swatch--blocked    { background: #F5F5F4; border-color: #D6D3D1; }
+.availability-legend-swatch--free        { background: #DCFCE7; border-color: #86EFAC; }
+.availability-legend-swatch--reserved    { background: #DBEAFE; border-color: #93C5FD; }
+.availability-legend-swatch--maintenance { background: #FEF3C7; border-color: #FDE68A; }
+.availability-legend-swatch--checkout    { background: #FED7AA; border-color: #FDBA74; }
+.availability-legend-swatch--checkin     { background: #BBF7D0; border-color: #86EFAC; }
+.availability-legend-swatch--blocked     { background: #F5F5F4; border-color: #D6D3D1; }
 
-/* Force readable status cells */
-.availability-status-reserved   { background: #DBEAFE !important; }
-.availability-status-checkout   { background: #FED7AA !important; }
-.availability-status-checkin    { background: #BBF7D0 !important; }
-.availability-status-maintenance{ background: #FEF3C7 !important; }
-.availability-status-blocked    { background: #F5F5F4 !important; color: #78716C; }
-.availability-status-free       { background: #FFFFFF; }
+html body .availability-status-reserved    { background: #DBEAFE !important; }
+html body .availability-status-checkout    { background: #FED7AA !important; }
+html body .availability-status-checkin     { background: #BBF7D0 !important; }
+html body .availability-status-maintenance { background: #FEF3C7 !important; }
+html body .availability-status-blocked     { background: #F5F5F4 !important; color: #78716C !important; }
+html body .availability-status-free        { background: #FFFFFF !important; }
 
-.availability-table th[data-today="true"],
-.availability-table th.is-today {
-  background: var(--primary-soft, #FEF2F2) !important;
-  color: var(--primary, #B91C1C) !important;
-  font-weight: 700;
+html body .availability-table th[data-today="true"],
+html body .availability-table th.is-today {
+  background: #FEF2F2 !important;
+  color: #B91C1C !important;
+  font-weight: 700 !important;
 }
 
-/* ───────────────────────────────────────────────────────────────
- * 9. Tooltip "i" icons — only show when something will happen
- * ─────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────────
+ * 11. Tooltip "i" icons (only the explicit ones, not nav-tooltips)
+ * ────────────────────────────────────────────────────────────────── */
 .ui-tooltip-trigger {
-  background: var(--bg-alt, #F5F5F4);
-  color: var(--text-soft, #78716C);
-  border: 1px solid var(--border, #E7E5E4);
+  background: #F5F5F4;
+  color: #78716C;
+  border: 1px solid #E7E5E4;
 }
 .ui-tooltip-trigger:hover,
 .ui-tooltip-trigger:focus-visible {
-  background: var(--primary-soft, #FEF2F2);
-  color: var(--primary, #B91C1C);
-  border-color: var(--primary, #B91C1C);
+  background: #FEF2F2;
+  color: #B91C1C;
+  border-color: #B91C1C;
 }
 
-/* ───────────────────────────────────────────────────────────────
- * 10. Dark mode safety net
- *     (Only active if user prefers dark; fix the leaks the dev had.)
- * ─────────────────────────────────────────────────────────────── */
-@media (prefers-color-scheme: dark) {
-  :root[data-theme="auto"],
-  :root[data-theme="dark"] {
-    --bg-alt: #292524;
-    --bg-hover: #292524;
-    --table-header-bg: #292524;
-    --table-row-hover: #292524;
-    --table-header-text: #A8A29E;
-  }
+/* ──────────────────────────────────────────────────────────────────
+ * 12. Page header / topbar — keep duplicate breadcrumb tidy
+ * ────────────────────────────────────────────────────────────────── */
+html body .admin-desktop-topbar .admin-topbar-breadcrumb {
+  font-size: 13px !important;
+  color: #78716C !important;
+  margin: 0 !important;
+}
+html body .admin-desktop-topbar .admin-topbar-title {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.015em !important;
+  color: #0C0A09 !important;
+  margin: 0 0 2px 0 !important;
+}
 
-  :root[data-theme="auto"] .empty-state-banner-info,
-  :root[data-theme="dark"] .empty-state-banner-info {
-    background: rgba(29, 78, 216, 0.15) !important;
-    color: #93C5FD !important;
-  }
-  :root[data-theme="auto"] .empty-state-banner-info p,
-  :root[data-theme="dark"] .empty-state-banner-info p {
-    color: #BFDBFE !important;
-  }
+/* ──────────────────────────────────────────────────────────────────
+ * 13. Headings & body text inside admin cards — force dark on light
+ *     "Tänään saapuu", "Tänään lähtee", and other h2/h3 must be
+ *     readable. Some earlier rule was leaving them pale.
+ * ────────────────────────────────────────────────────────────────── */
+html body .admin-main h1,
+html body .admin-main h2,
+html body .admin-main h3,
+html body .admin-main h4,
+html body .admin-main .card h1,
+html body .admin-main .card h2,
+html body .admin-main .card h3,
+html body .admin-main .content-card h2,
+html body .admin-main .content-card h3 {
+  color: #0C0A09 !important;
+  font-weight: 600 !important;
+}
+
+html body .admin-main h2 {
+  font-size: 16px !important;
+  margin: 0 0 12px 0 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* Empty-state placeholder text inside cards ("Ei saapumisia", etc.) */
+html body .admin-main .card em,
+html body .admin-main .content-card em,
+html body .admin-main ul li em,
+html body .admin-main .empty-state em {
+  color: #78716C !important;
+  font-style: normal !important;
+  font-size: 14px !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * 14. Info banner — strong contrast (was barely visible)
+ * ────────────────────────────────────────────────────────────────── */
+html body .empty-state-banner-info,
+html body .dashboard-empty-message.empty-state-banner-info {
+  background: #EFF6FF !important;
+  border: 1px solid #BFDBFE !important;
+  border-left: 4px solid #1D4ED8 !important;
+  color: #1E3A8A !important;
+  padding: 14px 18px !important;
+  border-radius: 6px !important;
+  margin: 0 0 16px 0 !important;
+  box-shadow: none !important;
+}
+html body .empty-state-banner-info p,
+html body .dashboard-empty-message.empty-state-banner-info p {
+  color: #1E3A8A !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+}
+
+/* The "Lisää kohteet ensin" empty banner gets the same treatment */
+html body .dashboard-empty-message:not(.empty-state-banner-info) {
+  background: #FEFCE8 !important;
+  border: 1px solid #FEF08A !important;
+  border-left: 4px solid #B45309 !important;
+  color: #713F12 !important;
+  padding: 14px 18px !important;
+  border-radius: 6px !important;
+}
+html body .dashboard-empty-message:not(.empty-state-banner-info) p {
+  color: #713F12 !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * 15. Checkboxes — small, rounded, no ring around them
+ *     User asked: smaller, more rounded, drop the surrounding lines.
+ * ────────────────────────────────────────────────────────────────── */
+html body input[type="checkbox"]:not(.no-polish-checkbox),
+html body .admin-main input[type="checkbox"]:not(.no-polish-checkbox),
+html body .property-feature-checkbox {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid #D6D3D1 !important;
+  border-radius: 5px !important;
+  background: #FFFFFF !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  display: inline-grid !important;
+  place-content: center !important;
+  position: relative !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: background-color 120ms ease, border-color 120ms ease;
+  vertical-align: middle;
+}
+html body input[type="checkbox"]:not(.no-polish-checkbox):hover,
+html body .admin-main input[type="checkbox"]:not(.no-polish-checkbox):hover,
+html body .property-feature-checkbox:hover {
+  border-color: #B91C1C !important;
+}
+html body input[type="checkbox"]:not(.no-polish-checkbox):checked,
+html body .admin-main input[type="checkbox"]:not(.no-polish-checkbox):checked,
+html body .property-feature-checkbox:checked {
+  background: #B91C1C !important;
+  border-color: #B91C1C !important;
+}
+/* The check mark itself, drawn with a CSS-pseudo so we don't depend
+ * on browser defaults nor accent-color.
+ */
+html body input[type="checkbox"]:not(.no-polish-checkbox):checked::after,
+html body .admin-main input[type="checkbox"]:not(.no-polish-checkbox):checked::after,
+html body .property-feature-checkbox:checked::after {
+  content: "" !important;
+  display: block !important;
+  width: 4px !important;
+  height: 8px !important;
+  margin-top: -1px !important;
+  border: solid #FFFFFF !important;
+  border-width: 0 1.5px 1.5px 0 !important;
+  transform: rotate(45deg) !important;
+}
+/* Focus state: subtle, no big ring */
+html body input[type="checkbox"]:not(.no-polish-checkbox):focus-visible,
+html body .admin-main input[type="checkbox"]:not(.no-polish-checkbox):focus-visible,
+html body .property-feature-checkbox:focus-visible {
+  outline: 2px solid #FECACA !important;
+  outline-offset: 1px !important;
+  box-shadow: none !important;
+}
+
+/* Same treatment for radios, just round */
+html body input[type="radio"]:not(.no-polish-checkbox),
+html body .admin-main input[type="radio"]:not(.no-polish-checkbox) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  border: 1px solid #D6D3D1 !important;
+  border-radius: 50% !important;
+  background: #FFFFFF !important;
+  cursor: pointer !important;
+  position: relative !important;
+  outline: none !important;
+  box-shadow: none !important;
+  vertical-align: middle;
+}
+html body input[type="radio"]:not(.no-polish-checkbox):checked,
+html body .admin-main input[type="radio"]:not(.no-polish-checkbox):checked {
+  border-color: #B91C1C !important;
+}
+html body input[type="radio"]:not(.no-polish-checkbox):checked::after,
+html body .admin-main input[type="radio"]:not(.no-polish-checkbox):checked::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: 3px !important;
+  background: #B91C1C !important;
+  border-radius: 50% !important;
 }
