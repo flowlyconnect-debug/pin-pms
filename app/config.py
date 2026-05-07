@@ -343,6 +343,11 @@ class BaseConfig:
     ICAL_HTTP_TIMEOUT_SECONDS = int(os.getenv("ICAL_HTTP_TIMEOUT_SECONDS", "10"))
     ICAL_SYNC_ENABLED = os.getenv("ICAL_SYNC_ENABLED", "1").lower() in {"1", "true", "yes"}
     ICAL_SYNC_INTERVAL_MINUTES = int(os.getenv("ICAL_SYNC_INTERVAL_MINUTES", "15"))
+    OWNER_PORTAL_ENABLED = os.getenv("OWNER_PORTAL_ENABLED", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:5000")
     STATUS_SCHEDULER_ENABLED = os.getenv("STATUS_SCHEDULER_ENABLED", "1").lower() in {
         "1",
@@ -448,6 +453,7 @@ class TestConfig(BaseConfig):
     WEBHOOK_DELIVERY_SCHEDULER_ENABLED = False
     WEBHOOK_INBOUND_HANDLER_SCHEDULER_ENABLED = False
     PAYMENT_EXPIRY_SCHEDULER_ENABLED = False
+    OWNER_PORTAL_ENABLED = True
     CHECKIN_FERNET_KEY = os.getenv(
         "CHECKIN_FERNET_KEY",
         "1zakWgvYOaHtecRaBwIRHYuB8waN6MZPwAo5FGIx9Bg=",

@@ -469,12 +469,13 @@ def register_blueprints(app):
         app.register_blueprint(portal_bp, url_prefix="/portal")
     except Exception as exc:
         app.logger.warning("portal blueprint not registered: %s", exc)
-    try:
-        from app.owner_portal import owner_portal_bp
+    if app.config.get("OWNER_PORTAL_ENABLED", False):
+        try:
+            from app.owner_portal import owner_portal_bp
 
-        app.register_blueprint(owner_portal_bp, url_prefix="/owner")
-    except Exception as exc:
-        app.logger.warning("owner portal blueprint not registered: %s", exc)
+            app.register_blueprint(owner_portal_bp, url_prefix="/owner")
+        except Exception as exc:
+            app.logger.warning("owner portal blueprint not registered: %s", exc)
 
     csrf.exempt(api_bp)
     csrf.exempt(webhooks_bp)
