@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from flask_wtf import FlaskForm
 from wtforms import (
     BooleanField,
@@ -12,10 +14,10 @@ from wtforms import (
     TextAreaField,
 )
 from wtforms.fields import DateTimeLocalField
-from wtforms.validators import DataRequired, Email, Length, NumberRange, Optional, URL
+from wtforms.validators import DataRequired, Email, Length, NumberRange, Optional, ValidationError
 
-from app.settings.models import SettingType
 from app.api.models import ALLOWED_API_KEY_SCOPES
+from app.settings.models import SettingType
 from app.users.models import UserRole
 
 
@@ -108,22 +110,46 @@ class PropertyForm(FlaskForm):
     street_address = StringField("Katuosoite", validators=[Optional(), Length(max=200)])
     latitude = DecimalField("Leveysaste", validators=[Optional()], places=7)
     longitude = DecimalField("Pituusaste", validators=[Optional()], places=7)
-    year_built = IntegerField("Rakennusvuosi", validators=[Optional(), NumberRange(min=0, max=9999)])
+    year_built = IntegerField(
+        "Rakennusvuosi",
+        validators=[Optional(), NumberRange(min=1800, max=2100, message="Anna arvo väliltä 1800–2100.")],
+    )
     has_elevator = BooleanField("Hissi")
     has_parking = BooleanField("Pysäköinti")
     has_sauna = BooleanField("Sauna")
     has_courtyard = BooleanField("Sisäpiha")
     has_air_conditioning = BooleanField("Ilmastointi")
     description = TextAreaField("Kuvaus", validators=[Optional()])
-    url = StringField("Verkko-osoite", validators=[Optional(), Length(max=500), URL(require_tld=False)])
+    url = StringField("Verkko-osoite", validators=[Optional(), Length(max=500)])
+
+    def validate_url(self, field):
+        value = (field.data or "").strip()
+        if not value:
+            field.data = None
+            return
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValidationError("Anna kelvollinen http- tai https-osoite.")
+        field.data = value
 
 
 class UnitForm(FlaskForm):
     name = StringField("Nimi", validators=[DataRequired(), Length(max=255)])
     unit_type = StringField("Tyyppi", validators=[Optional(), Length(max=100)])
-    floor = IntegerField("Kerros", validators=[Optional()])
-    area_sqm = DecimalField("Pinta-ala (m²)", validators=[Optional(), NumberRange(min=0)], places=2)
-    bedrooms = IntegerField("Makuuhuoneet", validators=[Optional(), NumberRange(min=0)], default=0)
+    floor = IntegerField(
+        "Kerros",
+        validators=[Optional(), NumberRange(min=-5, max=200, message="Anna arvo väliltä -5–200.")],
+    )
+    area_sqm = DecimalField(
+        "Pinta-ala (m²)",
+        validators=[Optional(), NumberRange(min=0, max=10000, message="Anna arvo väliltä 0–10000.")],
+        places=2,
+    )
+    bedrooms = IntegerField(
+        "Makuuhuoneet",
+        validators=[Optional(), NumberRange(min=0, max=50, message="Anna arvo väliltä 0–50.")],
+        default=0,
+    )
     has_kitchen = BooleanField("Keittiö")
     has_bathroom = BooleanField("Kylpyhuone", default=True)
     has_balcony = BooleanField("Parveke")
@@ -132,6 +158,10 @@ class UnitForm(FlaskForm):
     has_washing_machine = BooleanField("Pyykinpesukone")
     has_tv = BooleanField("TV")
     has_wifi = BooleanField("WiFi", default=True)
-    max_guests = IntegerField("Maksimivieraat", validators=[Optional(), NumberRange(min=1)], default=2)
+    max_guests = IntegerField(
+        "Maksimivieraat",
+        validators=[Optional(), NumberRange(min=0, max=200, message="Anna arvo väliltä 0–200.")],
+        default=2,
+    )
     description = TextAreaField("Kuvaus", validators=[Optional()])
     floor_plan_image_id = IntegerField("Pohjapiirroskuvan ID", validators=[Optional(), NumberRange(min=1)])

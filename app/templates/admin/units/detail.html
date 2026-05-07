@@ -10,13 +10,15 @@
   <h1>{{ row.name }}</h1>
   <div class="card">
     <p><strong>ID:</strong> {{ row.id }}</p>
-    <p><strong>Tyyppi:</strong> {{ row.unit_type or "—" }}</p>
-    <p><strong>Kerros:</strong> {{ row.floor if row.floor is not none else "—" }}</p>
-    <p><strong>Pinta-ala:</strong> {{ row.area_sqm or "—" }}</p>
-    <p><strong>Makuuhuoneet:</strong> {{ row.bedrooms }}</p>
-    <p><strong>Maksimivieraat:</strong> {{ row.max_guests }}</p>
-    <p><strong>Pohjapiirroskuvan ID:</strong> {{ row.floor_plan_image_id or "—" }}</p>
-    <p><strong>Kuvaus:</strong> {{ row.description or "—" }}</p>
+
+    <h2>Mitat</h2>
+    <p><strong>Pinta-ala (m²):</strong> {{ row.area_sqm or "Ei määritetty" }}</p>
+    <p><strong>Kerros:</strong> {{ row.floor if row.floor is not none else "Ei määritetty" }}</p>
+    <p><strong>Makuuhuoneet:</strong> {{ row.bedrooms if row.bedrooms is not none else "Ei määritetty" }}</p>
+    <p><strong>Maksimivieraat:</strong> {{ row.max_guests if row.max_guests is not none else "Ei määritetty" }}</p>
+    <p><strong>Yksikön tyyppi:</strong> {{ row.unit_type or "Ei määritetty" }}</p>
+
+    <h2>Varustelu</h2>
     <p><strong>Keittiö:</strong> {{ "Kyllä" if row.has_kitchen else "Ei" }}</p>
     <p><strong>Kylpyhuone:</strong> {{ "Kyllä" if row.has_bathroom else "Ei" }}</p>
     <p><strong>Parveke:</strong> {{ "Kyllä" if row.has_balcony else "Ei" }}</p>
@@ -24,6 +26,10 @@
     <p><strong>Astianpesukone:</strong> {{ "Kyllä" if row.has_dishwasher else "Ei" }}</p>
     <p><strong>Pyykinpesukone:</strong> {{ "Kyllä" if row.has_washing_machine else "Ei" }}</p>
     <p><strong>TV:</strong> {{ "Kyllä" if row.has_tv else "Ei" }}</p>
-    <p><strong>WiFi:</strong> {{ "Kyllä" if row.has_wifi else "Ei" }}</p>
+    <p><strong>Wi-Fi:</strong> {{ "Kyllä" if row.has_wifi else "Ei" }}</p>
+
+    <h2>Lisätiedot</h2>
+    <p><strong>Kuvaus:</strong> {{ row.description or "Ei määritetty" }}</p>
+    <p><strong>Pohjakuva:</strong> {{ row.floor_plan_image_id or "Ei määritetty" }}</p>
   </div>
 {% endblock %}

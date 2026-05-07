@@ -14,49 +14,58 @@
     {{ form.hidden_tag() }}
     <label for="name">Nimi</label>
     {{ form.name(id="name", required=true) }}
-    <h2>Sijainti</h2>
     <label for="address">Osoite</label>
     {{ form.address(id="address") }}
-    <label for="city">Kaupunki</label>
-    {{ form.city(id="city") }}
-    <label for="postal_code">Postinumero</label>
-    {{ form.postal_code(id="postal_code") }}
-    <label for="street_address">Katuosoite</label>
-    {{ form.street_address(id="street_address") }}
-    <label for="latitude">Leveysaste</label>
-    {{ form.latitude(id="latitude", step="0.0000001") }}
-    <label for="longitude">Pituusaste</label>
-    {{ form.longitude(id="longitude", step="0.0000001") }}
-    <h2>Tiedot</h2>
-    <label for="year_built">Rakennusvuosi</label>
-    {{ form.year_built(id="year_built", min="0") }}
-    <label for="description">Kuvaus</label>
-    {{ form.description(id="description", rows="4") }}
-    <label for="url">Verkko-osoite</label>
-    {{ form.url(id="url", type="url") }}
-    <h2>Ominaisuudet</h2>
-    <div class="property-features-stack">
-      <label class="property-feature-row" for="has_elevator">
-        {{ form.has_elevator(id="has_elevator", class_="property-feature-checkbox") }}
-        <span>Hissi</span>
-      </label>
-      <label class="property-feature-row" for="has_parking">
-        {{ form.has_parking(id="has_parking", class_="property-feature-checkbox") }}
-        <span>Pysäköinti</span>
-      </label>
-      <label class="property-feature-row" for="has_sauna">
-        {{ form.has_sauna(id="has_sauna", class_="property-feature-checkbox") }}
-        <span>Sauna</span>
-      </label>
-      <label class="property-feature-row" for="has_courtyard">
-        {{ form.has_courtyard(id="has_courtyard", class_="property-feature-checkbox") }}
-        <span>Sisäpiha</span>
-      </label>
-      <label class="property-feature-row" for="has_air_conditioning">
-        {{ form.has_air_conditioning(id="has_air_conditioning", class_="property-feature-checkbox") }}
-        <span>Ilmastointi</span>
-      </label>
-    </div>
+
+    <fieldset>
+      <legend>Sijainti</legend>
+      <label for="street_address">Katuosoite</label>
+      {{ form.street_address(id="street_address") }}
+      <label for="postal_code">Postinumero</label>
+      {{ form.postal_code(id="postal_code") }}
+      <label for="city">Kaupunki</label>
+      {{ form.city(id="city") }}
+      <label for="latitude">Leveysaste</label>
+      {{ form.latitude(id="latitude", step="0.0000001") }}
+      <label for="longitude">Pituusaste</label>
+      {{ form.longitude(id="longitude", step="0.0000001") }}
+    </fieldset>
+
+    <fieldset>
+      <legend>Rakennus</legend>
+      <label for="year_built">Rakennusvuosi</label>
+      {{ form.year_built(id="year_built", min="1800", max="2100") }}
+      <div class="property-features-stack">
+        <label class="property-feature-row" for="has_elevator">
+          {{ form.has_elevator(id="has_elevator", class_="property-feature-checkbox") }}
+          <span>Hissi</span>
+        </label>
+        <label class="property-feature-row" for="has_parking">
+          {{ form.has_parking(id="has_parking", class_="property-feature-checkbox") }}
+          <span>Pysäköinti</span>
+        </label>
+        <label class="property-feature-row" for="has_sauna">
+          {{ form.has_sauna(id="has_sauna", class_="property-feature-checkbox") }}
+          <span>Sauna</span>
+        </label>
+        <label class="property-feature-row" for="has_courtyard">
+          {{ form.has_courtyard(id="has_courtyard", class_="property-feature-checkbox") }}
+          <span>Sisäpiha</span>
+        </label>
+        <label class="property-feature-row" for="has_air_conditioning">
+          {{ form.has_air_conditioning(id="has_air_conditioning", class_="property-feature-checkbox") }}
+          <span>Ilmastointi</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Lisätiedot</legend>
+      <label for="description">Kuvaus</label>
+      {{ form.description(id="description", rows="4") }}
+      <label for="url">Verkkosivu</label>
+      {{ form.url(id="url", type="url") }}
+    </fieldset>
     <div class="actions">
       <button type="submit" data-variant="primary">Tallenna kohde</button>
     </div>

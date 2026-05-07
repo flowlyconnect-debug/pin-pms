@@ -18,19 +18,34 @@
   <div class="card">
     <p><strong>ID:</strong> {{ row.id }}</p>
     <p><strong>Osoite:</strong> {{ row.address or "—" }}</p>
-    <p><strong>Kaupunki:</strong> {{ row.city or "—" }}</p>
-    <p><strong>Postinumero:</strong> {{ row.postal_code or "—" }}</p>
-    <p><strong>Katuosoite:</strong> {{ row.street_address or "—" }}</p>
-    <p><strong>Leveysaste:</strong> {{ row.latitude or "—" }}</p>
-    <p><strong>Pituusaste:</strong> {{ row.longitude or "—" }}</p>
-    <p><strong>Rakennusvuosi:</strong> {{ row.year_built or "—" }}</p>
-    <p><strong>Verkko-osoite:</strong> {{ row.url or "—" }}</p>
-    <p><strong>Kuvaus:</strong> {{ row.description or "—" }}</p>
+
+    <h2>Sijainti</h2>
+    <p><strong>Katuosoite:</strong> {{ row.street_address or "Ei määritetty" }}</p>
+    <p><strong>Postinumero:</strong> {{ row.postal_code or "Ei määritetty" }}</p>
+    <p><strong>Kaupunki:</strong> {{ row.city or "Ei määritetty" }}</p>
+    <p><strong>Leveysaste:</strong> {{ row.latitude or "Ei määritetty" }}</p>
+    <p><strong>Pituusaste:</strong> {{ row.longitude or "Ei määritetty" }}</p>
+
+    <h2>Rakennus</h2>
+    <p><strong>Rakennusvuosi:</strong> {{ row.year_built if row.year_built is not none else "Ei määritetty" }}</p>
     <p><strong>Hissi:</strong> {{ "Kyllä" if row.has_elevator else "Ei" }}</p>
     <p><strong>Pysäköinti:</strong> {{ "Kyllä" if row.has_parking else "Ei" }}</p>
     <p><strong>Sauna:</strong> {{ "Kyllä" if row.has_sauna else "Ei" }}</p>
     <p><strong>Sisäpiha:</strong> {{ "Kyllä" if row.has_courtyard else "Ei" }}</p>
     <p><strong>Ilmastointi:</strong> {{ "Kyllä" if row.has_air_conditioning else "Ei" }}</p>
+
+    <h2>Lisätiedot</h2>
+    <p><strong>Kuvaus:</strong> {{ row.description or "Ei määritetty" }}</p>
+    {% set parsed_url = (row.url or "").strip() %}
+    {% set has_valid_url = parsed_url.startswith("http://") or parsed_url.startswith("https://") %}
+    <p>
+      <strong>Verkkosivu:</strong>
+      {% if has_valid_url %}
+        <a href="{{ parsed_url }}" target="_blank" rel="noopener noreferrer">{{ parsed_url }}</a>
+      {% else %}
+        {{ "Ei määritetty" if not parsed_url else "Ei määritetty" }}
+      {% endif %}
+    </p>
   </div>
   {% set resource = "properties" %}
   {% set resource_id = row.id %}

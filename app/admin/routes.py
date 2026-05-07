@@ -1066,7 +1066,10 @@ def properties_new():
             flash("Kohde luotu", "success")
             return redirect(url_for("admin.properties_detail", property_id=row["id"]))
     elif request.method == "POST":
-        error = "Tarkista lomakkeen kentät."
+        if form.errors:
+            error = " ".join(msg for messages in form.errors.values() for msg in messages)
+        else:
+            error = "Tarkista lomakkeen kentät."
 
     return render_template("admin/properties/new.html", form=form, error=error)
 
@@ -1211,7 +1214,10 @@ def properties_edit(property_id: int):
             flash("Kohteen tiedot päivitetty.")
             return redirect(url_for("admin.properties_detail", property_id=row["id"]))
     elif request.method == "POST":
-        error = "Tarkista lomakkeen kentät."
+        if form.errors:
+            error = " ".join(msg for messages in form.errors.values() for msg in messages)
+        else:
+            error = "Tarkista lomakkeen kentät."
 
     return render_template("admin/properties/edit.html", row=row, form=form, error=error)
 
@@ -1258,15 +1264,13 @@ def units_new(property_id: int):
                 area_sqm=form.area_sqm.data,
                 bedrooms=form.bedrooms.data,
                 has_kitchen=form.has_kitchen.data,
-                has_bathroom=(
-                    form.has_bathroom.data if "has_bathroom" in request.form else True
-                ),
+                has_bathroom=form.has_bathroom.data,
                 has_balcony=form.has_balcony.data,
                 has_terrace=form.has_terrace.data,
                 has_dishwasher=form.has_dishwasher.data,
                 has_washing_machine=form.has_washing_machine.data,
                 has_tv=form.has_tv.data,
-                has_wifi=form.has_wifi.data if "has_wifi" in request.form else True,
+                has_wifi=form.has_wifi.data,
                 max_guests=form.max_guests.data,
                 description=form.description.data,
                 floor_plan_image_id=form.floor_plan_image_id.data,
@@ -1278,7 +1282,10 @@ def units_new(property_id: int):
             flash("Huone luotu.")
             return redirect(url_for("admin.units_list", property_id=property_id))
     elif request.method == "POST":
-        error = "Tarkista lomakkeen kentät."
+        if form.errors:
+            error = " ".join(msg for messages in form.errors.values() for msg in messages)
+        else:
+            error = "Tarkista lomakkeen kentät."
 
     return render_template(
         "admin/units/new.html",
@@ -1313,15 +1320,13 @@ def units_edit(unit_id: int):
                 area_sqm=form.area_sqm.data,
                 bedrooms=form.bedrooms.data,
                 has_kitchen=form.has_kitchen.data,
-                has_bathroom=(
-                    form.has_bathroom.data if "has_bathroom" in request.form else row["has_bathroom"]
-                ),
+                has_bathroom=form.has_bathroom.data,
                 has_balcony=form.has_balcony.data,
                 has_terrace=form.has_terrace.data,
                 has_dishwasher=form.has_dishwasher.data,
                 has_washing_machine=form.has_washing_machine.data,
                 has_tv=form.has_tv.data,
-                has_wifi=form.has_wifi.data if "has_wifi" in request.form else row["has_wifi"],
+                has_wifi=form.has_wifi.data,
                 max_guests=form.max_guests.data,
                 description=form.description.data,
                 floor_plan_image_id=form.floor_plan_image_id.data,
@@ -1333,7 +1338,10 @@ def units_edit(unit_id: int):
             flash("Huoneen tiedot päivitetty.")
             return redirect(url_for("admin.units_list", property_id=row["property_id"]))
     elif request.method == "POST":
-        error = "Tarkista lomakkeen kentät."
+        if form.errors:
+            error = " ".join(msg for messages in form.errors.values() for msg in messages)
+        else:
+            error = "Tarkista lomakkeen kentät."
 
     return render_template("admin/units/edit.html", row=row, form=form, error=error)
 

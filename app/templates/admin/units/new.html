@@ -14,32 +14,39 @@
     {{ form.hidden_tag() }}
     <label for="name">Nimi</label>
     {{ form.name(id="name", required=true) }}
-    <label for="unit_type">Tyyppi</label>
-    {{ form.unit_type(id="unit_type") }}
-    <h2>Mitat</h2>
-    <label for="area_sqm">Pinta-ala (m²)</label>
-    {{ form.area_sqm(id="area_sqm", step="0.01", min="0") }}
-    <label for="bedrooms">Makuuhuoneet</label>
-    {{ form.bedrooms(id="bedrooms", min="0") }}
-    <label for="max_guests">Maksimivieraat</label>
-    {{ form.max_guests(id="max_guests", min="1") }}
-    <h2>Sijainti</h2>
-    <label for="floor">Kerros</label>
-    {{ form.floor(id="floor") }}
-    <h2>Tiedot</h2>
-    <label for="description">Kuvaus</label>
-    {{ form.description(id="description", rows="4") }}
-    <label for="floor_plan_image_id">Pohjapiirroskuvan ID</label>
-    {{ form.floor_plan_image_id(id="floor_plan_image_id", min="1") }}
-    <h2>Ominaisuudet</h2>
-    <label>{{ form.has_kitchen() }} Keittiö</label>
-    <label>{{ form.has_bathroom() }} Kylpyhuone</label>
-    <label>{{ form.has_balcony() }} Parveke</label>
-    <label>{{ form.has_terrace() }} Terassi</label>
-    <label>{{ form.has_dishwasher() }} Astianpesukone</label>
-    <label>{{ form.has_washing_machine() }} Pyykinpesukone</label>
-    <label>{{ form.has_tv() }} TV</label>
-    <label>{{ form.has_wifi() }} WiFi</label>
+    <fieldset>
+      <legend>Mitat</legend>
+      <label for="area_sqm">Pinta-ala (m²)</label>
+      {{ form.area_sqm(id="area_sqm", step="0.01", min="0", max="10000") }}
+      <label for="floor">Kerros</label>
+      {{ form.floor(id="floor", min="-5", max="200") }}
+      <label for="bedrooms">Makuuhuoneet</label>
+      {{ form.bedrooms(id="bedrooms", min="0", max="50") }}
+      <label for="max_guests">Maksimivieraat</label>
+      {{ form.max_guests(id="max_guests", min="0", max="200") }}
+      <label for="unit_type">Yksikön tyyppi</label>
+      {{ form.unit_type(id="unit_type") }}
+    </fieldset>
+
+    <fieldset>
+      <legend>Varustelu</legend>
+      <label>{{ form.has_kitchen() }} Keittiö</label>
+      <label>{{ form.has_bathroom() }} Kylpyhuone</label>
+      <label>{{ form.has_balcony() }} Parveke</label>
+      <label>{{ form.has_terrace() }} Terassi</label>
+      <label>{{ form.has_dishwasher() }} Astianpesukone</label>
+      <label>{{ form.has_washing_machine() }} Pyykinpesukone</label>
+      <label>{{ form.has_tv() }} TV</label>
+      <label>{{ form.has_wifi() }} Wi-Fi</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Lisätiedot</legend>
+      <label for="description">Kuvaus</label>
+      {{ form.description(id="description", rows="4") }}
+      <label for="floor_plan_image_id">Pohjakuva</label>
+      {{ form.floor_plan_image_id(id="floor_plan_image_id", min="1") }}
+    </fieldset>
     <div class="actions">
       <button type="submit">Luo huone</button>
     </div>
