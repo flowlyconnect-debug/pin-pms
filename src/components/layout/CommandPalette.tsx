@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Command } from "cmdk";
-import { FileText, Home, Search, Users, Building2, Receipt, CalendarPlus, UserPlus } from "lucide-react";
+import { FileText, Home, Search, Users, Building2, Receipt, CalendarPlus, UserPlus, Calendar } from "lucide-react";
 
 type PaletteItem = {
   id: string;
@@ -71,6 +71,7 @@ export function CommandPalette({
   const goItems = useMemo<PaletteItem[]>(
     () => [
       { id: "go-home", label: "Mene -> Etusivu", keywords: ["etusivu", "dashboard"], href: "/" , icon: <Home size={14} />},
+      { id: "go-calendar", label: "Mene -> Kalenteri", keywords: ["kalenteri", "calendar"], href: "/kalenteri", icon: <Calendar size={14} /> },
       { id: "go-properties", label: "Mene -> Kohteet", keywords: ["kohteet", "properties"], href: "/properties", icon: <Building2 size={14} /> },
       { id: "go-invoices", label: "Mene -> Laskut", keywords: ["laskut", "invoices"], href: "/invoices", icon: <Receipt size={14} /> },
       { id: "go-reservations", label: "Mene -> Varaukset", keywords: ["varaukset", "reservations"], href: "/reservations", icon: <FileText size={14} /> },
