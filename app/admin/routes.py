@@ -16,6 +16,7 @@ from functools import wraps
 from io import BytesIO
 from io import StringIO
 
+from sqlalchemy import or_
 from flask import (
     Response,
     abort,
@@ -143,6 +144,80 @@ def _pms_pagination() -> tuple[int, int]:
         per_page = 25
     per_page = max(1, min(per_page, 100))
     return page, per_page
+
+
+def _parse_csv_filter_args(key: str) -> list[str]:
+    raw_values = request.args.getlist(key)
+    values: list[str] = []
+    for raw in raw_values:
+        for part in raw.split(","):
+            cleaned = part.strip()
+            if cleaned:
+                values.append(cleaned)
+    return values
+
+
+def _normalize_action_type(action: str) -> str:
+    lowered = (action or "").lower()
+    if any(token in lowered for token in ("delete", "removed", "poist")):
+        return "delete"
+    if any(token in lowered for token in ("login", "auth.")):
+        return "login"
+    if any(token in lowered for token in ("send", "retry", "dispatch", "email")):
+        return "send"
+    if any(token in lowered for token in ("create", "new", "created", "add")):
+        return "create"
+    return "update"
+
+
+def _label_from_action_type(action_type: str) -> str:
+    labels = {
+        "create": "Luotu",
+        "update": "Muokattu",
+        "delete": "Poistettu",
+        "login": "Login",
+        "send": "Lahetetty",
+    }
+    return labels.get(action_type, "Muokattu")
+
+
+def _label_from_entity(target_type: str | None) -> tuple[str, str]:
+    normalized = (target_type or "event").strip().lower()
+    labels = {
+        "invoice": "Lasku",
+        "customer": "Asiakas",
+        "guest": "Asiakas",
+        "contract": "Sopimus",
+        "lease": "Sopimus",
+        "property": "Kohde",
+        "unit": "Kohde",
+        "user": "Kayttaja",
+    }
+    return normalized, labels.get(normalized, (target_type or "Tapahtuma").capitalize())
+
+
+def _context_to_diff(context: dict | None) -> list[dict[str, str | None]]:
+    if not isinstance(context, dict):
+        return []
+    before = context.get("before")
+    after = context.get("after")
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return []
+    fields = sorted(set(before.keys()) | set(after.keys()))
+    changes: list[dict[str, str | None]] = []
+    for field in fields:
+        old_value = before.get(field)
+        new_value = after.get(field)
+        if old_value == new_value:
+            continue
+        changes.append(
+            {
+                "field": str(field),
+                "oldValue": None if old_value is None else str(old_value),
+                "newValue": None if new_value is None else str(new_value),
+            }
+        )
+    return changes
 
 
 def _parse_optional_date(name: str) -> date | None:
@@ -3061,6 +3136,144 @@ def audit():
         has_prev=has_prev,
         action_filter=action_filter,
         email_filter=email_filter,
+    )
+
+
+@admin_bp.get("/api/audit-events")
+@require_superadmin_2fa
+def audit_events_api():
+    from_raw = (request.args.get("from") or "").strip()
+    to_raw = (request.args.get("to") or "").strip()
+    action_filters = _parse_csv_filter_args("action")
+    user_filters = _parse_csv_filter_args("user")
+    entity_filters = _parse_csv_filter_args("entity")
+    try:
+        page = max(int(request.args.get("page", "1") or 1), 1)
+    except ValueError:
+        page = 1
+    page_size = 50
+
+    query = AuditLog.query
+    if from_raw:
+        try:
+            start = datetime.strptime(from_raw, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            query = query.filter(AuditLog.created_at >= start)
+        except ValueError:
+            return json_error("invalid_from", "Virheellinen from-parametri.", status=400)
+    if to_raw:
+        try:
+            end = datetime.strptime(to_raw, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+            query = query.filter(AuditLog.created_at < end)
+        except ValueError:
+            return json_error("invalid_to", "Virheellinen to-parametri.", status=400)
+    if user_filters:
+        user_ids = [int(value) for value in user_filters if value.isdigit()]
+        if user_ids:
+            query = query.filter(AuditLog.actor_id.in_(user_ids))
+    if action_filters:
+        ilike_filters = [AuditLog.action.ilike(f"%{value}%") for value in action_filters]
+        query = query.filter(or_(*ilike_filters))
+    if entity_filters:
+        query = query.filter(AuditLog.target_type.in_(entity_filters))
+
+    ordered = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    offset = (page - 1) * page_size
+    rows = ordered.offset(offset).limit(page_size + 1).all()
+    has_next = len(rows) > page_size
+    rows = rows[:page_size]
+
+    payload = []
+    for row in rows:
+        action_type = _normalize_action_type(row.action or "")
+        entity_key, entity_label = _label_from_entity(row.target_type)
+        actor_name = (row.actor_email or "Jarjestelma").split("@")[0].replace(".", " ").strip().title() or "Jarjestelma"
+        entity_ref = f"{entity_key[:3].upper()}-{row.target_id}" if row.target_id else None
+        action_label = _label_from_action_type(action_type)
+        summary = f"{actor_name} {action_label.lower()} {entity_label.lower()}"
+        if entity_ref:
+            summary = f"{summary} {entity_ref}"
+        payload.append(
+            {
+                "id": row.id,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "action": row.action,
+                "action_label": action_label,
+                "action_type": action_type,
+                "actor_id": row.actor_id,
+                "actor_name": actor_name,
+                "actor_email": row.actor_email,
+                "actor_avatar": None,
+                "entity_type": entity_key,
+                "entity_label": entity_label,
+                "entity_id": row.target_id,
+                "entity_ref": entity_ref,
+                "entity_url": None,
+                "summary": summary,
+                "time_label": f"klo {(row.created_at or datetime.now(timezone.utc)).strftime('%H:%M')}",
+                "diff": _context_to_diff(row.context),
+            }
+        )
+
+    if request.args.get("format") == "csv":
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["id", "created_at", "action", "actor_email", "target_type", "target_id", "status"])
+        for row in rows:
+            writer.writerow(
+                [
+                    row.id,
+                    row.created_at.isoformat() if row.created_at else "",
+                    row.action or "",
+                    row.actor_email or "",
+                    row.target_type or "",
+                    row.target_id or "",
+                    row.status or "",
+                ]
+            )
+        csv_data = buffer.getvalue()
+        return Response(
+            csv_data,
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=audit-events.csv"},
+        )
+
+    user_rows = (
+        db.session.query(AuditLog.actor_id, AuditLog.actor_email)
+        .filter(AuditLog.actor_id.isnot(None))
+        .distinct()
+        .limit(150)
+        .all()
+    )
+    users = [
+        {
+            "id": actor_id,
+            "name": ((actor_email or f"User {actor_id}").split("@")[0].replace(".", " ").title()),
+            "avatar": None,
+        }
+        for actor_id, actor_email in user_rows
+        if actor_id is not None
+    ]
+    return json_ok(
+        {
+            "events": payload,
+            "page": page,
+            "has_next": has_next,
+            "users": users,
+            "actions": [
+                {"key": "create", "label": "Luotu"},
+                {"key": "update", "label": "Muokattu"},
+                {"key": "delete", "label": "Poistettu"},
+                {"key": "login", "label": "Login"},
+                {"key": "send", "label": "Lahetetty"},
+            ],
+            "entities": [
+                {"key": "invoice", "label": "Lasku"},
+                {"key": "customer", "label": "Asiakas"},
+                {"key": "contract", "label": "Sopimus"},
+                {"key": "property", "label": "Kohde"},
+                {"key": "user", "label": "Kayttaja"},
+            ],
+        }
     )
 
 

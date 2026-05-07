@@ -479,6 +479,12 @@ def register_blueprints(app):
     csrf.exempt(api_bp)
     csrf.exempt(webhooks_bp)
     limiter.limit(resolve_api_rate_limit)(api_bp)
+    app.add_url_rule(
+        "/api/audit-events",
+        endpoint="audit_events_api_alias",
+        view_func=app.view_functions["admin.audit_events_api"],
+        methods=["GET"],
+    )
 
 
 def register_security_guards(app):
