@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pin PMS — Design Refresh Plan, Part 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAFAF9;
+    --bg-alt: #F5F5F4;
+    --surface: #FFFFFF;
+    --border: #E7E5E4;
+    --border-strong: #D6D3D1;
+    --text: #0C0A09;
+    --text-muted: #57534E;
+    --text-soft: #78716C;
+    --primary: #B91C1C;
+    --primary-hover: #991B1B;
+    --primary-soft: #FEF2F2;
+    --primary-soft-border: #FECACA;
+    --success: #15803D;
+    --success-soft: #DCFCE7;
+    --warning: #B45309;
+    --warning-soft: #FEF3C7;
+    --info: #1D4ED8;
+    --info-soft: #DBEAFE;
+
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow-xs: 0 1px 2px rgba(12, 10, 9, 0.04);
+    --shadow-sm: 0 1px 3px rgba(12, 10, 9, 0.06), 0 1px 2px rgba(12, 10, 9, 0.04);
+    --shadow-lg: 0 10px 25px rgba(12, 10, 9, 0.08), 0 4px 10px rgba(12, 10, 9, 0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 64px 32px; }
+
+  .hero {
+    padding: 80px 32px 48px;
+    background: linear-gradient(180deg, #FFFFFF 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+  }
+  .hero-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    border: 1px solid var(--primary-soft-border);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #0C0A09 0%, #57534E 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p { font-size: 18px; color: var(--text-muted); max-width: 720px; margin: 0 auto; }
+
+  section { margin-bottom: 80px; }
+  .section-num {
+    display: inline-block;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--text);
+    color: white;
+    font-weight: 700;
+    text-align: center;
+    line-height: 32px;
+    font-size: 14px;
+    margin-right: 12px;
+  }
+  h2 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+  }
+  .section-sub { color: var(--text-muted); font-size: 17px; margin-bottom: 32px; max-width: 800px; }
+  h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; letter-spacing: -0.01em; }
+  h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin: 32px 0 64px;
+  }
+  .toc h3 { margin-bottom: 16px; }
+  .toc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px; }
+  .toc a { color: var(--text); text-decoration: none; font-size: 14px; display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+  .toc a:hover { color: var(--primary); }
+  .toc-num {
+    width: 22px; height: 22px;
+    background: var(--bg-alt);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+  }
+
+  .approach {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--surface);
+    margin-bottom: 24px;
+  }
+  .approach-head {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .approach-name { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 12px; }
+  .approach-letter {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .approach-letter.a { background: var(--success-soft); color: var(--success); }
+  .approach-letter.b { background: var(--info-soft); color: var(--info); }
+  .approach-letter.c { background: var(--warning-soft); color: var(--warning); }
+
+  .approach-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pill.risk-low { background: var(--success-soft); color: var(--success); }
+  .pill.risk-med { background: var(--warning-soft); color: var(--warning); }
+  .pill.risk-high { background: var(--primary-soft); color: var(--primary); }
+  .pill.time { background: var(--bg-alt); color: var(--text-muted); }
+
+  .approach-body { padding: 20px; }
+  .approach-body p { color: var(--text-muted); margin-bottom: 12px; }
+
+  .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .pros, .cons { padding: 14px 16px; border-radius: var(--radius-sm); font-size: 13px; }
+  .pros { background: var(--success-soft); color: #14532D; }
+  .cons { background: #FEF2F2; color: #7F1D1D; }
+  .pros strong, .cons strong { display: block; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .pros ul, .cons ul { padding-left: 18px; }
+  .pros li, .cons li { margin: 4px 0; }
+
+  .prompt-block {
+    background: #0C0A09;
+    color: #E7E5E4;
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 16px 0;
+    position: relative;
+  }
+  .prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #292524;
+    gap: 12px;
+  }
+  .prompt-tag {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #A8A29E;
+    font-weight: 600;
+  }
+  .prompt-copy {
+    background: #1C1917;
+    color: #E7E5E4;
+    border: 1px solid #292524;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .prompt-copy:hover { background: #292524; }
+  .prompt-block pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; line-height: 1.6; }
+
+  .note {
+    background: var(--info-soft);
+    border-left: 3px solid var(--info);
+    padding: 16px 20px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 14px;
+    margin: 20px 0;
+  }
+  .note strong { color: var(--info); }
+  .note.warn { background: var(--warning-soft); border-left-color: var(--warning); }
+  .note.warn strong { color: var(--warning); }
+
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .feature-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .feature-title {
+    font-weight: 600;
+    font-size: 17px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .priority {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  .priority.high { background: var(--primary-soft); color: var(--primary); }
+  .priority.med { background: var(--warning-soft); color: var(--warning); }
+  .priority.low { background: var(--info-soft); color: var(--info); }
+
+  .feature-card p { color: var(--text-muted); font-size: 14px; margin-bottom: 8px; }
+
+  .ascii-art {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: #0C0A09;
+    color: #86EFAC;
+    padding: 24px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* Logo previews */
+  .logo-row { display: flex; gap: 12px; padding: 24px; flex-wrap: wrap; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); }
+  .logo-preview {
+    width: 140px;
+    background: var(--bg-alt);
+    border-radius: var(--radius-sm);
+    padding: 24px 16px;
+    text-align: center;
+  }
+  .logo-preview-dark { background: #0C0A09; }
+  .logo-preview-label { font-size: 11px; color: var(--text-soft); margin-top: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+
+  @media (max-width: 800px) {
+    .pros-cons, .toc-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 36px; }
+    .approach-head { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <span class="hero-tag">Design Refresh Plan • Part 2</span>
+  <h1>Buttonit ja loput parannukset</h1>
+  <p>Kolme tapaa hoitaa Button-refaktori ilman että sovellus rikkoutuu — plus valmiit Cursor-promptit kaikille loppuparannuksille ja WOW-featureille.</p>
+</div>
+
+<div class="container">
+
+<div class="toc">
+  <h3>Sisältö</h3>
+  <div class="toc-grid">
+    <a href="#button-fix"><span class="toc-num">A</span>Button-refaktori — 3 turvallista tapaa</a>
+    <a href="#logo"><span class="toc-num">B</span>Brändi-logo</a>
+    <a href="#org-switcher"><span class="toc-num">C</span>Organisaatio sidebariin</a>
+    <a href="#calendar-naming"><span class="toc-num">D</span>Kalenteri-konfliktit nimeäminen</a>
+    <a href="#email-templates"><span class="toc-num">E</span>Sähköposti-templatet</a>
+    <a href="#a11y"><span class="toc-num">F</span>Saavutettavuus (WCAG AA)</a>
+    <a href="#mobile"><span class="toc-num">G</span>Mobiili-näkymä</a>
+    <a href="#audit-log"><span class="toc-num">H</span>Audit-loki paranneltu</a>
+    <a href="#sparklines"><span class="toc-num">I</span>Sparklines</a>
+    <a href="#avatars"><span class="toc-num">J</span>Värilliset avatarit</a>
+    <a href="#copy-actions"><span class="toc-num">K</span>Kopioi-toiminnot</a>
+    <a href="#calendar-view"><span class="toc-num">L</span>Kalenteri-näkymä</a>
+    <a href="#order"><span class="toc-num">M</span>Suositeltu järjestys</a>
+  </div>
+</div>
+
+<!-- BUTTON FIX -->
+<section id="button-fix">
+  <h2><span class="section-num">A</span>Button-refaktori — 3 turvallista lähestymistapaa</h2>
+  <p class="section-sub">Ymmärrettävää että alkuperäinen prompti rikkoi rakenteen — se yritti korvata KAIKKI napit kerralla. Tässä kolme turvallisempaa polkua. Valitse riskinsietokykysi mukaan, ja ne voi myös <strong>yhdistää</strong> (A+B+C peräkkäin).</p>
+
+  <div class="approach">
+    <div class="approach-head">
+      <div class="approach-name">
+        <div class="approach-letter a">A</div>
+        Tapa A — CSS-only refresh (ei koske komponentteihin)
+      </div>
+      <div class="approach-pills">
+        <span class="pill risk-low">Pieni riski</span>
+        <span class="pill time">~30 min</span>
+      </div>
+    </div>
+    <div class="approach-body">
+      <p>Tyyli kaikki <code>&lt;button&gt;</code>-elementit ja <code>&lt;a class="btn"&gt;</code>-linkit globaaleilla CSS-säännöillä. Komponentit pysyvät täysin koskemattomina. Saa 80% visuaalisesta hyödystä 5% riskillä.</p>
+
+      <div class="pros-cons">
+        <div class="pros">
+          <strong>+ Hyvät puolet</strong>
+          <ul>
+            <li>Mikään ei rikkoonnu — vain CSS</li>
+            <li>Toimii heti kaikissa nykyisissä napeissa</li>
+            <li>Voi peruuttaa yhdellä git-revertillä</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <strong>− Huonot puolet</strong>
+          <ul>
+            <li>Ei TypeScript-tukea variantteille</li>
+            <li>Loading-tila ja icon-prop puuttuvat</li>
+            <li>Tarvitsee data-attribuutteja varianttiin</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="prompt-block">
+        <div class="prompt-header">
+          <span class="prompt-tag">PROMPT A · Button CSS-refresh (ei breaking)</span>
+          <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+        </div>
+<pre>Tehtävä: Päivitä kaikkien nappien tyyli CSS-tasolla ILMAN että muutat
+mitään komponentteja tai TSX-tiedostoja.
+
+1. Luo src/styles/buttons.css ja importaa se globaalisti.
+
+2. Käytä data-attribuutteja varianttiin — ÄLÄ uusia luokkia jotka voisivat
+   törmätä olemassa oleviin:
+
+button[data-variant="primary"], a.btn-primary, button.btn-primary {
+  background: var(--primary);
+  color: #FFF;
+  border: none;
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+button[data-variant="primary"]:hover { background: var(--primary-hover); }
+button[data-variant="primary"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+3. Lisää samat säännöt:
+   - secondary: bg surface, border 1px var(--border-strong), text var(--text)
+   - ghost: bg transparent, text var(--text-muted)
+   - danger: bg #DC2626
+
+4. Päivitä OLEMASSA OLEVAT button-tagit lisäämällä vain data-variant:
+   - "Uusi lasku", "Suodata", "Toteuta", "Tallenna" → data-variant="primary"
+   - "Merkitse myöhässä", "Peruuta", "Vaihda" → data-variant="secondary"
+   - Pelkät tekstilinkit ("Näytä", "Muokkaa") → ÄLÄ vielä kosketa
+
+5. Älä luo Button-komponenttia. Älä koske komponenttien JSX-rakenteeseen
+   muuten kuin lisäämällä yksi data-attribuutti.
+
+Tee yksi pull request ja varmista että kaikki nykyiset toiminnot
+(submit, onClick, form-submission) toimii edelleen.</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="approach">
+    <div class="approach-head">
+      <div class="approach-name">
+        <div class="approach-letter b">B</div>
+        Tapa B — Additiivinen Button-komponentti (rinnalla, ei pakotettuna)
+      </div>
+      <div class="approach-pills">
+        <span class="pill risk-low">Pieni riski</span>
+        <span class="pill time">~2 h alkuun, sitten asteittain</span>
+      </div>
+    </div>
+    <div class="approach-body">
+      <p>Luo Button-komponentti <em>uutena rinnakkaisena</em>, mutta älä korvaa olemassa olevia napeja kerralla. Käytä uutta komponenttia <strong>vain</strong> uusissa toiminnallisuuksissa ja silloin kun joka tapauksessa muokkaat kyseistä sivua. Asteittainen migraatio.</p>
+
+      <div class="pros-cons">
+        <div class="pros">
+          <strong>+ Hyvät puolet</strong>
+          <ul>
+            <li>TypeScript-tuki, loading, icon -propit</li>
+            <li>Koodikanta ei rikkoonnu</li>
+            <li>Voi yhdistää tapaan A — vanhat saavat tyylit, uudet komponentin</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <strong>− Huonot puolet</strong>
+          <ul>
+            <li>Hetki sekoittunutta — kaksi tapaa tehdä napit rinnakkain</li>
+            <li>Tarvitsee kuria: aina käytä Button-komponenttia uudessa koodissa</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="prompt-block">
+        <div class="prompt-header">
+          <span class="prompt-tag">PROMPT B · Button-komponentti additiivisesti</span>
+          <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+        </div>
+<pre>Tehtävä: Luo Button-komponentti uutena. ÄLÄ korvaa olemassa olevia
+nappeja. Vain uusi komponentti + dokumentaatio + esimerkki yhdellä
+sivulla.
+
+1. Luo src/components/ui/Button.tsx:
+
+import { ButtonHTMLAttributes, forwardRef, ReactNode } from 'react'
+import { Loader2 } from 'lucide-react'
+import clsx from 'clsx'  // (asenna jos ei ole: npm install clsx)
+
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type Size = 'sm' | 'md' | 'lg'
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: Variant
+  size?: Size
+  icon?: ReactNode
+  iconPosition?: 'left' | 'right'
+  loading?: boolean
+  fullWidth?: boolean
+}
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant = 'secondary', size = 'md', icon, iconPosition = 'left',
+     loading, fullWidth, disabled, children, className, ...rest }, ref) => {
+    return (
+      <button
+        ref={ref}
+        disabled={disabled || loading}
+        className={clsx('btn', `btn-${variant}`, `btn-${size}`,
+          fullWidth && 'btn-full', loading && 'btn-loading', className)}
+        {...rest}
+      >
+        {loading ? <Loader2 className="btn-spinner" />
+          : (icon && iconPosition === 'left' && <span className="btn-icon">{icon}</span>)}
+        {children && <span>{children}</span>}
+        {!loading && icon && iconPosition === 'right' &&
+          <span className="btn-icon">{icon}</span>}
+      </button>
+    )
+  }
+)
+Button.displayName = 'Button'
+
+2. Luo src/components/ui/Button.css (importattu Button.tsx:ssä):
+.btn { display: inline-flex; align-items: center; gap: 8px;
+       border: none; cursor: pointer; font-family: inherit;
+       font-weight: 500; border-radius: 6px;
+       transition: all 150ms ease; }
+.btn-md { padding: 9px 16px; font-size: 14px; }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn-lg { padding: 11px 20px; font-size: 15px; }
+.btn-primary { background: var(--primary); color: #FFF; box-shadow: var(--shadow-xs); }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); box-shadow: var(--shadow-sm); }
+.btn-secondary { background: var(--surface); color: var(--text);
+                 border: 1px solid var(--border-strong); box-shadow: var(--shadow-xs); }
+.btn-secondary:hover:not(:disabled) { background: var(--bg-alt); border-color: var(--text-soft); }
+.btn-ghost { background: transparent; color: var(--text-muted); }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-alt); color: var(--text); }
+.btn-danger { background: #DC2626; color: #FFF; }
+.btn-danger:hover:not(:disabled) { background: #B91C1C; }
+.btn-full { width: 100%; justify-content: center; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-soft); }
+.btn-loading { cursor: wait; }
+.btn-spinner { width: 16px; height: 16px; animation: spin 1s linear infinite; }
+.btn-icon { display: inline-flex; }
+.btn-icon svg { width: 16px; height: 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+3. Migroi VAIN ETUSIVU (Hallintapaneeli) käyttämään Button-komponenttia.
+   Älä koske muihin sivuihin. Tämä toimii esimerkkinä.
+
+4. Lisää README src/components/ui/README.md missä näkyy:
+   - Milloin käyttää (kaikki uudet napit pakollinen)
+   - Esimerkkikoodi joka variantille
+   - Migration-status: lista sivuista ja onko migroitu
+
+Tämän jälkeen migraatio tapahtuu sitä mukaa kun joka tapauksessa
+kosket sivua. Ei "big bang" -refaktoria.</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="approach">
+    <div class="approach-head">
+      <div class="approach-name">
+        <div class="approach-letter c">C</div>
+        Tapa C — Yksi sivu kerrallaan (suositeltu jos haluat oikean refaktorin)
+      </div>
+      <div class="approach-pills">
+        <span class="pill risk-med">Keskiriski</span>
+        <span class="pill time">~30 min / sivu × 8 sivua</span>
+      </div>
+    </div>
+    <div class="approach-body">
+      <p>Käy läpi yksi sivu kerrallaan. Tämä on oikea tapa jos haluat lopulta että koodikanta on yhtenäinen. Idea: tapa A tehty pohjaksi (CSS toimii), sitten Button-komponentti tehty (B), ja sen jälkeen sivu kerrallaan korvataan komponentilla.</p>
+
+      <div class="pros-cons">
+        <div class="pros">
+          <strong>+ Hyvät puolet</strong>
+          <ul>
+            <li>Lopputulos: yksi tapa tehdä napit</li>
+            <li>Helppo testata sivu kerrallaan</li>
+            <li>Pull requestit pieniä ja luettavia</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <strong>− Huonot puolet</strong>
+          <ul>
+            <li>Ottaa kalenteripäiviä</li>
+            <li>Kuri: muista tehdä loppuun, älä jätä puoliksi</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="prompt-block">
+        <div class="prompt-header">
+          <span class="prompt-tag">PROMPT C · Yksi sivu kerrallaan (toista 8×)</span>
+          <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+        </div>
+<pre>Tehtävä: Migroi sivun [SIVU_NIMI] napit Button-komponenttiin.
+Toista tämä prompt jokaiselle sivulle erikseen:
+- Etusivu (Hallintapaneeli)
+- Kohteet (lista + Muokkaa)
+- Asiakkaat
+- Varaukset
+- Vuokrasopimukset
+- Laskut
+- Huolto
+- Kulut
+
+ESIVAATIMUKSET:
+- Button-komponentti on jo olemassa src/components/ui/Button.tsx
+- CSS-tyylit vapaakielisille button-tageille on jo asetettu (Tapa A)
+
+OHJEET:
+1. Etsi tiedostosta KAIKKI <button>, <a class="btn-*">, ja <input type="submit">
+2. Korvaa jokainen <Button> -komponentilla:
+   - "Uusi X", "Tallenna X", "Suodata", "Toteuta" → variant="primary"
+   - "Peruuta", "Vaihda", "Merkitse myöhässä" → variant="secondary"
+   - Tekstilinkit "Näytä", "Muokkaa" taulukoiden riveillä:
+     * Mieluiten: poista kokonaan, tee koko rivi klikattavaksi (router.push)
+     * Tai: korvaa <Button variant="ghost" size="sm">
+   - Destruktiiviset ("Poista", "Peruuta varaus") → variant="danger"
+
+3. Tarkista että:
+   - Kaikki onClick / onSubmit -handlerit toimivat edelleen
+   - Form-submission toimii (button type="submit")
+   - Loading-tilat lisätään propilla: <Button loading={isPending}>
+   - Ikonit: <Button icon={<Plus />}>Uusi lasku</Button>
+
+4. Aja `npm run build` ja varmista ettei TypeScript-virheitä.
+
+5. Päivitä src/components/ui/README.md → migration-status:
+   merkkaa [SIVU_NIMI] valmiiksi: ✅ [SIVU_NIMI]
+
+Älä migroi useampaa sivua kerralla. Yksi PR per sivu.</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <strong>Suositus:</strong> Aja ensin <strong>Tapa A</strong> (saat välittömän visuaalisen edun, riski olematon). Sitten <strong>Tapa B</strong> (komponentti rinnalle, käyttöön uusissa toiminnoissa). Sen jälkeen <strong>Tapa C</strong> kun aikaa: yksi sivu per viikko. Näin et koskaan joudu rikki-tilanteeseen.
+  </div>
+</section>
+
+<!-- LOGO -->
+<section id="logo">
+  <h2><span class="section-num">B</span>Brändi-logo</h2>
+  <p class="section-sub">Pelkkä punainen täyttölaatikko ei ole logo. Tee siitä oikea wordmark tai geometrinen merkki.</p>
+
+  <div class="logo-row">
+    <div class="logo-preview">
+      <svg viewBox="0 0 100 40" width="100" height="40">
+        <rect x="2" y="6" width="28" height="28" rx="6" fill="#B91C1C"/>
+        <text x="16" y="28" font-family="Inter" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">P</text>
+        <text x="38" y="27" font-family="Inter" font-size="16" font-weight="700" fill="#0C0A09" letter-spacing="-0.5">PinPMS</text>
+      </svg>
+      <div class="logo-preview-label">Vaihtoehto 1</div>
+    </div>
+    <div class="logo-preview">
+      <svg viewBox="0 0 100 40" width="100" height="40">
+        <path d="M6 32 L6 14 L18 6 L30 14 L30 32 Z" fill="none" stroke="#B91C1C" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="18" cy="22" r="3.5" fill="#B91C1C"/>
+        <text x="38" y="27" font-family="Inter" font-size="16" font-weight="700" fill="#0C0A09" letter-spacing="-0.5">Pin PMS</text>
+      </svg>
+      <div class="logo-preview-label">Vaihtoehto 2</div>
+    </div>
+    <div class="logo-preview logo-preview-dark">
+      <svg viewBox="0 0 100 40" width="100" height="40">
+        <rect x="2" y="6" width="28" height="28" rx="6" fill="#B91C1C"/>
+        <text x="16" y="28" font-family="Inter" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">P</text>
+        <text x="38" y="27" font-family="Inter" font-size="16" font-weight="700" fill="#FAFAF9" letter-spacing="-0.5">PinPMS</text>
+      </svg>
+      <div class="logo-preview-label" style="color:#A8A29E">Dark — vaihtoehto 1</div>
+    </div>
+    <div class="logo-preview logo-preview-dark">
+      <svg viewBox="0 0 100 40" width="100" height="40">
+        <path d="M6 32 L6 14 L18 6 L30 14 L30 32 Z" fill="none" stroke="#EF4444" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="18" cy="22" r="3.5" fill="#EF4444"/>
+        <text x="38" y="27" font-family="Inter" font-size="16" font-weight="700" fill="#FAFAF9" letter-spacing="-0.5">Pin PMS</text>
+      </svg>
+      <div class="logo-preview-label" style="color:#A8A29E">Dark — vaihtoehto 2</div>
+    </div>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Brand mark / logo</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Korvaa nykyinen punainen täyttölaatikko oikealla logolla.
+
+1. Luo src/components/brand/Logo.tsx (inline SVG, kaksi tyyliä):
+   - <Logo variant="mark" />        // pelkkä symboli, neliössä
+   - <Logo variant="full" />        // symboli + "Pin PMS" wordmark
+   - <Logo variant="full" mode="dark" />  // valkoinen versio dark BG:lle
+   - Props: size ('sm' = 24px, 'md' = 32px, 'lg' = 48px)
+
+2. Käytä TÄTÄ design-vaihtoehtoa (talo + pin-piste sisällä):
+
+<svg viewBox="0 0 32 32" width="32" height="32" fill="none">
+  <path d="M4 28 L4 12 L16 4 L28 12 L28 28 Z"
+        stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="16" cy="18" r="3" fill="currentColor"/>
+</svg>
+
+  - "currentColor" → CSS color, jolloin sama SVG toimii niin valkoisena
+    sidebarissä kuin punaisena valkoisella taustalla.
+  - Wordmark "Pin PMS": Inter 700, letter-spacing -0.02em.
+
+3. Käytä Logo-komponenttia:
+   - Sidebarin yläosassa <Logo variant="full" size="md" />
+     (sisempi color: var(--primary) symbolille, var(--sidebar-text) tekstille)
+   - Login-sivulla isompi <Logo variant="full" size="lg" />
+   - Favicon (export PNG erikseen tai käytä SVG-faviconia)
+
+4. Korvaa kaikki kohdat jossa nykyinen "punainen laatikko" ilmestyy
+   tällä komponentilla. Etsi: bg-color #A52A2A tai vastaava, varmasti
+   sidebarin top-osassa, mahdollisesti login-sivulla.
+
+5. Lisää SVG export public/logo.svg (käytetään meta-tageissa,
+   sähköposteissa, OpenGraph-kuvissa).</pre>
+  </div>
+</section>
+
+<!-- ORG SWITCHER -->
+<section id="org-switcher">
+  <h2><span class="section-num">C</span>Organisaatio-vaihdin sidebariin</h2>
+  <p class="section-sub">Nykyinen "Organisaatio: Flowly · Vaihda" -rivi etusivun otsikon alla on irrallinen ja vie tilaa. Siirrä se sidebarin yläreunaan, brändin viereen — kuten Notion, Linear ja Slack tekevät.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Organization switcher</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Siirrä organisaatio-vaihtaja sidebarin yläosaan ja poista se
+etusivulta.
+
+1. Luo src/components/layout/OrgSwitcher.tsx:
+   - Sijainti: sidebarin yläreuna, heti Logon alapuolella (ennen
+     navigaatiota)
+   - UI: rivi jossa org-icon (24×24, taustaväri hashattu org-nimestä) +
+     org-nimi (font 13px weight 600 valkoinen) + ChevronsUpDown-ikoni
+     oikealla
+   - Klikkaus → Radix Popover/Dropdown joka näyttää:
+     * Lista käyttäjän organisaatioista
+     * Aktiivinen org näytetty checkmarkilla
+     * "Vaihda organisaatiota" -otsikko 11px uppercase
+     * Jos vain 1 org → ei pudotusvalikkoa, pelkkä etiketti
+   - Hover bg #1C1917, padding 8px 10px, border-radius 6px
+
+2. Käytä /api/organizations -endpointtia (jos olemassa) tai useState
+   testidatalla:
+   const orgs = [{ id: 1, name: 'Flowly', plan: 'Pro' }]
+
+3. Aktiivinen org tallennetaan localStorageen "pin-pms-active-org" ja
+   client-side context'iin (luo OrgContext jos ei ole).
+
+4. Etusivulla: POISTA "Organisaatio: [Flowly] [Vaihda]" -rivi
+   kokonaan. Se on nyt sidebarissa.
+
+5. Vapautettu tila etusivulla: nosta sieltä isot stat-kortit ylemmäs,
+   vähennä page-titlen alapuolen marginia 24px → 16px.
+
+Vain organisaatio-vaihtaja muutokseksi tähän PR:ään, ei muita
+muutoksia sivuille.</pre>
+  </div>
+</section>
+
+<!-- CALENDAR NAMING -->
+<section id="calendar-naming">
+  <h2><span class="section-num">D</span>Kalenteri-konfliktit, parempi nimeäminen</h2>
+  <p class="section-sub">"Kalenteriristiriidat" on pitkä, tekninen ja sivuvalikossa kömpelö. Lyhennä ja korosta etusivulla kun niitä on.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Conflict naming & visibility</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Päivitä terminologia ja tee konflikteista näkyviä etusivulla.
+
+1. Vaihda kaikki "Kalenteriristiriidat" → "Konfliktit" sidebarissa,
+   sivun otsikoissa ja URL:ssä (/konfliktit).
+   - Etsi: grep -r "Kalenteriristiriid" src/
+   - Tarkista myös käännöstiedostot (jos i18n käytössä)
+   - Säilytä /kalenteriristiriidat -reitti redirectinä uuteen
+     /konfliktit -reittiin
+
+2. Lisää konflikti-banner etusivun yläreunaan kun konflikteja on:
+   - Komponentti src/components/dashboard/ConflictBanner.tsx
+   - Vain näkyvissä jos konflikteja > 0
+   - Tyyli: bg #FEF2F2, border-left 3px var(--primary), padding 12px 16px,
+     border-radius 0 6px 6px 0
+   - Sisältö: AlertTriangle-ikoni + "Sinulla on N konfliktia jotka
+     vaativat huomiota" + linkki "Tarkastele →"
+   - Jos N=0, älä renderöi mitään (return null)
+
+3. "Vaatii toimintaa" -paneeliin etusivulla: lisää konflikti-rivit
+   muiden joukkoon, värikoodattuna (warn-dot keltainen).
+
+4. Sidebarin nav-itemiin "Konfliktit": jos konflikteja on, näytä
+   nav-badge (punainen pieni ympyrä konfliktien lukumäärällä).
+
+Käytä /api/conflicts -endpointtia (luo jos ei ole) joka palauttaa
+{ count: N, items: [...] }.</pre>
+  </div>
+</section>
+
+<!-- EMAIL TEMPLATES -->
+<section id="email-templates">
+  <h2><span class="section-num">E</span>Sähköposti-templatet</h2>
+  <p class="section-sub">PMS lähettää sähköposteja asiakkaille (laskut, muistutukset, sopimukset). Jos ne näyttävät 1990-luvulta, koko muu polish menee hukkaan. Käytä React Email -kirjastoa.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Email templates with React Email</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Tee modernit sähköposti-templatet käyttäen React Emailia.
+
+1. Asenna: npm install @react-email/components react-email
+   Lisää scriptit package.jsoniin:
+   "email:dev": "email dev",
+   "email:export": "email export"
+
+2. Luo emails/ -kansio (project root, ei src/) joka sisältää:
+   - emails/components/Layout.tsx        // header + footer joka templatessa
+   - emails/components/Button.tsx        // CTA-buttoni
+   - emails/InvoiceEmail.tsx             // uusi lasku
+   - emails/InvoiceReminderEmail.tsx     // muistutus
+   - emails/InvoiceOverdueEmail.tsx      // myöhässä
+   - emails/ContractSignEmail.tsx        // allekirjoitus
+   - emails/WelcomeEmail.tsx             // tervetuloa
+
+3. Layout-template (Layout.tsx):
+   - Header: logo (PNG, 32×32) + "Pin PMS" wordmark, vasempaan
+   - Body: max-width 600px, bg #FAFAF9, valkoinen kortti sisällölle
+     padding 32px, border-radius 12px
+   - Fontit: -apple-system, "Segoe UI", sans-serif (sähköpostissa
+     turvallisempi kuin Inter)
+   - Värit: --text #0C0A09, --text-muted #57534E, --primary #B91C1C
+   - Footer: pieni 12px text-muted, "Pin PMS · Flowly Solutions ·
+     osoite · unsubscribe-linkki"
+
+4. InvoiceEmail.tsx esimerkki:
+   - H1: "Uusi lasku #BIL-001"
+   - Body: "Hei [Asiakas], olemme luoneet uuden laskun joka erääntyy
+     [pvm]."
+   - Lasku-kortti: Numero, Eräpäivä, Summa (iso), ALV-erittely
+   - Primary CTA: "Maksa lasku" (linkki maksusivulle)
+   - Secondary linkki: "Lataa PDF"
+
+5. Backend integraatio:
+   - Renderöi React Email → HTML: render(<InvoiceEmail {...} />)
+   - Lähetys: käytä Resendia (https://resend.com) tai olemassa
+     olevaa SMTP:tä
+   - Aseta from-osoite + organisaation nimi: "Flowly <noreply@flowly.fi>"
+
+6. Email preview -dev-server: `npm run email:dev` avaa selaimessa
+   http://localhost:3000 missä näkee templatet live-edit-tilassa.
+
+Vain templatet ja preview tähän PR:ään. Backend-integraatio voi tulla
+seuraavassa PR:ssä.</pre>
+  </div>
+</section>
+
+<!-- A11Y -->
+<section id="a11y">
+  <h2><span class="section-num">F</span>Saavutettavuus (WCAG AA)</h2>
+  <p class="section-sub">EU:n saavutettavuusdirektiivi (Directive 2019/882) astui voimaan 28.6.2025. Suomessa kaupallisetkin palvelut voivat joutua noudattamaan WCAG 2.1 AA -tasoa. Hoidetaan se proaktiivisesti.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · WCAG AA -tason perusta</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Saavutettavuus-perusta — WCAG 2.1 AA.
+
+1. Asenna kehitysaikaiset työkalut:
+   npm install -D eslint-plugin-jsx-a11y axe-core @axe-core/react
+
+2. Lisää .eslintrc → "extends": [..., "plugin:jsx-a11y/recommended"]
+
+3. Lisää src/main.tsx (vain dev):
+   if (import.meta.env.DEV) {
+     const React = await import('react')
+     const ReactDOM = await import('react-dom')
+     const axe = await import('@axe-core/react')
+     axe.default(React, ReactDOM, 1000)
+   }
+
+4. Korjaa kaikki seuraavat:
+
+   a) Kontrastisuhteet:
+      - Kaikkien tekstien tausta-vs-teksti ≥ 4.5:1 normaalille tekstille
+      - ≥ 3:1 isoille teksteille (≥ 18px tai ≥ 14px bold)
+      - Aja https://webaim.org/resources/contrastchecker/
+      - Erityisesti: --text-soft #78716C valkoisella → 4.6:1 ✓ ok
+
+   b) Focus-indikaattorit:
+      - Jokainen interaktiivinen elementti: näkyvä focus-tila
+      - 2px outline tai 3px box-shadow var(--primary-soft)
+      - Älä missään käytä outline: none ilman korvaajaa
+
+   c) Semanttinen HTML:
+      - <button> klikattaville (ei <div onClick>)
+      - <a href> linkeille
+      - <main>, <nav>, <aside>, <header>, <footer>
+      - <h1> per sivu, otsikot hierarkiassa h1→h2→h3 (älä hyppää)
+
+   d) ARIA labelit:
+      - Icon-only buttons: aria-label="Sulje" jne.
+      - Decorative icons: aria-hidden="true"
+      - Form-inputeilla aina label-elementti tai aria-label
+      - Status-badget: visuaalinen + aria-label="Lasku maksettu"
+
+   e) Keyboard:
+      - Tab-järjestys looginen
+      - ESC sulkee modaalit, dropdownit
+      - Enter/Space aktivoi nappeja
+      - Focus trap modaaleissa (Radix tekee tämän automaattisesti)
+
+   f) Form-virheet:
+      - aria-invalid="true" virheellisellä kentällä
+      - aria-describedby="error-id" linkittää virheviestiin
+      - Virhe-teksti ei pelkkää väriä, myös ikoni + teksti
+
+5. Aja Lighthouse audit (Chrome DevTools) → Accessibility-pisteet
+   ≥ 95. Korjaa kaikki ongelmat.
+
+6. Lisää README → docs/accessibility.md missä lukee WCAG-statuksesta
+   ja todellisten käyttäjien testauksesta (esim. NVDA-näytönlukija).</pre>
+  </div>
+</section>
+
+<!-- MOBILE -->
+<section id="mobile">
+  <h2><span class="section-num">G</span>Mobiili-näkymä</h2>
+  <p class="section-sub">Property managerit kävelevät kohteilla — heille mobiili on iso plus. Sidebar collapse, taulukot kortteina, bottom nav.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Mobile responsive layout</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Tee Pin PMS toimivaksi mobiilissa (≥ 360px leveys).
+
+1. Sidebar:
+   - Desktop ≥ 1024px: aina näkyvissä, 240px leveys (nykytila)
+   - Tablet 768–1023px: collapse 64px leveyteen, vain ikonit (tooltip
+     hover) — käytä Radix Tooltip
+   - Mobiili ≤ 767px:
+     * Sidebar piiloon → korvaa MobileBottomNav-komponentilla
+     * MobileBottomNav: kiinnitetty bottom-0, 64px korkeus,
+       bg surface, border-top, 4–5 tärkeintä toimintoa ikoneilla
+       (Etusivu, Kohteet, Varaukset, Laskut, Lisää…)
+     * "Lisää…" avaa Radix Sheet (slide-up) loput nav-itemit
+
+2. Topbar mobiilissa:
+   - Logo vasempaan (sm size)
+   - Hamburger oikealle → Sheet vasemmalta (full sidebar)
+   - Search → ikoni-button → Sheet
+   - Notifications + Avatar → kompaktimpina
+
+3. Taulukot mobiilissa:
+   - Luo komponentti src/components/ui/ResponsiveTable.tsx
+   - Desktop: tavallinen taulukko (kuten nyt)
+   - Mobiili: korvaa korttilistalla:
+     * Yksi kortti per rivi
+     * Tärkein arvo isona ylhäällä (esim. lasku-summa)
+     * Sekundaariset 2-3 metaa pienemmällä
+     * Status-badge oikealla
+     * Hampurilainen-menu kebab-toiminnoille
+   - Käytä @media (max-width: 767px) tai useMediaQuery-hookia
+
+4. Lomakkeet:
+   - Desktop: 2-saraketta grid
+   - Mobiili: 1-sarake, label inputin yläpuolelle
+   - Submit-button bottom sticky 16px padding
+
+5. Modaalit:
+   - Desktop: keskitetty modal max-width 600px
+   - Mobiili: full-screen Sheet from bottom
+
+6. Testaa Chrome DevTools Device Toolbarilla:
+   - iPhone SE (375×667)
+   - iPhone 14 Pro (393×852)
+   - iPad Mini (768×1024)
+   - 320px (vanhat puhelimet, hätätilanne)
+
+7. Touch-targetit ≥ 44×44px (Apple HIG) tai vähintään 32×32px tiukoissa
+   tilanteissa.</pre>
+  </div>
+</section>
+
+<!-- AUDIT LOG -->
+<section id="audit-log">
+  <h2><span class="section-num">H</span>Audit-loki paranneltu</h2>
+  <p class="section-sub">Sinulla on jo Audit-loki sidebarissa — tee siitä oikeasti hyvä työkalu, ei vain kirjastolista. Aikajana, suodattimet, hakutoiminto.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Audit log redesign</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Tee Audit-lokista tutkimiseen sopiva työkalu.
+
+1. Luo src/pages/AuditLog/AuditLogPage.tsx — ja korvaa nykyinen
+   audit-loki -sivu.
+
+2. Layout:
+   - Vasen sarake (320px): suodattimet
+     * Aikaväli: pikavalinnat (Tänään, 7pv, 30pv, Custom range
+       date-pickerillä)
+     * Käyttäjä: monivalinta (avatar + nimi)
+     * Toiminto: monivalinta (Luotu, Muokattu, Poistettu, Login,
+       Lähetetty, ...)
+     * Kohde: monivalinta (Lasku, Asiakas, Sopimus, Kohde, Käyttäjä, ...)
+     * "Tyhjennä suodattimet" -ghost button alas
+   - Oikea sarake (joustava): aikajana
+
+3. Aikajana (timeline):
+   - Pystysuora linja vasemmassa reunassa, rgba border
+   - Tapahtumat ryhmiteltynä päivän mukaan, päiväotsikko
+     (esim. "Eilen, 6.5.2026")
+   - Yksi rivi per tapahtuma:
+     * Pystypallo (väri toimintotyypin mukaan)
+     * Käyttäjä-avatar (24×24)
+     * "Anna Esimerkki muokkasi laskua BIL-001" (linkitettävä)
+     * Aika "klo 14:23" oikealla
+     * "Näytä yksityiskohdat" -laajennus avaa diff-näkymän
+
+4. Diff-näkymä (laajennus):
+   - Bg bg-alt, padding 12px, mono-fontti
+   - Vanha → uusi kentäittäin
+   - Esim. "Summa: 500,00 € → 620,00 €"
+
+5. Filtterit URL:iin (query params), jotta voidaan jakaa linkki:
+   /audit-loki?from=2026-05-01&user=12&action=delete
+
+6. CSV-export -nappi yläoikealle (käyttäjille jotka tarvitsevat
+   tietoja kirjanpitoon).
+
+7. Backend: GET /api/audit-events?from&to&user&action&entity&page
+
+8. Real-time? Jos haluat polish-tason: Server-Sent Events tai
+   WebSocket joka työntää uudet tapahtumat — näytä "Uusi tapahtuma"
+   -toast ja päivitä lista.</pre>
+  </div>
+</section>
+
+<!-- SPARKLINES -->
+<section id="sparklines">
+  <h2><span class="section-num">I</span>Sparklines</h2>
+  <p class="section-sub">Pieni mini-graafi (60×20px) jokaisen ison luvun alla → näyttää 30 päivän trendin yhdellä silmäyksellä. Ei kirjastoa.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Sparkline-komponentti</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Luo kevyt Sparkline-komponentti ilman kirjastoja.
+
+1. Luo src/components/ui/Sparkline.tsx:
+
+interface SparklineProps {
+  data: number[]
+  width?: number
+  height?: number
+  stroke?: string
+  fill?: string
+  showDots?: boolean
+}
+
+export function Sparkline({ data, width=60, height=20,
+                           stroke='var(--primary)',
+                           fill='var(--primary-soft)',
+                           showDots=false }: SparklineProps) {
+  if (!data || data.length < 2) return null
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+  const stepX = width / (data.length - 1)
+  const points = data.map((v, i) => [
+    i * stepX,
+    height - ((v - min) / range) * height
+  ])
+  const linePath = points.map(([x,y], i) =>
+    `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ')
+  const areaPath = `${linePath} L ${width} ${height} L 0 ${height} Z`
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <path d={areaPath} fill={fill} opacity={0.4}/>
+      <path d={linePath} fill="none" stroke={stroke} strokeWidth={1.5}
+            strokeLinecap="round" strokeLinejoin="round"/>
+      {showDots && points.map(([x,y], i) =>
+        <circle key={i} cx={x} cy={y} r={1.5} fill={stroke}/>)}
+    </svg>
+  )
+}
+
+2. Lisää StatCard-komponenttiin (jos jo luotu) sparkline-prop:
+   <StatCard ... sparkline={[...30 last days numbers]} />
+   Renderöi sparkline kortin alalaitaan, ennen meta-tekstiä.
+
+3. Backend: lisää API-endpointiin trend-data:
+   GET /api/dashboard/stats → {
+     occupancy: { value: 50.0, trend: 12, sparkline: [42,45,48,...] },
+     revenue: { value: 12480, trend: 8.2, sparkline: [...] },
+     ...
+   }
+
+4. Värit intent-mukaan:
+   - default → primary
+   - success → #15803D
+   - warning → #B45309
+   - danger → #DC2626
+
+5. Tooltip (valinnainen): hover sparkline → näytä exact values
+   (käytä Radix Tooltip). Skip jos haluat pitää yksinkertaisena.</pre>
+  </div>
+</section>
+
+<!-- AVATARS -->
+<section id="avatars">
+  <h2><span class="section-num">J</span>Värilliset avatarit</h2>
+  <p class="section-sub">Jos profiilikuvaa ei ole, näytä gradientti-pallo nimikirjaimilla. Hash nimestä → konsistentti väri. Pieni yksityiskohta joka tekee koko järjestelmän ystävällisemmäksi.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Avatar-komponentti</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Luo Avatar-komponentti gradientti-tausta + nimikirjaimet.
+
+1. Luo src/components/ui/Avatar.tsx:
+
+interface AvatarProps {
+  name: string
+  src?: string
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+}
+
+const SIZES = { xs: 20, sm: 24, md: 32, lg: 40, xl: 56 }
+
+// Stable hash → hue (0-360)
+function nameHash(name: string): number {
+  let h = 0
+  for (let i = 0; i < name.length; i++) {
+    h = ((h << 5) - h) + name.charCodeAt(i)
+    h |= 0
+  }
+  return Math.abs(h) % 360
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+export function Avatar({ name, src, size = 'md' }: AvatarProps) {
+  const px = SIZES[size]
+  const hue = nameHash(name)
+  const fontSize = px <= 24 ? 10 : px <= 32 ? 12 : px <= 40 ? 14 : 18
+
+  if (src) {
+    return <img src={src} alt={name} width={px} height={px}
+                style={{ borderRadius: '50%', objectFit: 'cover' }}/>
+  }
+
+  return (
+    <div style={{
+      width: px, height: px, borderRadius: '50%',
+      background: `linear-gradient(135deg,
+        hsl(${hue}, 60%, 50%) 0%,
+        hsl(${(hue + 30) % 360}, 60%, 35%) 100%)`,
+      color: 'white',
+      fontSize, fontWeight: 600,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+      fontFamily: 'inherit'
+    }}>
+      {getInitials(name)}
+    </div>
+  )
+}
+
+2. Käytä kaikkialla missä on käyttäjä, asiakas tai yritys:
+   - Topbarin oikean reunan käyttäjä-avatar
+   - Asiakaslista-taulukko
+   - Audit-lokin tapahtumat
+   - Sopimukset (vuokralainen)
+   - Kommentit (jos joskus tulee)
+
+3. Erikoiskäsittely yritysasiakkaille:
+   - Jos asiakas on yritys (Oy, AB, Ltd, ...) →
+     säädä gradientti hieman tummemmaksi + lisää border-radius
+     muuttuvasta 50% → 8px (neliö pyöristetty kulmista)
+     erottuu yksityishenkilöistä (pyöreä)
+
+4. Huomioi tumma tila: gradientit toimivat samalla tavalla, mutta
+   jos kontrasti tippuu → lisää 1px border rgba(255,255,255,0.1).</pre>
+  </div>
+</section>
+
+<!-- COPY ACTIONS -->
+<section id="copy-actions">
+  <h2><span class="section-num">K</span>Kopioi-toiminnot</h2>
+  <p class="section-sub">Lasku-numerot, asiakas-ID:t, viitenumerot, IBAN — kaikki klikattavissa "kopioi"-toiminnolla. Pieni hover-reveal copy-icon ja toast "Kopioitu".</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Copyable-komponentti</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Luo Copyable-komponentti ja sovella sitä leveltaajuisesti.
+
+1. Luo src/components/ui/Copyable.tsx:
+
+import { useState } from 'react'
+import { Copy, Check } from 'lucide-react'
+import { toast } from 'sonner'
+
+interface CopyableProps {
+  value: string
+  children?: React.ReactNode  // näytetty teksti, default = value
+  silent?: boolean            // ei toastia
+}
+
+export function Copyable({ value, children, silent }: CopyableProps) {
+  const [copied, setCopied] = useState(false)
+
+  const onCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      if (!silent) toast.success('Kopioitu leikepöydälle')
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error('Kopiointi epäonnistui')
+    }
+  }
+
+  return (
+    <button
+      onClick={onCopy}
+      className="copyable"
+      aria-label={`Kopioi ${value}`}
+      title="Klikkaa kopioidaksesi"
+    >
+      <span>{children ?? value}</span>
+      <span className="copyable-icon" aria-hidden="true">
+        {copied ? <Check size={12}/> : <Copy size={12}/>}
+      </span>
+    </button>
+  )
+}
+
+2. CSS:
+.copyable {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: none; cursor: pointer;
+  padding: 2px 6px; border-radius: 4px; font: inherit;
+  color: inherit; font-family: 'JetBrains Mono', monospace;
+}
+.copyable:hover { background: var(--bg-alt); }
+.copyable-icon {
+  opacity: 0; transition: opacity 150ms ease;
+  color: var(--text-soft);
+}
+.copyable:hover .copyable-icon,
+.copyable:focus-visible .copyable-icon { opacity: 1; }
+
+3. Käytä:
+   - Lasku-numerot taulukoissa: <Copyable value="BIL-1-00000001" />
+   - Asiakas-ID:t
+   - Viitenumerot
+   - IBAN-tilinumerot (lasku-detail-sivu)
+   - API-keyt (jos näkyvät käyttäjälle)
+   - Sähköpostiosoitteet (asiakas-kortti)
+
+4. Älä käytä:
+   - Tavalliset linkit
+   - Painikkeet
+   - Pitkät tekstipätkät (esim. osoite)</pre>
+  </div>
+</section>
+
+<!-- CALENDAR VIEW -->
+<section id="calendar-view">
+  <h2><span class="section-num">L</span>Kalenteri-näkymä</h2>
+  <p class="section-sub">Käyttöaste-kalenteri kuukausinäkymässä — värikoodatut solut (vihreä = vapaa, sininen = varattu, harmaa = tyhjä). FullCalendar.io tyylinen.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT · Calendar redesign</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Päivitä Kalenteri-sivu modernimpaan näkymään.
+
+Vaihtoehto A: Käytä FullCalendar.io React-versiota (suositus)
+1. Asenna:
+   npm install @fullcalendar/react @fullcalendar/daygrid \
+     @fullcalendar/timegrid @fullcalendar/interaction
+
+2. Luo src/pages/Calendar/CalendarPage.tsx:
+
+import FullCalendar from '@fullcalendar/react'
+import dayGridPlugin from '@fullcalendar/daygrid'
+import timeGridPlugin from '@fullcalendar/timegrid'
+import interactionPlugin from '@fullcalendar/interaction'
+import fiLocale from '@fullcalendar/core/locales/fi'
+
+<FullCalendar
+  plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+  locale={fiLocale}
+  initialView="dayGridMonth"
+  headerToolbar={{
+    left: 'prev,next today',
+    center: 'title',
+    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+  }}
+  events={bookings}                  // [{ title, start, end, color }]
+  eventClick={(info) => openBookingModal(info.event)}
+  height="auto"
+  buttonText={{ today: 'Tänään', month: 'Kuukausi',
+                week: 'Viikko', day: 'Päivä' }}
+/>
+
+3. Värikoodaa eventit:
+   - Varaus: bg #DBEAFE, color #1D4ED8 (info)
+   - Pidätys: bg #FEF3C7, color #B45309 (warning)
+   - Huolto: bg #F5F5F4, color #57534E (neutral)
+   - Konflikti: bg #FEE2E2, color #991B1B (danger), red border 2px
+
+4. Custom styling: ylikirjoita FullCalendar-luokat omilla värimuuttujilla
+   src/styles/fullcalendar-overrides.css:
+   .fc { font-family: inherit; font-size: 14px; }
+   .fc-toolbar-title { font-size: 22px !important; font-weight: 700; }
+   .fc-button { background: var(--surface) !important; color: var(--text) !important;
+                border: 1px solid var(--border-strong) !important;
+                box-shadow: var(--shadow-xs) !important; }
+   .fc-button-active { background: var(--primary) !important; color: #FFF !important; }
+   .fc-day-today { background: var(--primary-soft) !important; }
+
+Vaihtoehto B: Hyvin kevyt custom-grid (jos haluat täyden kontrollin)
+- Build oma 7-sarakkeinen grid
+- Solu: padding 8px, korkeus 100px, border-bottom border-right
+- Tämän päivän solu: bg primary-soft, päivä-numero bold
+- Eventit pinottu solun sisälle: pieni 2px border-radius pill,
+  truncate ylivuoto
+
+5. Päivän-detail-sivu: klikkaa päivää → /kalenteri/2026-05-15:
+   - Kaikki sen päivän tapahtumat (saapumiset, lähdöt, huolto)
+   - Aikajana 00:00 - 23:59 vasemmalla
+   - "Uusi varaus tälle päivälle" CTA
+
+6. Suomalainen viikon aloitus:
+   - Maanantaista (firstDay={1})
+   - Viikkonumerot vasemmalla (weekNumbers={true})
+
+Suositus: vaihtoehto A. FullCalendar on testattu, tukee i18n, drag-drop,
+saavutettavuutta. Älä keksi pyörää uudelleen.</pre>
+  </div>
+</section>
+
+<!-- ORDER -->
+<section id="order">
+  <h2><span class="section-num">M</span>Suositeltu järjestys</h2>
+  <p class="section-sub">Kaikki nämä prompit eivät tarvitse mennä tietyssä järjestyksessä, mutta tämä järjestys minimoi konfliktit ja maksimoi visuaalisen edistyksen jokaisen viikon päätteeksi.</p>
+
+  <div class="ascii-art">
+WEEK 5 — Buttonit kuntoon (sinun tärkein aukkokohta)
+├─ A · Button CSS-refresh                       (30 min)
+├─ B · Button-komponentti (additiivinen)        (2 h)
+└─ C · Yksi sivu kerrallaan, aloita Etusivulta  (30min/sivu)
+              ↓ commit
+
+WEEK 6 — Brand & navigaatio
+├─ B · Brändi-logo                              (1 h)
+├─ C · Org-switcher sidebariin                  (2 h)
+└─ D · Konflikti-naming + banner                (1 h)
+              ↓ commit & deploy
+
+WEEK 7 — Visuaaliset highlightit
+├─ I · Sparklines stat-kortteihin               (1 h)
+├─ J · Värilliset avatarit                      (1 h)
+└─ K · Copyable-komponentti                     (1 h)
+              ↓ commit
+
+WEEK 8 — Power features
+├─ L · Kalenteri (FullCalendar)                 (4 h)
+├─ H · Audit-loki paranneltu                    (4 h)
+└─ E · Email-templatet                          (3 h)
+              ↓ commit & deploy
+
+WEEK 9 — Saavutettavuus & mobiili
+├─ F · WCAG AA -korjaukset                      (4 h)
+└─ G · Mobiili-näkymä                           (6 h)
+              ↓ commit & deploy → DONE!
+
+YHTEENSÄ ~30 h hands-on (5 viikkoa rauhallisesti)
+                       ~1 viikko intensiivisesti
+  </div>
+
+  <div class="note" style="margin-top:32px">
+    <strong>Vinkki:</strong> Pidä jokainen prompt ERI Cursor Composer -sessiossa. Älä yritä ajaa niitä peräkkäin samassa keskustelussa — Cursor unohtaa kontekstin. Aja → review diff → commit → uusi sessio → seuraava. Käytä Claude Sonnet 4.5 tai Opus, ei pienempää mallia.
+  </div>
+
+  <div class="note warn" style="margin-top:16px">
+    <strong>Tärkeää Buttonien kanssa:</strong> Jos sinulla on kustomoituja vahvasti tyyliteltyjä napeja (esim. Toolbar-buttonit, Tab-elementit) jotka <em>eivät ole oikeasti "buttoneita"</em> brändi-mielessä, jätä ne rauhaan. Vain primary action -, secondary action -, ja destructive action -napit pitää standardoida.
+  </div>
+</section>
+
+<div style="text-align: center; padding: 64px 0 32px; color: var(--text-muted); font-size: 14px;">
+  Pin PMS Design Refresh Plan — Part 2 • Toukokuu 2026
+</div>
+
+</div>
+
+<script>
+function copyPrompt(btn) {
+  const block = btn.closest('.prompt-block');
+  const pre = block.querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    const original = btn.innerText;
+    btn.innerText = '✓ Kopioitu';
+    btn.style.background = '#15803D';
+    btn.style.color = 'white';
+    setTimeout(() => {
+      btn.innerText = original;
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 1500);
+  });
+}
+</script>
+
+</body>
+</html>

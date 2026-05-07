@@ -4,7 +4,7 @@
   var openButtons = document.querySelectorAll("[data-command-open]");
   var closeButtons = document.querySelectorAll("[data-command-close]");
   var kbdHints = document.querySelectorAll("[data-kbd-hint]");
-  var input = document.getElementById("admin-global-search");
+  var input = document.querySelector("[data-command-search-input]");
   var list = document.getElementById("admin-global-search-results");
   if (!palette || !input || !list) return;
 

@@ -142,7 +142,10 @@
         </header>
         <main id="main-content" class="admin-main" role="main" tabindex="-1">
           <header class="admin-desktop-topbar">
-            <p class="admin-topbar-breadcrumb">{{ breadcrumb_text }}</p>
+            <div class="admin-topbar-heading">
+              <p class="admin-topbar-title">{{ current_page_title|trim }}</p>
+              <p class="admin-topbar-breadcrumb">{{ breadcrumb_text }}</p>
+            </div>
             <button type="button" class="admin-global-search-trigger" data-command-open aria-label="Avaa haku">
               <span class="admin-global-search-copy">
                 <span class="admin-global-search-icon" aria-hidden="true">⌕</span>
@@ -203,6 +206,11 @@
                 <div data-flash-category="{{ category }}" data-flash-message="{{ message }}"></div>
               {% endfor %}
             </div>
+            <div class="flash-wrap" role="status" aria-live="polite">
+              {% for category, message in flashed_messages %}
+                <div class="flash is-{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
           {% endif %}
           <div class="page-shell">
             {% block content %}{% endblock %}
@@ -216,7 +224,7 @@
       <div class="admin-command-dialog" role="dialog" aria-modal="true" aria-label="Komenttopaletti">
         <div class="admin-command-input-row">
           <span class="admin-global-search-icon" aria-hidden="true">⌕</span>
-          <input id="admin-global-search" type="text" placeholder="Hae varauksia, asiakkaita, laskuja…" autocomplete="off">
+          <input data-command-search-input type="text" placeholder="Hae varauksia, asiakkaita, laskuja…" autocomplete="off">
         </div>
         <div class="admin-command-section">
           <p class="admin-command-heading">Mene</p>

@@ -37,14 +37,26 @@
   {% endif %}
 
   <section class="dashboard-kpi-modern-grid" id="dashboard-stat-cards" aria-label="Keskeiset tunnusluvut">
-    {% for _ in range(4) %}
-      <article class="dashboard-stat-card dashboard-stat-card--loading" aria-hidden="true">
-        <div class="skeleton skeleton-text" style="width: 45%; height: 11px;"></div>
-        <div class="skeleton skeleton-text" style="width: 62%; height: 32px;"></div>
-        <div class="skeleton skeleton-text" style="width: 55%; height: 12px;"></div>
-        <div class="skeleton skeleton-text" style="width: 75%; height: 12px;"></div>
-      </article>
-    {% endfor %}
+    <article class="dashboard-stat-card dashboard-stat-card--default kpi-card">
+      <p class="dashboard-stat-card__label kpi-card-label">Käyttöaste</p>
+      <p class="dashboard-stat-card__value kpi-card-value">{{ "%.1f"|format(summary.occupancy_percent or 0) }} %</p>
+      <p class="dashboard-stat-card__meta kpi-card-meta">Tämän hetken vieraita: {{ summary.current_guests or 0 }}</p>
+    </article>
+    <article class="dashboard-stat-card dashboard-stat-card--success kpi-card">
+      <p class="dashboard-stat-card__label kpi-card-label">Tulot tässä kuussa</p>
+      <p class="dashboard-stat-card__value kpi-card-value">{{ cash_flow.income_this_month_fi or revenue.month_to_date_fi or "0,00 €" }}</p>
+      <p class="dashboard-stat-card__meta kpi-card-meta">Edellinen kuukausi: {{ revenue.month_to_date_previous_fi or "0,00 €" }}</p>
+    </article>
+    <article class="dashboard-stat-card dashboard-stat-card--warning kpi-card">
+      <p class="dashboard-stat-card__label kpi-card-label">Avoimet saatavat</p>
+      <p class="dashboard-stat-card__value kpi-card-value">{{ revenue.open_receivables_fi or "0,00 €" }}</p>
+      <p class="dashboard-stat-card__meta kpi-card-meta">Avoimet laskut: {{ summary.open_invoices or 0 }}</p>
+    </article>
+    <article class="dashboard-stat-card dashboard-stat-card--success kpi-card">
+      <p class="dashboard-stat-card__label kpi-card-label">Nettokassavirta</p>
+      <p class="dashboard-stat-card__value kpi-card-value">{{ cash_flow.net_cash_flow_this_month_fi or "0,00 €" }}</p>
+      <p class="dashboard-stat-card__meta kpi-card-meta">Erääntyneitä: {{ summary.overdue_invoices or 0 }}</p>
+    </article>
   </section>
 
   <section class="dashboard-columns">
