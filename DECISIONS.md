@@ -43,3 +43,12 @@
 - **Result:** no matching obsolete/copy template filenames were found.
 - **Decision:** remove nothing.
 - **Safety note:** because no candidate files matched obsolete naming patterns, no template deletions were performed and no `render_template`/Jinja reference checks were needed for deletion safety in this pass.
+
+## Route pruning review — 2026-05-07
+
+- **Route listing method:** `python -m flask --app app routes --sort endpoint`.
+- **Usage evidence collected:** template `url_for()`/`href` scans, route usage scans in tests, and blueprint registration scan in `app/__init__.py`.
+- **Dead-route candidates:** none with high-confidence deletion safety.
+- **Notable outcome:** `owner_portal` routes are now explicitly gated by `OWNER_PORTAL_ENABLED`; with flag disabled, those endpoints are intentionally absent instead of silently exposed.
+- **Decision:** keep all currently registered API/admin/portal/auth/backups/webhook routes; no route removals in this pass.
+- **Needs product decision:** none raised in this pass because no low-risk dead endpoint had sufficient evidence for deletion.
