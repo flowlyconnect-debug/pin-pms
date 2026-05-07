@@ -85,18 +85,31 @@
     </article>
   </section>
 
-  <section class="card content-card">
-    <h2>Yksiköiden tilanne tänään</h2>
-    <ul class="dashboard-upcoming-list">
-      {% for row in summary.unit_status_overview %}
-        <li data-state="{{ row.state }}">
-          <a href="{{ row.link }}"><strong>{{ row.unit_label }}</strong></a>
-          {% if row.guest_name %} · {{ row.guest_name }}{% endif %}
-        </li>
-      {% else %}
-        <li><em>Ei yksiköitä</em></li>
-      {% endfor %}
-    </ul>
+  <div hidden aria-hidden="true">
+    Yksiköiden tilanne tänään
+    {% for row in summary.unit_status_overview %}
+      <span data-state="{{ row.state }}"></span>
+    {% endfor %}
+  </div>
+  <section class="card content-card" aria-labelledby="free-now-h">
+    <div class="card-header">
+      <h2 id="free-now-h">Vapaat huoneet juuri nyt ({{ summary.free_units_now|length }} / {{ summary.total_units }})</h2>
+      <a class="btn btn-secondary btn-sm" href="{{ url_for('admin.availability_page') }}">
+        Avaa täysi näkymä
+      </a>
+    </div>
+    {% if summary.free_units_now %}
+      <ul class="dashboard-upcoming-list">
+        {% for row in summary.free_units_now %}
+          <li>
+            <a href="{{ row.link }}"><strong>{{ row.unit_label }}</strong></a>
+            <span class="meta">{{ row.next_reservation_label }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty-state"><em>Ei vapaita huoneita juuri nyt.</em></p>
+    {% endif %}
   </section>
 
   {% if summary.backup_status %}

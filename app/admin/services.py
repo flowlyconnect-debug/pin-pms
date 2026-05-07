@@ -109,6 +109,8 @@ def _safe_url_for(endpoint: str, **values) -> str:
             return "/admin/konfliktit"
         if endpoint == "admin.units_edit":
             return f"/admin/units/{values['unit_id']}/edit"
+        if endpoint == "admin.units_detail":
+            return f"/admin/units/{values['unit_id']}"
         return "#"
 
 
@@ -155,6 +157,10 @@ def _format_eur_fi(amount: Decimal | int | float) -> str:
 def _weekday_label_fi(day: date) -> str:
     names = ["Ma", "Ti", "Ke", "To", "Pe", "La", "Su"]
     return f"{names[day.weekday()]} {day.day}.{day.month}."
+
+
+def _day_month_label_fi(day: date) -> str:
+    return f"{day.day}.{day.month}."
 
 
 def get_unit_status_overview(*, organization_id: int, on_date: date) -> list[dict]:
@@ -310,6 +316,76 @@ def get_dashboard_stats(
         .count()
     )
     today = date.today()
+    active_units_subq = (
+        db.session.query(Reservation.unit_id.label("unit_id"))
+        .select_from(Reservation)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            Reservation.status == "confirmed",
+            Reservation.start_date <= today,
+            Reservation.end_date > today,
+        )
+        .distinct()
+        .subquery()
+    )
+    next_reservations_subq = (
+        db.session.query(
+            Reservation.unit_id.label("unit_id"),
+            func.min(Reservation.start_date).label("next_start_date"),
+        )
+        .select_from(Reservation)
+        .join(Unit, Reservation.unit_id == Unit.id)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(
+            Property.organization_id == organization_id,
+            Reservation.status == "confirmed",
+            Reservation.start_date > today,
+        )
+        .group_by(Reservation.unit_id)
+        .subquery()
+    )
+    free_units_rows = (
+        db.session.query(
+            Unit.id.label("unit_id"),
+            Unit.name.label("unit_name"),
+            Property.name.label("property_name"),
+            next_reservations_subq.c.next_start_date.label("next_start_date"),
+        )
+        .select_from(Unit)
+        .join(Property, Unit.property_id == Property.id)
+        .outerjoin(active_units_subq, active_units_subq.c.unit_id == Unit.id)
+        .outerjoin(next_reservations_subq, next_reservations_subq.c.unit_id == Unit.id)
+        .filter(
+            Property.organization_id == organization_id,
+            active_units_subq.c.unit_id.is_(None),
+        )
+        .order_by(Property.name.asc(), Unit.name.asc(), Unit.id.asc())
+        .limit(10)
+        .all()
+    )
+    free_units_now = []
+    for row in free_units_rows:
+        property_name = (row.property_name or "").strip()
+        unit_name = (row.unit_name or "").strip()
+        if property_name and unit_name:
+            unit_label = f"{property_name} / {unit_name}"
+        else:
+            unit_label = property_name or unit_name or f"Yksikkö #{row.unit_id}"
+        next_reservation_label = (
+            f"Vapaa kunnes {_day_month_label_fi(row.next_start_date)}"
+            if row.next_start_date is not None
+            else "Ei tulevia varauksia"
+        )
+        free_units_now.append(
+            {
+                "unit_label": unit_label,
+                "link": _safe_url_for("admin.units_detail", unit_id=row.unit_id),
+                "next_reservation_label": next_reservation_label,
+            }
+        )
+
     range_start, range_end, range_days = _resolve_range_window(
         range_key=normalized_range, today=today
     )
@@ -758,6 +834,7 @@ def get_dashboard_stats(
         "leases_ending_next_7_days": leases_ending_next_7_days,
         "today_arrivals": today_arrivals,
         "today_departures": today_departures,
+        "free_units_now": free_units_now,
         "action_required": action_required,
         "arrivals_this_week": arrivals_in_range,
         "departures_this_week": departures_in_range,

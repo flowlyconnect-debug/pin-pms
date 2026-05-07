@@ -6,12 +6,14 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pyotp
+from flask import url_for
+
+from app.billing.models import Invoice
 from app.extensions import db
+from app.maintenance.models import MaintenanceRequest
 from app.organizations.models import Organization
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
-from app.billing.models import Invoice
-from app.maintenance.models import MaintenanceRequest
 
 
 def _login(client, *, email: str, password: str):
@@ -236,3 +238,66 @@ def test_superadmin_can_select_organization(client, app, superadmin):
     response = client.get(f"/admin?organization_id={org_b_id}")
     assert response.status_code == 200
     assert b"Selected Property" in response.data
+
+
+def test_dashboard_free_units_now_heading_contains_count(client, app, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    with app.app_context():
+        prop = Property(organization_id=admin_user.organization_id, name="Count Property", address=None)
+        db.session.add(prop)
+        db.session.flush()
+        for idx in range(1, 13):
+            db.session.add(Unit(property_id=prop.id, name=f"C{idx:02d}", unit_type="std"))
+        db.session.commit()
+
+    response = client.get("/admin")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Vapaat huoneet juuri nyt" in html
+
+    match = re.search(r"Vapaat huoneet juuri nyt\s*\((\d+)\s*/\s*(\d+)\)", html)
+    assert match is not None
+    free_count = int(match.group(1))
+    total_units = int(match.group(2))
+    assert free_count == 10
+    assert total_units == 12
+    assert html.count("Ei tulevia varauksia") == free_count
+
+
+def test_dashboard_free_units_now_limits_to_10_rows(client, app, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    with app.app_context():
+        prop = Property(organization_id=admin_user.organization_id, name="Limit Property", address=None)
+        db.session.add(prop)
+        db.session.flush()
+        for idx in range(1, 13):
+            db.session.add(Unit(property_id=prop.id, name=f"L{idx:02d}", unit_type="std"))
+        db.session.commit()
+
+    response = client.get("/admin")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Avaa täysi näkymä" in html
+    for idx in range(1, 11):
+        assert f"Limit Property / L{idx:02d}" in html
+    assert "Limit Property / L11" not in html
+    assert "Limit Property / L12" not in html
+
+
+def test_dashboard_free_units_now_full_view_link(client, app, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    response = client.get("/admin")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    with app.test_request_context():
+        availability_href = url_for("admin.availability_page")
+    assert f'href="{availability_href}"' in html
+
+
+def test_dashboard_still_shows_arrivals_and_departures_cards(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    response = client.get("/admin")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Tänään saapuu" in html
+    assert "Tänään lähtee" in html
