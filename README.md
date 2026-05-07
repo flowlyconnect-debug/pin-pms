@@ -226,13 +226,31 @@ admin actions are allowed.
 
 ## Running tests
 
+Unit tests (default):
+
 ```bash
 pytest -v
 ```
 
-Coverage is measured over `app/` with a gate of **80%** (`pytest.ini`). Omitted
-paths for the gate are listed in **[`.coveragerc`](.coveragerc)** (large admin
-route modules and selected service shells that are covered indirectly).
+Integration / acceptance tests (Docker Compose, isolated stack):
+
+```bash
+pytest tests/integration/ -v
+```
+
+Acceptance tests spin up the stack from scratch with `docker compose up -d --build`,
+wait for `db` + `web` health, run migrations, create a superadmin, and verify
+API health/auth, superadmin 2FA guard, API-key hashing, email CLI, email template
+editing, backup create/restore, audit login event, plus README acceptance headings.
+The test session always tears down with `docker compose down -v`.
+
+Requirements: Docker + Docker Compose available on the host running tests.
+
+Coverage can be run explicitly when needed, for example:
+
+```bash
+pytest -v --cov=app --cov-report=term --cov-report=xml
+```
 
 Inside Docker:
 

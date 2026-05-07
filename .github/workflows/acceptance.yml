@@ -1,0 +1,48 @@
+name: Acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+      - name: Run unit tests
+        run: pytest -v
+
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ACCEPTANCE_SUPERADMIN_EMAIL: acceptance-superadmin@example.com
+      ACCEPTANCE_SUPERADMIN_PASSWORD: ChangeMeAcceptance123!
+      ACCEPTANCE_ORG_NAME: Acceptance Test Org
+      MAIL_DEV_LOG_ONLY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
+      - name: Run acceptance tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          pytest tests/integration/ -v
