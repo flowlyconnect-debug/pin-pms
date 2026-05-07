@@ -44,7 +44,9 @@
         window.location.reload();
       }
     } catch (_err) {
-      window.alert("Tag-toiminto epäonnistui");
+      if (window.toast && typeof window.toast.error === "function") {
+        window.toast.error("Tallennus epäonnistui");
+      }
     }
   });
 })();

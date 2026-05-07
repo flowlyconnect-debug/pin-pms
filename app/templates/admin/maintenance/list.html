@@ -1,5 +1,6 @@
 {% extends "admin/base.html" %}
 {% from "admin/_macros.html" import status_badge %}
+{% from "admin/_empty_state.html" import empty_state %}
 
 {% block title %}Huolto · Pin PMS{% endblock %}
 
@@ -85,7 +86,11 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="7" class="empty-state"><em>Ei huoltoja.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.maintenance_requests_new') }}">Luo pyyntö</a></div></td></tr>
+        <tr>
+          <td colspan="7" class="empty-state">
+            {{ empty_state("🛠", "Ei huoltopyyntoja", "Luo pyynto, kun kohteessa tarvitaan huoltotoimia.", url_for('admin.maintenance_requests_new'), "Luo pyynto") }}
+          </td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>

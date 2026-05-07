@@ -1,4 +1,5 @@
 {% extends "admin/base.html" %}
+{% from "admin/_empty_state.html" import empty_state %}
 
 {% block title %}Varauskalenteri · Pin PMS{% endblock %}
 
@@ -46,10 +47,16 @@
         </select>
       </label>
     </div>
+    <div id="calendar-skeleton" class="calendar-skeleton" aria-hidden="true">
+      <div class="skeleton skeleton-card" style="height: 420px;"></div>
+    </div>
     <div
       id="calendar"
       data-events-url="{{ url_for('admin.calendar_events') }}"
       data-reservations-base-url="/admin/reservations"
     ></div>
+    <div id="calendar-empty-day" class="calendar-empty-day" hidden>
+      {{ empty_state("🗓", "Tyhja paiva", "Valitulla paivalla ei ole tapahtumia.") }}
+    </div>
   </section>
 {% endblock %}

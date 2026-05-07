@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 {% from "admin/_filters.html" import render_filters %}
 {% from "admin/_bulk_bar.html" import render_bulk_bar %}
+{% from "admin/_empty_state.html" import empty_state %}
 
 {% block title %}Asiakkaat · Pin PMS{% endblock %}
 
@@ -52,7 +53,11 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6" class="empty-state"><div>Ei asiakkaita vielä</div><div class="meta">Lisää asiakas nähdäksesi tietoja taulukossa.</div></td></tr>
+        <tr>
+          <td colspan="6" class="empty-state">
+            {{ empty_state("👤", "Ei asiakkaita", "Lisää ensimmäinen asiakas nähdäksesi tiedot taulukossa.", url_for('admin.guests_new'), "Uusi asiakas") }}
+          </td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>

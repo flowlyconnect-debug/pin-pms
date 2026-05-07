@@ -2,6 +2,7 @@
 {% from "admin/_macros.html" import status_badge %}
 {% from "admin/_filters.html" import render_filters %}
 {% from "admin/_bulk_bar.html" import render_bulk_bar %}
+{% from "admin/_empty_state.html" import empty_state %}
 
 {% block title %}Laskut · Pin PMS{% endblock %}
 
@@ -75,7 +76,11 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="7" class="empty-state"><div>Ei laskuja vielä</div><div class="meta">Luo ensimmäinen lasku aloittaaksesi.</div><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
+        <tr>
+          <td colspan="7" class="empty-state">
+            {{ empty_state("🧾", "Ei laskuja", "Luo ensimmäinen lasku aloittaaksesi.", url_for('admin.invoices_new'), "Uusi lasku") }}
+          </td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>

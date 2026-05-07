@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Toaster } from "sonner";
 import { Topbar } from "./Topbar";
 
 type MainLayoutProps = {
@@ -53,6 +54,7 @@ export function MainLayout({
         searchResults={searchResults}
       />
       <main style={{ padding: 16 }}>{children}</main>
+      <Toaster position="top-right" richColors closeButton />
     </div>
   );
 }

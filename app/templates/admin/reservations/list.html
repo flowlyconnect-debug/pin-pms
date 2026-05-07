@@ -2,6 +2,7 @@
 {% from "admin/_macros.html" import status_badge %}
 {% from "admin/_filters.html" import render_filters %}
 {% from "admin/_bulk_bar.html" import render_bulk_bar %}
+{% from "admin/_empty_state.html" import empty_state %}
 
 {% block title %}Varaukset · Pin PMS{% endblock %}
 {% block page_title %}Varaukset{% endblock %}
@@ -68,10 +69,7 @@
       {% else %}
         <tr>
           <td colspan="7" class="table-empty">
-            <div class="table-empty-icon">🛏</div>
-            <div>Ei vielä varauksia</div>
-            <div class="form-help">Luo varaus, kun asiakas vahvistaa majoituksen.</div>
-            <div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn btn-primary" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a></div>
+            {{ empty_state("🛏", "Ei varauksia", "Luo varaus, kun asiakas vahvistaa majoituksen.", url_for('admin.reservations_new'), "Uusi varaus") }}
           </td>
         </tr>
       {% endfor %}

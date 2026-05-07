@@ -1,0 +1,12 @@
+{% macro empty_state(icon, title, description, action_url=None, action_label=None) -%}
+  <div class="empty-state-modern" role="status" aria-live="polite">
+    <div class="empty-state-modern__icon" aria-hidden="true">{{ icon }}</div>
+    <h3 class="empty-state-modern__title">{{ title }}</h3>
+    <p class="empty-state-modern__description">{{ description }}</p>
+    {% if action_url and action_label %}
+      <div class="empty-state-modern__actions">
+        <a class="btn btn-primary" href="{{ action_url }}">{{ action_label }}</a>
+      </div>
+    {% endif %}
+  </div>
+{%- endmacro %}

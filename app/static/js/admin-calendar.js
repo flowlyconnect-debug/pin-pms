@@ -18,6 +18,8 @@
     var typeEl = document.getElementById("filter-event-types");
     var eventsUrl = el.dataset.eventsUrl || "";
     var reservationsBaseUrl = el.dataset.reservationsBaseUrl || "/admin/reservations";
+    var emptyDayEl = document.getElementById("calendar-empty-day");
+    var skeletonEl = document.getElementById("calendar-skeleton");
     var csrfMeta = document.querySelector('meta[name="csrf-token"]');
     var csrfToken = csrfMeta ? csrfMeta.getAttribute("content") : "";
     var fiDateFormat = new Intl.DateTimeFormat("fi-FI");
@@ -104,6 +106,13 @@
       eventResizableFromStart: false,
       selectable: false,
       eventSources: [{ url: eventsUrl, method: "GET", extraParams: calendarFilterParams }],
+      loading: function (isLoading) {
+        if (!skeletonEl) {
+          return;
+        }
+        skeletonEl.hidden = !isLoading;
+        el.style.visibility = isLoading ? "hidden" : "visible";
+      },
       eventDidMount: function (info) {
         var props = info.event.extendedProps || {};
         if (props.status === "cancelled") {
@@ -132,6 +141,18 @@
       eventClick: function (info) {
         info.jsEvent.preventDefault();
         navigateToEvent(info);
+      },
+      dateClick: function (info) {
+        if (!emptyDayEl) {
+          return;
+        }
+        var hasEvents = calendar.getEvents().some(function (event) {
+          if (!event.start) {
+            return false;
+          }
+          return event.start.toISOString().slice(0, 10) === info.dateStr;
+        });
+        emptyDayEl.hidden = hasEvents;
       },
       eventDrop: function (info) {
         var ev = info.event;
@@ -210,7 +231,14 @@
       },
     });
 
+    if (skeletonEl) {
+      skeletonEl.hidden = false;
+      el.style.visibility = "hidden";
+    }
     calendar.render();
+    if (emptyDayEl) {
+      emptyDayEl.hidden = true;
+    }
     syncUnitOptionsForProperty();
     if (propEl) {
       propEl.addEventListener("change", function () {

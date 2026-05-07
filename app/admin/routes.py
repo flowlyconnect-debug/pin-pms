@@ -916,8 +916,9 @@ def properties_new():
             )
         except property_service.PropertyServiceError as err:
             error = err.message
+            flash("Tallennus epäonnistui", "error")
         else:
-            flash("Kohde luotu.")
+            flash("Kohde luotu", "success")
             return redirect(url_for("admin.properties_detail", property_id=row["id"]))
     elif request.method == "POST":
         error = "Tarkista lomakkeen kentät."
@@ -1515,8 +1516,9 @@ def reservations_edit(reservation_id: int):
             if err.status == 404:
                 abort(404)
             error = err.message
+            flash("Tallennus epäonnistui", "error")
         else:
-            flash("Varaus päivitetty.")
+            flash("Varaus muokattu", "success")
             if return_to == "calendar":
                 return redirect(url_for("admin.calendar_page"))
             if return_to == "list":
@@ -2229,8 +2231,9 @@ def invoices_new():
                 error = "Vuokrasopimuksen tunnisteen tulee olla numero."
             except billing_service.InvoiceServiceError as err:
                 error = err.message
+                flash("Tallennus epäonnistui", "error")
             else:
-                flash("Lasku luotu.")
+                flash("Lasku tallennettu", "success")
                 return redirect(url_for("admin.invoices_detail", invoice_id=row["id"]))
         else:
             if not form["subtotal_excl_vat"]:
@@ -2257,8 +2260,9 @@ def invoices_new():
                     error = "Asiakkaan ja varauksen tunnisteiden tulee olla numeroita, jos ne annetaan."
                 except billing_service.InvoiceServiceError as err:
                     error = err.message
+                    flash("Tallennus epäonnistui", "error")
                 else:
-                    flash("Lasku luotu.")
+                    flash("Lasku tallennettu", "success")
                     return redirect(url_for("admin.invoices_detail", invoice_id=row["id"]))
 
     return render_template(
