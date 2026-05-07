@@ -36,34 +36,7 @@
     </section>
   {% endif %}
 
-  <section class="dashboard-kpi-modern-grid">
-    <article class="dashboard-kpi-modern-card kpi-card">
-      <p class="dashboard-kpi-modern-label">Käyttöaste</p>
-      <p class="dashboard-kpi-modern-value">{{ "%.1f"|format(summary.occupancy_percent or 0) }} %</p>
-      <p class="dashboard-kpi-modern-delta">
-        Tämän hetken vieraita: {{ summary.current_guests or 0 }}
-      </p>
-    </article>
-    <article class="dashboard-kpi-modern-card kpi-card">
-      <p class="dashboard-kpi-modern-label">Tulot tässä kuussa</p>
-      <p class="dashboard-kpi-modern-value">{{ cash_flow.income_this_month_fi or revenue.month_to_date_fi or "0,00 €" }}</p>
-      <p class="dashboard-kpi-modern-delta">
-        Edellinen kuukausi: {{ revenue.month_to_date_previous_fi or "0,00 €" }}
-      </p>
-    </article>
-    <article class="dashboard-kpi-modern-card kpi-card">
-      <p class="dashboard-kpi-modern-label">Kulut tässä kuussa</p>
-      <p class="dashboard-kpi-modern-value">{{ cash_flow.expenses_this_month_fi or "0,00 €" }}</p>
-      <p class="dashboard-kpi-modern-delta">Avoimet saatavat: {{ revenue.open_receivables_fi or "0,00 €" }}</p>
-    </article>
-    <article class="dashboard-kpi-modern-card kpi-card">
-      <p class="dashboard-kpi-modern-label">Nettokassavirta</p>
-      <p class="dashboard-kpi-modern-value">{{ cash_flow.net_cash_flow_this_month_fi or "0,00 €" }}</p>
-      <p class="dashboard-kpi-modern-delta">
-        Avoimet laskut: {{ summary.open_invoices or 0 }} · Erääntyneitä: {{ summary.overdue_invoices or 0 }}
-      </p>
-    </article>
-  </section>
+  <section class="dashboard-kpi-modern-grid" id="dashboard-stat-cards" aria-label="Keskeiset tunnusluvut"></section>
 
   <section class="dashboard-columns">
     <article class="card content-card">
@@ -188,5 +161,31 @@
     </div>
   </section>
 
-  <script type="application/json" id="dashboard-data">{{ dashboard_chart_data | tojson }}</script>
+  <script type="application/json" id="dashboard-data">
+    {{
+      {
+        "trend_revenue_30d": dashboard_chart_data.trend_revenue_30d,
+        "trend_occupancy_30d": dashboard_chart_data.trend_occupancy_30d,
+        "timezone": dashboard_chart_data.timezone,
+        "insufficient_chart_data": dashboard_chart_data.insufficient_chart_data,
+        "week_overview": dashboard_chart_data.week_overview,
+        "unit_status_overview": dashboard_chart_data.unit_status_overview,
+        "range_key": dashboard_chart_data.range_key,
+        "stats": {
+          "occupancy_percent": summary.occupancy_percent or 0,
+          "current_guests": summary.current_guests or 0,
+          "income_this_month": cash_flow.income_this_month or 0,
+          "income_this_month_fi": cash_flow.income_this_month_fi or revenue.month_to_date_fi or "0,00 €",
+          "income_previous_month": revenue.month_to_date_previous or 0,
+          "expenses_this_month": cash_flow.expenses_this_month or 0,
+          "expenses_this_month_fi": cash_flow.expenses_this_month_fi or "0,00 €",
+          "net_cash_flow_this_month": cash_flow.net_cash_flow_this_month or 0,
+          "net_cash_flow_this_month_fi": cash_flow.net_cash_flow_this_month_fi or "0,00 €",
+          "open_receivables_fi": revenue.open_receivables_fi or "0,00 €",
+          "open_invoices": summary.open_invoices or 0,
+          "overdue_invoices": summary.overdue_invoices or 0
+        }
+      } | tojson
+    }}
+  </script>
 {% endblock %}
