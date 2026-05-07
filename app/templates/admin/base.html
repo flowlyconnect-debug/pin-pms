@@ -34,8 +34,11 @@
       <aside id="admin-sidebar" class="admin-sidebar" role="complementary" aria-label="Ylläpidon valikko">
         <div class="admin-sidebar-head">
           <a class="admin-brand" href="{{ url_for('admin.admin_home') }}">
-            <span class="admin-brand-mark" aria-hidden="true"></span>
-            <span>Pin PMS</span>
+            <span class="admin-brand-mark" aria-hidden="true">P</span>
+            <span class="admin-brand-copy">
+              <span class="admin-brand-name">Pin PMS</span>
+              <span class="admin-brand-meta">Flowly Solutions</span>
+            </span>
           </a>
         </div>
         <nav class="admin-sidebar-nav" role="navigation" aria-label="Päävalikko">
@@ -47,7 +50,7 @@
               <a href="{{ url_for('admin.guests_list') }}" class="admin-nav-link{% if ep.startswith('admin.guests_') or ep == 'admin.api_guests_search' %} is-active{% endif %}"{% if ep.startswith('admin.guests_') or ep == 'admin.api_guests_search' %} aria-current="page"{% endif %}>{{ nav_icon_user() }}<span class="admin-nav-text">Asiakkaat</span></a>
               <a href="{{ url_for('admin.reservations_list') }}" class="admin-nav-link{% if ep.startswith('admin.reservations_') %} is-active{% endif %}"{% if ep.startswith('admin.reservations_') %} aria-current="page"{% endif %}>{{ nav_icon_bookings() }}<span class="admin-nav-text">Varaukset</span></a>
               <a href="{{ url_for('admin.leases_list') }}" class="admin-nav-link{% if ep.startswith('admin.leases_') %} is-active{% endif %}"{% if ep.startswith('admin.leases_') %} aria-current="page"{% endif %}>{{ nav_icon_document() }}<span class="admin-nav-text">Vuokrasopimukset</span></a>
-              <a href="{{ url_for('admin.invoices_list') }}" class="admin-nav-link{% if ep.startswith('admin.invoices_') %} is-active{% endif %}"{% if ep.startswith('admin.invoices_') %} aria-current="page"{% endif %}>{{ nav_icon_invoice() }}<span class="admin-nav-text">Laskut</span></a>
+              <a href="{{ url_for('admin.invoices_list') }}" class="admin-nav-link{% if ep.startswith('admin.invoices_') %} is-active{% endif %}"{% if ep.startswith('admin.invoices_') %} aria-current="page"{% endif %}>{{ nav_icon_invoice() }}<span class="admin-nav-text">Laskut</span><span class="admin-nav-badge" aria-label="3 avointa">3</span></a>
             </div>
           </div>
           <div class="admin-nav-group" role="group" aria-labelledby="admin-nav-grp-ops">
@@ -78,17 +81,6 @@
             </div>
           </div>
         </nav>
-        <div class="admin-sidebar-foot">
-          <form class="admin-theme-form" method="post" action="{{ url_for('admin.set_theme') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label for="theme-select" class="admin-theme-label">Teema</label>
-            <select id="theme-select" name="theme" data-theme-select>
-              <option value="auto" {% if (ui_theme or 'auto') == 'auto' %}selected{% endif %}>Auto</option>
-              <option value="light" {% if ui_theme == 'light' %}selected{% endif %}>Vaalea</option>
-              <option value="dark" {% if ui_theme == 'dark' %}selected{% endif %}>Tumma</option>
-            </select>
-          </form>
-        </div>
       </aside>
       <div class="admin-main-wrap">
         <header class="admin-topbar">
@@ -110,6 +102,15 @@
                 </div>
                 <nav class="admin-avatar-links" aria-label="Käyttäjävalikko">
                   <a href="{{ url_for('admin.settings_list') }}">Asetukset</a>
+                  <form class="admin-avatar-theme-form" method="post" action="{{ url_for('admin.set_theme') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label for="theme-select-mobile" class="admin-avatar-theme-label">Teema</label>
+                    <select id="theme-select-mobile" name="theme" data-theme-select>
+                      <option value="auto" {% if (ui_theme or 'auto') == 'auto' %}selected{% endif %}>Auto</option>
+                      <option value="light" {% if ui_theme == 'light' %}selected{% endif %}>Vaalea</option>
+                      <option value="dark" {% if ui_theme == 'dark' %}selected{% endif %}>Tumma</option>
+                    </select>
+                  </form>
                   <a href="{{ url_for('auth.logout') }}">Kirjaudu ulos</a>
                 </nav>
               </div>
@@ -131,6 +132,15 @@
                   </div>
                   <nav class="admin-avatar-links" aria-label="Käyttäjävalikko">
                     <a href="{{ url_for('admin.settings_list') }}">Asetukset</a>
+                    <form class="admin-avatar-theme-form" method="post" action="{{ url_for('admin.set_theme') }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <label for="theme-select-desktop" class="admin-avatar-theme-label">Teema</label>
+                      <select id="theme-select-desktop" name="theme" data-theme-select>
+                        <option value="auto" {% if (ui_theme or 'auto') == 'auto' %}selected{% endif %}>Auto</option>
+                        <option value="light" {% if ui_theme == 'light' %}selected{% endif %}>Vaalea</option>
+                        <option value="dark" {% if ui_theme == 'dark' %}selected{% endif %}>Tumma</option>
+                      </select>
+                    </form>
                     <a href="{{ url_for('auth.logout') }}">Kirjaudu ulos</a>
                   </nav>
                 </div>
