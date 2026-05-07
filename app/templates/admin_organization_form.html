@@ -13,7 +13,7 @@
     {{ form.name(required=true) }}
 
     <div class="actions">
-      <button type="submit">{% if is_new %}Luo{% else %}Tallenna{% endif %}</button>
+      <button type="submit" data-variant="primary">{% if is_new %}Luo{% else %}Tallenna{% endif %}</button>
       <a href="{{ url_for('admin.organizations_list') }}">Peruuta</a>
     </div>
   </form>

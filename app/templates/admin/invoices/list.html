@@ -12,10 +12,10 @@
       <h1 class="page-title">Laskut</h1>
     </div>
     <div class="page-header-actions">
-      <a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a>
+      <a class="btn" data-variant="primary" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a>
       <form method="post" action="{{ url_for('admin.invoices_mark_overdue') }}" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-secondary">Merkitse myöhässä</button>
+        <button type="submit" class="btn btn-secondary" data-variant="secondary">Merkitse myöhässä</button>
       </form>
     </div>
   </div>

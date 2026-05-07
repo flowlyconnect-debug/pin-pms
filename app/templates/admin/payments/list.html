@@ -13,7 +13,7 @@
     <input id="payments-from" type="date" name="from" value="{{ date_from or '' }}">
     <label for="payments-to">Aikaväli asti</label>
     <input id="payments-to" type="date" name="to" value="{{ date_to or '' }}">
-    <button type="submit" class="btn">Suodata</button>
+    <button type="submit" class="btn" data-variant="primary">Suodata</button>
     <a
       class="btn btn-secondary"
       href="{{ url_for('admin.payments_export', provider=provider, status=status, from=date_from, to=date_to) }}"

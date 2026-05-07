@@ -16,7 +16,7 @@
   </select>
   <input id="{{ resource }}-filters-from" type="date" name="from" value="{{ request.args.get('from', '') }}">
   <input id="{{ resource }}-filters-to" type="date" name="to" value="{{ request.args.get('to', '') }}">
-  <button type="submit" class="btn btn-secondary">Suodata</button>
+  <button type="submit" class="btn btn-secondary" data-variant="primary">Suodata</button>
 </form>
 {% endmacro %}
 

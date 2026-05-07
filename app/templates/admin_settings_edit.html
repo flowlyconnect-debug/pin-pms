@@ -31,7 +31,7 @@
     {{ form.description() }}
     <p><label>{{ form.is_secret() }} Käsittele salaisena (piilota UI:ssa, jätä pois auditista)</label></p>
     <div class="actions">
-      <button type="submit" name="action" value="save">Tallenna</button>
+      <button type="submit" name="action" value="save" data-variant="primary">Tallenna</button>
       <a href="{{ url_for('admin.settings_list') }}" class="btn btn-secondary">Peruuta</a>
     </div>
   </form>

@@ -39,7 +39,7 @@
             {% elif row.status == "pending" %}
               <form method="post" action="{{ url_for('admin.email_queue_cancel', item_id=row.id) }}" data-loading="Peruutetaan lähetys…" data-confirm='{{ {"title": "Peruuta lähetys?", "message": "Poistetaanko jonossa oleva sähköposti lähetyksestä?", "confirmLabel": "Peruuta lähetys", "cancelLabel": "Takaisin", "dangerous": true}|tojson }}'>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <button type="submit" data-loading-button>Peruuta</button>
+                <button type="submit" data-variant="secondary" data-loading-button>Peruuta</button>
               </form>
             {% else %}
               -

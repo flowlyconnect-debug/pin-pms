@@ -8,7 +8,7 @@
     <input id="action" type="text" name="action" value="{{ action_filter }}" placeholder="Toiminto (esim. auth.login)">
     <input id="email" type="text" name="email" value="{{ email_filter }}" placeholder="Tekijän sähköposti">
     <input id="page_size" type="number" name="page_size" value="{{ page_size }}" min="1" max="200" placeholder="Rivejä">
-    <button type="submit" class="btn btn-secondary">Suodata</button>
+    <button type="submit" class="btn btn-secondary" data-variant="primary">Suodata</button>
     {% if action_filter or email_filter %}
       <a class="btn btn-secondary" href="{{ url_for('admin.audit') }}">Tyhjennä</a>
     {% endif %}

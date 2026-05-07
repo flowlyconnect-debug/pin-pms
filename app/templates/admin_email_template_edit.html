@@ -24,7 +24,7 @@
     {{ form.body_html.label(text="HTML-sisalto (valinnainen)") }}
     {{ form.body_html(rows="10") }}
     <div class="actions">
-      <button type="submit" name="action" value="save">Tallenna</button>
+      <button type="submit" name="action" value="save" data-variant="primary">Tallenna</button>
       <a class="btn-secondary" href="{{ url_for('admin.email_template_preview', key=template.key) }}">Esikatsele</a>
       <a class="btn-secondary" href="{{ url_for('admin.email_template_test_send', key=template.key) }}">Laheta testi</a>
     </div>

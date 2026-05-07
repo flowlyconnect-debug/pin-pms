@@ -1,0 +1,175 @@
+button[data-variant="primary"],
+a[data-variant="primary"],
+a.btn-primary,
+button.btn-primary,
+.admin-main button[type="submit"][data-variant="primary"],
+.admin-main a[data-variant="primary"] {
+  background: var(--primary);
+  color: #FFF;
+  border: none;
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+button[data-variant="primary"]:hover,
+a[data-variant="primary"]:hover,
+a.btn-primary:hover,
+button.btn-primary:hover,
+.admin-main button[type="submit"][data-variant="primary"]:hover,
+.admin-main a[data-variant="primary"]:hover {
+  background: var(--primary-hover);
+  color: #FFF;
+}
+
+button[data-variant="primary"]:focus-visible,
+a[data-variant="primary"]:focus-visible,
+a.btn-primary:focus-visible,
+button.btn-primary:focus-visible,
+.admin-main button[type="submit"][data-variant="primary"]:focus-visible,
+.admin-main a[data-variant="primary"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+button[data-variant="secondary"],
+a[data-variant="secondary"],
+a.btn-secondary,
+button.btn-secondary,
+.admin-main button[type="submit"][data-variant="secondary"],
+.admin-main a[data-variant="secondary"] {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+button[data-variant="secondary"]:hover,
+a[data-variant="secondary"]:hover,
+a.btn-secondary:hover,
+button.btn-secondary:hover,
+.admin-main button[type="submit"][data-variant="secondary"]:hover,
+.admin-main a[data-variant="secondary"]:hover {
+  background: var(--bg-alt);
+  color: var(--text);
+}
+
+button[data-variant="secondary"]:focus-visible,
+a[data-variant="secondary"]:focus-visible,
+a.btn-secondary:focus-visible,
+button.btn-secondary:focus-visible,
+.admin-main button[type="submit"][data-variant="secondary"]:focus-visible,
+.admin-main a[data-variant="secondary"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+button[data-variant="ghost"],
+a[data-variant="ghost"],
+a.btn-ghost,
+button.btn-ghost,
+.admin-main button[type="submit"][data-variant="ghost"],
+.admin-main a[data-variant="ghost"] {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+button[data-variant="ghost"]:hover,
+a[data-variant="ghost"]:hover,
+a.btn-ghost:hover,
+button.btn-ghost:hover,
+.admin-main button[type="submit"][data-variant="ghost"]:hover,
+.admin-main a[data-variant="ghost"]:hover {
+  background: var(--bg-alt);
+  color: var(--text);
+}
+
+button[data-variant="ghost"]:focus-visible,
+a[data-variant="ghost"]:focus-visible,
+a.btn-ghost:focus-visible,
+button.btn-ghost:focus-visible,
+.admin-main button[type="submit"][data-variant="ghost"]:focus-visible,
+.admin-main a[data-variant="ghost"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+button[data-variant="danger"],
+a[data-variant="danger"],
+a.btn-danger,
+button.btn-danger,
+.admin-main button[type="submit"][data-variant="danger"],
+.admin-main a[data-variant="danger"] {
+  background: #DC2626;
+  color: #FFF;
+  border: none;
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+button[data-variant="danger"]:hover,
+a[data-variant="danger"]:hover,
+a.btn-danger:hover,
+button.btn-danger:hover,
+.admin-main button[type="submit"][data-variant="danger"]:hover,
+.admin-main a[data-variant="danger"]:hover {
+  background: #B91C1C;
+  color: #FFF;
+}
+
+button[data-variant="danger"]:focus-visible,
+a[data-variant="danger"]:focus-visible,
+a.btn-danger:focus-visible,
+button.btn-danger:focus-visible,
+.admin-main button[type="submit"][data-variant="danger"]:focus-visible,
+.admin-main a[data-variant="danger"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}

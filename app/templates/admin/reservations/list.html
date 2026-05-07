@@ -25,7 +25,7 @@
     <input type="hidden" name="to" value="{{ request.args.get('to', '') }}">
     <input type="hidden" name="q" value="{{ request.args.get('q', '') }}">
     <input type="text" name="name" placeholder="Suodattimen nimi">
-    <button type="submit">Tallenna suodatin</button>
+    <button type="submit" data-variant="primary">Tallenna suodatin</button>
   </form>
   <form method="post" action="{{ url_for('admin.reservations_bulk') }}" data-bulk-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
