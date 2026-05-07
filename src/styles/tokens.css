@@ -1,6 +1,10 @@
 :root {
   --bg: #FAFAF9;
-  --bg-alt: #F5F4F1;
+  --bg-alt: #F5F5F4;
+  --bg-hover: #F5F5F4;
+  --table-header-bg: #F5F5F4;
+  --table-row-hover: #F5F5F4;
+  --table-header-text: #78716C;
   --surface: #FFFFFF;
   --border: #E7E5E4;
   --border-strong: #D6D3D1;
@@ -54,6 +58,10 @@
   :root {
     --bg: #0C0A09;
     --bg-alt: #292524;
+    --bg-hover: #F5F5F4;
+    --table-header-bg: #F5F5F4;
+    --table-row-hover: #F5F5F4;
+    --table-header-text: #78716C;
     --surface: #1C1917;
     --border: #292524;
     --border-strong: #44403C;
@@ -81,5 +89,25 @@ html {
 
 body {
   background: var(--bg);
+  color: var(--text);
+}
+
+table thead th {
+  background: var(--table-header-bg, var(--bg-alt)) !important;
+  color: var(--table-header-text, var(--text-soft));
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+table tbody tr:hover {
+  background: var(--table-row-hover, var(--bg-hover, var(--bg-alt)));
+}
+
+table tbody tr:hover td {
+  background: var(--table-row-hover, var(--bg-hover, var(--bg-alt)));
   color: var(--text);
 }
