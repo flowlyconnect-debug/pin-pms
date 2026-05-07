@@ -10,6 +10,13 @@
 {% block content %}
   {% set revenue = summary.revenue or {} %}
   {% set cash_flow = summary.cash_flow or {} %}
+  <section class="dashboard-conflict-banner" data-conflicts-banner hidden>
+    <span class="dashboard-conflict-banner-icon" aria-hidden="true">⚠</span>
+    <p class="dashboard-conflict-banner-text" data-conflicts-banner-text>
+      Sinulla on 0 konfliktia jotka vaativat huomiota
+    </p>
+    <a href="{{ url_for('admin.conflicts_page') }}" class="dashboard-conflict-banner-link">Tarkastele →</a>
+  </section>
 
   {% if (summary.total_properties or 0) == 0 %}
     <section class="card dashboard-empty-message empty-state-banner">
@@ -49,7 +56,10 @@
       <h2>Vaatii toimintaa</h2>
       <ul>
         {% for row in summary.action_required %}
-          <li><a href="{{ row.link }}">{{ row.label }}</a></li>
+          <li class="dashboard-action-row">
+            <span class="dashboard-action-dot{% if row.severity == 'warning' %} warn-dot{% elif row.severity == 'danger' %} danger-dot{% endif %}" aria-hidden="true"></span>
+            <a href="{{ row.link }}">{{ row.label }}</a>
+          </li>
         {% else %}
           <li><em>Ei kiireellisiä toimia</em></li>
         {% endfor %}
@@ -129,6 +139,7 @@
       <ul class="dashboard-alerts-list">
         {% for item in summary.action_required %}
           <li>
+            <span class="dashboard-action-dot{% if item.severity == 'warning' %} warn-dot{% elif item.severity == 'danger' %} danger-dot{% endif %}" aria-hidden="true"></span>
             <a href="{{ item.link }}" class="dashboard-alert-link">{{ item.label }}</a>
           </li>
         {% else %}

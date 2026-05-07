@@ -80,6 +80,7 @@
     initAvatars();
     initOrgSwitcher();
     initTooltips();
+    initConflictsUi();
   }
 
   function initialsFromName(name) {
@@ -313,6 +314,40 @@
     }
 
     syncFromApiOrFallback();
+  }
+
+  function initConflictsUi() {
+    fetch("/api/conflicts", {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("conflicts endpoint unavailable");
+        return res.json();
+      })
+      .then(function (payload) {
+        var count = Number(payload && payload.count) || 0;
+        var navBadge = document.querySelector("[data-conflicts-nav-badge]");
+        if (navBadge) {
+          navBadge.textContent = String(count);
+          navBadge.hidden = count <= 0;
+          navBadge.setAttribute("aria-label", count + " konfliktia");
+        }
+
+        var banner = document.querySelector("[data-conflicts-banner]");
+        var bannerText = document.querySelector("[data-conflicts-banner-text]");
+        if (banner && bannerText) {
+          if (count > 0) {
+            banner.hidden = false;
+            bannerText.textContent = "Sinulla on " + count + " konfliktia jotka vaativat huomiota";
+          } else {
+            banner.hidden = true;
+          }
+        }
+      })
+      .catch(function () {
+        // Keep UI silent when endpoint is unavailable.
+      });
   }
 
   if (document.readyState === "loading") {

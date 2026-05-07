@@ -1249,17 +1249,31 @@ def units_calendar_sync(unit_id: int):
     )
 
 
+@admin_bp.get("/konfliktit")
 @admin_bp.get("/calendar-sync/conflicts")
 @require_admin_pms_access
-def calendar_sync_conflicts():
+def conflicts_page():
     service = IcalService()
     try:
         rows = service.detect_conflicts(organization_id=_pms_org_id())
     except Exception:  # noqa: BLE001
-        current_app.logger.exception("Kalenteriristiriitojen haku epäonnistui.")
+        current_app.logger.exception("Konfliktien haku epäonnistui.")
         flash("Kalenteriristiriitojen lataus epäonnistui. Yritä hetken päästä uudelleen.")
         rows = []
     return render_template("admin/calendar_sync_conflicts.html", rows=rows)
+
+
+@admin_bp.get("/kalenteriristiriidat")
+@require_admin_pms_access
+def conflicts_legacy_redirect():
+    return redirect(url_for("admin.conflicts_page"))
+
+
+@admin_bp.get("/api/conflicts")
+@require_admin_pms_access
+def conflicts_api():
+    rows = IcalService().detect_conflicts(organization_id=_pms_org_id())
+    return json_ok({"count": len(rows), "items": rows})
 
 
 @admin_bp.post("/calendar-sync/feeds/<int:feed_id>/sync")

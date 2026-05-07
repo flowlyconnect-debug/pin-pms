@@ -1,8 +1,9 @@
-from flask import Blueprint, current_app, redirect, render_template, url_for
+from flask import Blueprint, abort, current_app, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy import inspect, text
 
 from app.extensions import db
+from app.integrations.ical.service import IcalService
 
 core_bp = Blueprint("core", __name__)
 
@@ -113,3 +114,34 @@ def public_status():
 @core_bp.get("/accessibility-statement")
 def accessibility_statement():
     return render_template("accessibility.html")
+
+
+@core_bp.get("/api/conflicts")
+def conflicts_api():
+    if not current_user.is_authenticated:
+        abort(401)
+    role = getattr(current_user, "role", None)
+    role_value = getattr(role, "value", role)
+    if role_value not in ("admin", "superadmin"):
+        abort(403)
+
+    organization_id = current_user.organization_id
+    if role_value == "superadmin":
+        requested_org = (request.args.get("organization_id") or "").strip()
+        if requested_org.isdigit():
+            organization_id = int(requested_org)
+
+    rows = IcalService().detect_conflicts(organization_id=organization_id)
+    items = [
+        {
+            "reservation_id": row.get("reservation_id"),
+            "unit_id": row.get("unit_id"),
+            "reservation_start": str(row.get("reservation_start") or ""),
+            "reservation_end": str(row.get("reservation_end") or ""),
+            "external_start": str(row.get("external_start") or ""),
+            "external_end": str(row.get("external_end") or ""),
+            "external_summary": row.get("external_summary"),
+        }
+        for row in rows
+    ]
+    return {"count": len(items), "items": items}, 200

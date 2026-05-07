@@ -105,8 +105,8 @@ def _safe_url_for(endpoint: str, **values) -> str:
             return f"/admin/maintenance-requests/{values['request_id']}"
         if endpoint == "admin.reservations_detail":
             return f"/admin/reservations/{values['reservation_id']}"
-        if endpoint == "admin.calendar_sync_conflicts":
-            return "/admin/calendar-sync/conflicts"
+        if endpoint == "admin.conflicts_page":
+            return "/admin/konfliktit"
         if endpoint == "admin.units_edit":
             return f"/admin/units/{values['unit_id']}/edit"
         return "#"
@@ -567,8 +567,8 @@ def get_dashboard_stats(
             {
                 "kind": "ical_conflict",
                 "label": f"iCal-konflikti: {(row.summary or f'Tapahtuma #{row.id}')}",
-                "link": _safe_url_for("admin.calendar_sync_conflicts"),
-                "severity": "danger",
+                "link": _safe_url_for("admin.conflicts_page"),
+                "severity": "warning",
                 "since": row.created_at.isoformat() if row.created_at else None,
             }
             for row in ical_conflict_rows
