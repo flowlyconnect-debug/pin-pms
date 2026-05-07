@@ -1640,10 +1640,32 @@ def list_admin_invoices(
     query = query.order_by(col.asc() if direction == "asc" else col.desc(), Invoice.id.desc())
     total = query.count()
     rows = query.offset((page - 1) * per_page).limit(per_page).all()
+    guest_cache: dict[int, str] = {}
+    lease_guest_cache: dict[int, str] = {}
+
+    def _guest_name(guest_id: int | None) -> str | None:
+        if guest_id is None:
+            return None
+        if guest_id not in guest_cache:
+            guest = Guest.query.filter_by(id=guest_id, organization_id=organization_id).first()
+            guest_cache[guest_id] = guest.full_name if guest is not None else ""
+        return guest_cache[guest_id] or None
+
+    def _lease_guest_name(lease_id: int | None) -> str | None:
+        if lease_id is None:
+            return None
+        if lease_id not in lease_guest_cache:
+            lease = Lease.query.filter_by(id=lease_id, organization_id=organization_id).first()
+            lease_guest_cache[lease_id] = (
+                lease.guest.full_name if lease is not None and lease.guest is not None else ""
+            )
+        return lease_guest_cache[lease_id] or None
+
     return [
         {
             "id": r.id,
             "invoice_number": r.invoice_number,
+            "customer_name": _guest_name(r.guest_id) or _lease_guest_name(r.lease_id),
             "status": r.status,
             "due_date": r.due_date.isoformat() if r.due_date else None,
             "currency": r.currency,

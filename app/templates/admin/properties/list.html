@@ -13,26 +13,33 @@
     </div>
   </div>
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
-  <div class="data-table-card">
-  <table class="data-table">
+  <div class="data-table-card ui-table-shell">
+  <table class="data-table ui-table">
     <thead>
       <tr>
         <th>ID</th>
         <th>Nimi</th>
         <th>Osoite</th>
-        <th>Toiminnot</th>
+        <th class="actions-col"></th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
-        <tr>
+        <tr class="table-row-link" data-href="{{ url_for('admin.properties_detail', property_id=row.id) }}">
           <td data-label="ID">{{ row.id }}</td>
           <td data-label="Nimi">{{ row.name }}</td>
           <td data-label="Osoite">{{ row.address or "" }}</td>
-          <td data-label="Toiminnot">
-            <a href="{{ url_for('admin.properties_detail', property_id=row.id) }}">Näytä</a>
-            · <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Muokkaa</a>
-            · <a href="{{ url_for('admin.units_list', property_id=row.id) }}">Huoneet</a>
+          <td data-label="Toiminnot" class="actions-col">
+            <details class="row-actions" onclick="event.stopPropagation();">
+              <summary class="row-actions__trigger">⋯</summary>
+              <div class="row-actions__menu">
+                <a href="{{ url_for('admin.properties_detail', property_id=row.id) }}">Näytä</a>
+                <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Muokkaa</a>
+                <a href="{{ url_for('admin.units_list', property_id=row.id) }}">Lähetä uudelleen</a>
+                <button type="button" data-copy-ref="#{{ row.id }}">Kopioi viite</button>
+                <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}#delete" class="danger">Poista</a>
+              </div>
+            </details>
           </td>
         </tr>
       {% else %}

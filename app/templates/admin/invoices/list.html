@@ -23,43 +23,74 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {{ render_bulk_bar("invoices") }}
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
-  <div class="data-table-card">
-  <table>
+  <div class="data-table-card ui-table-shell">
+  <table class="data-table ui-table">
     <thead>
       <tr>
         <th><input type="checkbox" data-bulk-all></th>
         <th>Numero</th>
-        <th>Veroton</th>
-        <th>ALV %</th>
-        <th>ALV €</th>
-        <th>Yhteensä (sis. ALV)</th>
-        <th>Erä</th>
+        <th>Asiakas</th>
+        <th>Summa</th>
+        <th>Eräpäivä</th>
         <th>Tila</th>
-        <th>Vuokrasopimus</th>
-        <th>Toiminnot</th>
+        <th class="actions-col"></th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
         <tr class="table-row-link" data-href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">
           <td><input type="checkbox" name="ids" value="{{ row.id }}" data-bulk-id></td>
-          <td>{{ row.invoice_number or "—" }}</td>
-          <td>{{ row.subtotal_excl_vat }} {{ row.currency }}</td>
-          <td>{{ row.vat_rate }}</td>
-          <td>{{ row.vat_amount }} {{ row.currency }}</td>
-          <td>{{ row.total_incl_vat }} {{ row.currency }}</td>
-          <td>{{ row.due_date }}</td>
+          <td><span class="mono">{{ row.invoice_number or "—" }}</span></td>
+          <td>{{ row.customer_name or "—" }}</td>
+          <td>
+            <div class="invoice-total">{{ ("%.2f"|format(row.total_incl_vat|float)|replace('.', ',')) }} €</div>
+            <div class="meta">sis. ALV</div>
+          </td>
+          <td>
+            {% if row.due_date %}
+              {% set due = row.due_date.split('-') %}
+              {{ due[2]|int }}.{{ due[1]|int }}.{{ due[0] }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
           <td>
             {{ status_badge(row.status, "invoice") }}
           </td>
-          <td>{% if row.lease_id %}#{{ row.lease_id }}{% else %}—{% endif %}</td>
-          <td><a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">Näytä</a></td>
+          <td class="actions-col">
+            <details class="row-actions" onclick="event.stopPropagation();">
+              <summary class="row-actions__trigger">⋯</summary>
+              <div class="row-actions__menu">
+                <a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}">Näytä</a>
+                <a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}#edit">Muokkaa</a>
+                <form method="post" action="{{ url_for('admin.invoices_send_payment_link', invoice_id=row.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="provider" value="stripe">
+                  <button type="submit">Lähetä uudelleen</button>
+                </form>
+                <button type="button" data-copy-ref="{{ row.invoice_number or ('#' ~ row.id) }}">Kopioi viite</button>
+                <a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}#delete" class="danger">Poista</a>
+              </div>
+            </details>
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="10" class="empty-state"><em>Ei laskuja vielä.</em><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
+        <tr><td colspan="7" class="empty-state"><div>Ei laskuja vielä</div><div class="meta">Luo ensimmäinen lasku aloittaaksesi.</div><div class="actions" style="justify-content:center;margin-top:.55rem;"><a class="btn" href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
   </form>
+  <script>
+    document.querySelectorAll("[data-copy-ref]").forEach(function (button) {
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var value = button.getAttribute("data-copy-ref") || "";
+        if (navigator.clipboard && value) {
+          navigator.clipboard.writeText(value);
+        }
+      });
+    });
+  </script>
 {% endblock %}

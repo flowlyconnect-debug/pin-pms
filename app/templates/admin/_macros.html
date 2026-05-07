@@ -1,44 +1,15 @@
 {% macro status_badge(status, type) -%}
   {% set raw_status = (status or '')|string|lower %}
-  {% if raw_status == 'vahvistettu' %}{% set raw_status = 'confirmed' %}{% endif %}
-  {% if raw_status == 'peruttu' %}{% set raw_status = 'cancelled' %}{% endif %}
-  {% if raw_status == 'open' %}{% set raw_status = 'pending' %}{% endif %}
-  {% if raw_status == 'draft' %}{% set raw_status = 'pending' %}{% endif %}
-  {% if raw_status == 'new' %}{% set raw_status = 'open' %}{% endif %}
-  {% if raw_status == 'waiting' %}{% set raw_status = 'open' %}{% endif %}
-  {% set badge_class = 'badge-muted' %}
-
-  {% if type == 'reservation' %}
-    {% if raw_status == 'confirmed' %}
-      {% set badge_class = 'badge-success' %}
-    {% elif raw_status == 'pending' %}
-      {% set badge_class = 'badge-warning' %}
-    {% elif raw_status == 'cancelled' %}
-      {% set badge_class = 'badge-muted' %}
-    {% elif raw_status == 'completed' %}
-      {% set badge_class = 'badge-info' %}
-    {% endif %}
-  {% elif type == 'invoice' %}
-    {% if raw_status == 'paid' %}
-      {% set badge_class = 'badge-success' %}
-    {% elif raw_status == 'pending' %}
-      {% set badge_class = 'badge-warning' %}
-    {% elif raw_status == 'overdue' %}
-      {% set badge_class = 'badge-danger' %}
-    {% elif raw_status == 'cancelled' %}
-      {% set badge_class = 'badge-muted' %}
-    {% endif %}
-  {% elif type == 'maintenance' %}
-    {% if raw_status == 'open' %}
-      {% set badge_class = 'badge-warning' %}
-    {% elif raw_status == 'in_progress' %}
-      {% set badge_class = 'badge-info' %}
-    {% elif raw_status == 'resolved' %}
-      {% set badge_class = 'badge-success' %}
-    {% elif raw_status == 'cancelled' %}
-      {% set badge_class = 'badge-muted' %}
-    {% endif %}
+  {% if raw_status in ['paid', 'completed', 'active', 'confirmed', 'resolved'] %}
+    {% set badge_variant = 'success' %}
+  {% elif raw_status in ['open', 'pending', 'in_progress'] %}
+    {% set badge_variant = 'warning' %}
+  {% elif raw_status in ['overdue', 'failed', 'cancelled', 'peruttu'] %}
+    {% set badge_variant = 'danger' %}
+  {% elif raw_status in ['draft', 'info'] %}
+    {% set badge_variant = 'info' %}
+  {% else %}
+    {% set badge_variant = 'neutral' %}
   {% endif %}
-
-  <span class="badge {{ badge_class }}">{{ status }}</span>
+  <span class="status-badge status-badge--{{ badge_variant }}"><span class="status-badge__dot" aria-hidden="true"></span>{{ status }}</span>
 {%- endmacro %}

@@ -4,26 +4,21 @@
 
 {% block content %}
   <h1>Audit-loki</h1>
-  <form method="get" class="card form-card">
-    <label for="action">Toiminto (alku-osuma)</label>
-    <input id="action" type="text" name="action" value="{{ action_filter }}" placeholder="auth.login">
-    <label for="email">Tekijän sähköposti</label>
-    <input id="email" type="text" name="email" value="{{ email_filter }}" placeholder="user@example.com">
-    <label for="page_size">Riviä per sivu</label>
-    <input id="page_size" type="number" name="page_size" value="{{ page_size }}" min="1" max="200">
-    <div class="actions">
-      <button type="submit">Suodata</button>
-      {% if action_filter or email_filter %}
-        <a class="btn btn-secondary" href="{{ url_for('admin.audit') }}">Tyhjennä</a>
-      {% endif %}
-    </div>
+  <form method="get" class="filter-bar">
+    <input id="action" type="text" name="action" value="{{ action_filter }}" placeholder="Toiminto (esim. auth.login)">
+    <input id="email" type="text" name="email" value="{{ email_filter }}" placeholder="Tekijän sähköposti">
+    <input id="page_size" type="number" name="page_size" value="{{ page_size }}" min="1" max="200" placeholder="Rivejä">
+    <button type="submit" class="btn btn-secondary">Suodata</button>
+    {% if action_filter or email_filter %}
+      <a class="btn btn-secondary" href="{{ url_for('admin.audit') }}">Tyhjennä</a>
+    {% endif %}
   </form>
   <p class="meta">{{ total }} tapahtumaa · sivu {{ page }} · näytetään {{ rows|length }}</p>
-  <div class="data-table-card">
-  <table>
+  <div class="data-table-card ui-table-shell">
+  <table class="data-table ui-table">
     <thead>
       <tr>
-        <th>Aikaleima (UTC)</th><th>Toiminto</th><th>Tila</th><th>Tekijä</th><th>Kohde</th><th>IP</th><th>Konteksti</th>
+        <th>Aikaleima (UTC)</th><th>Toiminto</th><th>Tila</th><th>Tekijä</th><th>Kohde</th><th>IP</th><th>Konteksti</th><th class="actions-col"></th>
       </tr>
     </thead>
     <tbody>
@@ -36,9 +31,21 @@
           <td>{% if row.target_type %}{{ row.target_type }}{% if row.target_id is not none %} #{{ row.target_id }}{% endif %}{% endif %}</td>
           <td><span class="meta">{{ row.ip_address or '' }}</span></td>
           <td>{% if row.context %}<code>{{ row.context|tojson }}</code>{% endif %}</td>
+          <td class="actions-col">
+            <details class="row-actions">
+              <summary class="row-actions__trigger">⋯</summary>
+              <div class="row-actions__menu">
+                <button type="button" data-copy-ref="{{ row.action }}">Näytä</button>
+                <button type="button" data-copy-ref="{{ row.actor_email or '' }}">Muokkaa</button>
+                <button type="button">Lähetä uudelleen</button>
+                <button type="button" data-copy-ref="{{ row.context|tojson if row.context else '' }}">Kopioi viite</button>
+                <button type="button" class="danger">Poista</button>
+              </div>
+            </details>
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="7"><em>Ei tapahtumia annetuilla suodattimilla.</em></td></tr>
+        <tr><td colspan="8" class="empty-state"><div>Ei tapahtumia annetuilla suodattimilla</div></td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -57,4 +64,15 @@
       <span class="meta">Seuraava &rarr;</span>
     {% endif %}
   </div>
+  <script>
+    document.querySelectorAll("[data-copy-ref]").forEach(function (button) {
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        var value = button.getAttribute("data-copy-ref") || "";
+        if (navigator.clipboard && value) {
+          navigator.clipboard.writeText(value);
+        }
+      });
+    });
+  </script>
 {% endblock %}

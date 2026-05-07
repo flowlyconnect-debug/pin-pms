@@ -1,4 +1,5 @@
 {% extends "admin/base.html" %}
+{% from "admin/_macros.html" import status_badge %}
 
 {% block title %}Vuokrasopimukset · Pin PMS{% endblock %}
 
@@ -8,8 +9,8 @@
   </div>
   <h1>Vuokrasopimukset</h1>
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
-  <div class="data-table-card">
-  <table>
+  <div class="data-table-card ui-table-shell">
+  <table class="data-table ui-table">
     <thead>
       <tr>
         <th>ID</th>
@@ -19,7 +20,7 @@
         <th>Vuokra</th>
         <th>Laskutusjakso</th>
         <th>Tila</th>
-        <th>Toiminnot</th>
+        <th class="actions-col"></th>
       </tr>
     </thead>
     <tbody>
@@ -31,20 +32,18 @@
           <td>{{ row.start_date }}{% if row.end_date %} → {{ row.end_date }}{% else %} → …{% endif %}</td>
           <td>{{ row.rent_amount }}</td>
           <td>{{ row.billing_cycle }}</td>
-          <td>
-            {% if row.status in ["active"] %}
-              <span class="status-badge status-green">{{ row.status }}</span>
-            {% elif row.status in ["peruttu"] %}
-              <span class="status-badge status-red">{{ row.status }}</span>
-            {% elif row.status in ["draft"] %}
-              <span class="status-badge status-blue">{{ row.status }}</span>
-            {% else %}
-              <span class="status-badge status-gray">{{ row.status }}</span>
-            {% endif %}
-          </td>
-          <td>
-            <a href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">Näytä</a>
-            · <a href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Muokkaa</a>
+          <td>{{ status_badge(row.status, "lease") }}</td>
+          <td class="actions-col">
+            <details class="row-actions" onclick="event.stopPropagation();">
+              <summary class="row-actions__trigger">⋯</summary>
+              <div class="row-actions__menu">
+                <a href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">Näytä</a>
+                <a href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Muokkaa</a>
+                <button type="button">Lähetä uudelleen</button>
+                <button type="button" data-copy-ref="#{{ row.id }}">Kopioi viite</button>
+                <a href="{{ url_for('admin.leases_edit', lease_id=row.id) }}#delete" class="danger">Poista</a>
+              </div>
+            </details>
           </td>
         </tr>
       {% else %}
