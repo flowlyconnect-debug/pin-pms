@@ -1,7 +1,15 @@
 {
+  "scripts": {
+    "email:dev": "email dev",
+    "email:export": "email export"
+  },
   "dependencies": {
+    "@react-email/components": "^1.0.12",
     "cmdk": "^1.1.1",
     "lucide-react": "^1.14.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-email": "^6.1.1",
     "sonner": "^2.0.7"
   }
 }
