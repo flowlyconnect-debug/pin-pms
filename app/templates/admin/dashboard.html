@@ -11,21 +11,6 @@
   {% set revenue = summary.revenue or {} %}
   {% set cash_flow = summary.cash_flow or {} %}
 
-  <div class="dashboard-modern-header">
-    {% if current_user.is_superadmin and organization_options %}
-      <form method="get" class="dashboard-org-switcher">
-        <label for="organization_id">Organisaatio</label>
-        <select id="organization_id" name="organization_id">
-          {% for org in organization_options %}
-            <option value="{{ org.id }}" {% if org.id == selected_organization_id %}selected{% endif %}>{{ org.name }}</option>
-          {% endfor %}
-        </select>
-        <input type="hidden" name="range" value="{{ selected_range }}">
-        <button class="btn btn-secondary btn-sm" type="submit" data-variant="secondary">Vaihda</button>
-      </form>
-    {% endif %}
-  </div>
-
   {% if (summary.total_properties or 0) == 0 %}
     <section class="card dashboard-empty-message empty-state-banner">
       <p>Lisää kohteet ensin</p>

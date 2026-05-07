@@ -46,6 +46,12 @@
               <span class="admin-brand-meta">Flowly Solutions</span>
             </span>
           </a>
+          <div
+            class="admin-org-switcher"
+            data-org-switcher
+            data-current-org-id="{{ current_user.organization_id if current_user.is_authenticated and current_user.organization_id else '' }}"
+            data-current-org-name="{{ user_org }}"
+          ></div>
         </div>
         <nav class="admin-sidebar-nav" role="navigation" aria-label="Päävalikko">
           <div class="admin-nav-group" role="group" aria-labelledby="admin-nav-grp-primary">

@@ -78,6 +78,7 @@
     });
 
     initAvatars();
+    initOrgSwitcher();
     initTooltips();
   }
 
@@ -148,6 +149,170 @@
         hideTooltip(activeTooltipTarget);
       }
     });
+  }
+
+  function initOrgSwitcher() {
+    var switcherRoot = document.querySelector("[data-org-switcher]");
+    if (!switcherRoot) return;
+
+    var storageKey = "pin-pms-active-org";
+    var currentOrgId = Number(switcherRoot.getAttribute("data-current-org-id") || 0) || null;
+    var currentOrgName = (switcherRoot.getAttribute("data-current-org-name") || "Flowly").trim() || "Flowly";
+    var savedRaw = localStorage.getItem(storageKey);
+    var savedOrg = null;
+    if (savedRaw) {
+      try {
+        savedOrg = JSON.parse(savedRaw);
+      } catch (_err) {
+        savedOrg = null;
+      }
+    }
+
+    var defaultOrg = {
+      id: currentOrgId || 1,
+      name: currentOrgName,
+      plan: "Pro",
+    };
+    var orgs = [defaultOrg];
+    var activeOrg = savedOrg && Number(savedOrg.id) ? savedOrg : defaultOrg;
+
+    function hueFromOrg(name) {
+      var input = (name || "Flowly").toLowerCase();
+      var hash = 0;
+      for (var i = 0; i < input.length; i += 1) {
+        hash = (hash << 5) - hash + input.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash) % 360;
+    }
+
+    function initialsFromOrg(name) {
+      var trimmed = (name || "").trim();
+      if (!trimmed) return "OR";
+      var parts = trimmed.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    }
+
+    function persist(org) {
+      activeOrg = org;
+      localStorage.setItem(storageKey, JSON.stringify(org));
+      window.PinPmsOrgContext = {
+        activeOrg: activeOrg,
+        orgs: orgs.slice(),
+        setActiveOrg: function (nextOrg) {
+          persist(nextOrg);
+          render();
+        },
+      };
+    }
+
+    var outsideClickBound = false;
+
+    function render() {
+      if (!orgs.length) return;
+      var hasDropdown = orgs.length > 1;
+      var active = orgs.find(function (item) { return Number(item.id) === Number(activeOrg.id); }) || orgs[0];
+      var itemRows = orgs.map(function (org) {
+        var isActive = Number(org.id) === Number(active.id);
+        return (
+          '<button type="button" class="admin-org-switcher-item" data-org-id="' + String(org.id) + '">' +
+            '<span class="admin-org-switcher-item-name">' + escapeHtml(org.name) + '</span>' +
+            '<span class="admin-org-switcher-item-check" aria-hidden="true">' + (isActive ? "✓" : "") + "</span>" +
+          "</button>"
+        );
+      }).join("");
+
+      switcherRoot.style.setProperty("--org-hue", String(hueFromOrg(active.name)));
+      switcherRoot.innerHTML =
+        '<button type="button" class="admin-org-switcher-trigger" ' +
+          (hasDropdown ? 'aria-haspopup="menu" aria-expanded="false"' : "disabled") + ">" +
+          '<span class="admin-org-switcher-avatar" aria-hidden="true">' + initialsFromOrg(active.name) + "</span>" +
+          '<span class="admin-org-switcher-name">' + escapeHtml(active.name) + "</span>" +
+          (hasDropdown ? '<span class="admin-org-switcher-chevron" aria-hidden="true">⇅</span>' : "") +
+        "</button>" +
+        (hasDropdown
+          ? '<div class="admin-org-switcher-menu" role="menu" hidden>' +
+              '<p class="admin-org-switcher-label">Vaihda organisaatiota</p>' +
+              itemRows +
+            "</div>"
+          : "");
+
+      var trigger = switcherRoot.querySelector(".admin-org-switcher-trigger");
+      var menu = switcherRoot.querySelector(".admin-org-switcher-menu");
+
+      if (trigger && menu) {
+        trigger.addEventListener("click", function () {
+          var open = trigger.getAttribute("aria-expanded") === "true";
+          trigger.setAttribute("aria-expanded", open ? "false" : "true");
+          menu.hidden = open;
+        });
+
+        switcherRoot.querySelectorAll("[data-org-id]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            var selectedId = Number(button.getAttribute("data-org-id"));
+            var next = orgs.find(function (org) { return Number(org.id) === selectedId; });
+            if (!next) return;
+            persist(next);
+            render();
+          });
+        });
+
+        if (!outsideClickBound) {
+          document.addEventListener("click", function (event) {
+            var openTrigger = switcherRoot.querySelector(".admin-org-switcher-trigger");
+            var openMenu = switcherRoot.querySelector(".admin-org-switcher-menu");
+            if (!openTrigger || !openMenu) return;
+            if (!switcherRoot.contains(event.target)) {
+              openTrigger.setAttribute("aria-expanded", "false");
+              openMenu.hidden = true;
+            }
+          });
+          outsideClickBound = true;
+        }
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function syncFromApiOrFallback() {
+      return fetch("/api/organizations", {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("organizations endpoint unavailable");
+          return res.json();
+        })
+        .then(function (data) {
+          var list = Array.isArray(data) ? data : (Array.isArray(data.organizations) ? data.organizations : []);
+          if (!list.length) throw new Error("empty organizations payload");
+          orgs = list.map(function (org) {
+            return {
+              id: Number(org.id) || 0,
+              name: String(org.name || "Organisaatio"),
+              plan: String(org.plan || ""),
+            };
+          }).filter(function (org) { return org.id > 0; });
+        })
+        .catch(function () {
+          orgs = [{ id: 1, name: "Flowly", plan: "Pro" }];
+        })
+        .finally(function () {
+          var nextActive = orgs.find(function (org) { return Number(org.id) === Number(activeOrg.id); }) || orgs[0];
+          persist(nextActive);
+          render();
+        });
+    }
+
+    syncFromApiOrFallback();
   }
 
   if (document.readyState === "loading") {
