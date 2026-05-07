@@ -43,6 +43,10 @@ logger = logging.getLogger(__name__)
 _RESERVATION_EDIT_STATUSES = frozenset({"confirmed", "cancelled"})
 _PAYMENT_STATUSES = frozenset({"pending", "paid", "cancelled"})
 _CALENDAR_EVENT_TYPES = frozenset({"reservations", "leases", "invoices", "maintenance"})
+_QUICK_AVAILABILITY_RANGES = frozenset({"today", "tomorrow", "weekend", "7d"})
+_QUICK_AVAILABILITY_BLOCKING_STATUSES = frozenset(
+    {"reserved", "maintenance", "blocked", "checkin"}
+)
 
 
 @dataclass
@@ -329,6 +333,77 @@ def availability_matrix(
         properties_payload.append({"id": prop["id"], "name": prop["name"], "units": formatted_units})
 
     return {"properties": properties_payload, "date_range": date_range_iso}
+
+
+def resolve_quick_availability_range(
+    range_key: str,
+    today: date | None = None,
+) -> tuple[date, date]:
+    normalized = (range_key or "").strip().lower()
+    if normalized not in _QUICK_AVAILABILITY_RANGES:
+        raise ReservationServiceError(
+            code="invalid_range",
+            message="Invalid availability range.",
+            status=400,
+        )
+
+    base_date = today or date.today()
+    if normalized == "today":
+        return base_date, base_date
+    if normalized == "tomorrow":
+        tomorrow = base_date + timedelta(days=1)
+        return tomorrow, tomorrow
+    if normalized == "7d":
+        return base_date, base_date + timedelta(days=6)
+
+    # Weekend means the next Saturday-Sunday window. On Sunday, keep the
+    # remaining current weekend day instead of returning a range that starts
+    # in the past.
+    if base_date.weekday() == 6:
+        return base_date, base_date
+    saturday = base_date + timedelta(days=(5 - base_date.weekday()) % 7)
+    return saturday, saturday + timedelta(days=1)
+
+
+def get_quick_availability(
+    *,
+    organization_id: int,
+    range_key: str,
+    user: Any | None = None,
+) -> dict:
+    _ = user
+    normalized = (range_key or "").strip().lower() or "today"
+    start_date, end_date = resolve_quick_availability_range(normalized)
+    matrix = availability_matrix(
+        organization_id=organization_id,
+        start_date=start_date,
+        end_date=end_date,
+        include_cancelled=False,
+    )
+
+    available_rooms: list[dict[str, object]] = []
+    for prop in matrix["properties"]:
+        for unit in prop["units"]:
+            if any(
+                day["status"] in _QUICK_AVAILABILITY_BLOCKING_STATUSES
+                for day in unit["days"]
+            ):
+                continue
+            available_rooms.append(
+                {
+                    "id": unit["id"],
+                    "name": unit["name"],
+                    "property_id": prop["id"],
+                    "property_name": prop["name"],
+                }
+            )
+
+    return {
+        "range": normalized,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "available_rooms": available_rooms,
+    }
 
 
 def get_calendar_events(

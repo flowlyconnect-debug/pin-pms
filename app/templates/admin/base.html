@@ -24,6 +24,7 @@
     <script src="{{ url_for('static', filename='js/admin-bulk.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-notifications.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-search.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-quick-availability.js') }}" defer></script>
     {% block head_extra %}{% endblock %}
   </head>
   {% set ep = request.endpoint or '' %}
@@ -106,6 +107,20 @@
             </a>
           </div>
           <div class="admin-topbar-right">
+            <details class="admin-quick-availability" data-quick-availability data-endpoint="{{ url_for('admin.quick_availability') }}">
+              <summary class="admin-quick-availability-toggle">Vapaat huoneet</summary>
+              <div class="admin-quick-availability-panel">
+                <div class="admin-quick-availability-options" role="group" aria-label="Saatavuushaun aikaväli">
+                  <button type="button" data-quick-range="today">Tänään</button>
+                  <button type="button" data-quick-range="tomorrow">Huomenna</button>
+                  <button type="button" data-quick-range="weekend">Tämä viikonloppu</button>
+                  <button type="button" data-quick-range="7d">Seuraavat 7 päivää</button>
+                </div>
+                <p class="admin-quick-availability-status" data-quick-status>Valitse aikaväli.</p>
+                <div class="admin-quick-availability-results" data-quick-results></div>
+                <a class="admin-quick-availability-link" href="{{ url_for('admin.availability_page') }}">Avaa saatavuusnäkymä</a>
+              </div>
+            </details>
             <button type="button" class="admin-icon-btn" data-command-open aria-label="Avaa haku">
               <span class="admin-global-search-icon" aria-hidden="true">⌕</span>
             </button>
@@ -162,6 +177,20 @@
               <kbd class="admin-global-search-kbd" data-kbd-hint>Ctrl K</kbd>
             </button>
             <div class="admin-topbar-actions">
+              <details class="admin-quick-availability" data-quick-availability data-endpoint="{{ url_for('admin.quick_availability') }}">
+                <summary class="admin-quick-availability-toggle">Vapaat huoneet</summary>
+                <div class="admin-quick-availability-panel">
+                  <div class="admin-quick-availability-options" role="group" aria-label="Saatavuushaun aikaväli">
+                    <button type="button" data-quick-range="today">Tänään</button>
+                    <button type="button" data-quick-range="tomorrow">Huomenna</button>
+                    <button type="button" data-quick-range="weekend">Tämä viikonloppu</button>
+                    <button type="button" data-quick-range="7d">Seuraavat 7 päivää</button>
+                  </div>
+                  <p class="admin-quick-availability-status" data-quick-status>Valitse aikaväli.</p>
+                  <div class="admin-quick-availability-results" data-quick-results></div>
+                  <a class="admin-quick-availability-link" href="{{ url_for('admin.availability_page') }}">Avaa saatavuusnäkymä</a>
+                </div>
+              </details>
               {% set notification_panel_id = "admin-notifications-panel-desktop" %}
               {% include "admin/_notification_bell.html" %}
               <details class="admin-avatar-menu">

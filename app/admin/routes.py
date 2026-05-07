@@ -7,16 +7,14 @@ so the 2FA gate stays in a single place.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
-import csv
 import time
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
-from io import BytesIO
-from io import StringIO
+from io import BytesIO, StringIO
 
-from sqlalchemy import or_
 from flask import (
     Response,
     abort,
@@ -32,6 +30,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required, login_user
+from sqlalchemy import or_
 
 from app.admin import admin_bp
 from app.admin import services as admin_service
@@ -47,22 +46,24 @@ from app.admin.forms import (
     UserEditForm,
 )
 from app.api.models import ApiKey, ApiKeyUsage
+from app.api.schemas import json_error, json_ok
 from app.api.services import (
     ApiKeyAdminError,
     create_api_key_admin,
     delete_api_key_admin,
     toggle_api_key_active_admin,
 )
-from app.api.schemas import json_error, json_ok
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
 from app.billing import services as billing_service
 from app.billing.models import Invoice
 from app.billing.pdf import generate_invoice_pdf
+from app.comments.services import CommentService, CommentServiceError
+from app.core.decorators import require_tenant_access
+from app.email.models import EmailQueueItem, EmailTemplate, OutgoingEmailStatus, TemplateKey
+from app.email.services import EmailServiceError, send_template, update_email_template_admin
 from app.expenses import services as expense_service
-from app.email.models import EmailQueueItem, EmailTemplate, OutgoingEmailStatus
-from app.email.services import EmailServiceError, update_email_template_admin
 from app.extensions import db
 from app.gdpr.services import (
     GdprPermissionError,
@@ -79,8 +80,8 @@ from app.notifications import services as notification_service
 from app.organizations.models import Organization
 from app.owners import services as owners_service
 from app.owners.models import PropertyOwner
-from app.payments.models import Payment, PaymentRefund
 from app.payments import services as payment_service
+from app.payments.models import Payment, PaymentRefund
 from app.properties import images as property_image_service
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
@@ -88,13 +89,10 @@ from app.reports import services as report_service
 from app.reservations import services as reservation_service
 from app.settings import services as settings_service
 from app.settings.models import SettingType
+from app.tags.services import TagService, TagServiceError
 from app.users.models import User, UserRole
 from app.users.services import UserServiceError
-from app.email.services import send_template
-from app.email.models import TemplateKey
-from app.tags.services import TagService, TagServiceError
-from app.comments.services import CommentService, CommentServiceError
-from app.core.decorators import require_tenant_access
+
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
 _AVAILABILITY_CACHE_TTL_SECONDS = 30
@@ -604,6 +602,21 @@ def availability_page():
         prev_from=(start_d - timedelta(days=7)).isoformat(),
         next_from=(start_d + timedelta(days=7)).isoformat(),
     )
+
+
+@admin_bp.get("/availability/quick")
+@require_admin_pms_access
+def quick_availability():
+    range_key = (request.args.get("range") or "today").strip().lower()
+    try:
+        payload = reservation_service.get_quick_availability(
+            organization_id=_pms_org_id(),
+            range_key=range_key,
+            user=current_user,
+        )
+    except reservation_service.ReservationServiceError as exc:
+        return json_error(exc.code, exc.message, status=exc.status)
+    return json_ok(payload)
 
 
 @admin_bp.get("/calendar")
