@@ -258,12 +258,10 @@ def set_value(
     if row is None:
         is_create = True
         previous_value: Any = None
-        previous_type = None
         previous_is_secret = False
     else:
         is_create = False
         previous_value = row.value
-        previous_type = row.type
         previous_is_secret = bool(row.is_secret)
 
     if row is None:

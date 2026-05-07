@@ -61,7 +61,6 @@ from app.billing import services as billing_service
 from app.billing.models import Invoice
 from app.billing.pdf import generate_invoice_pdf
 from app.expenses import services as expense_service
-from app.expenses.models import Expense
 from app.email.models import EmailQueueItem, EmailTemplate, OutgoingEmailStatus
 from app.email.services import EmailServiceError, update_email_template_admin
 from app.extensions import db
@@ -95,7 +94,7 @@ from app.email.services import send_template
 from app.email.models import TemplateKey
 from app.tags.services import TagService, TagServiceError
 from app.comments.services import CommentService, CommentServiceError
-from app.core.decorators import require_api_tenant_entity, require_tenant_access
+from app.core.decorators import require_tenant_access
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
 _AVAILABILITY_CACHE_TTL_SECONDS = 30

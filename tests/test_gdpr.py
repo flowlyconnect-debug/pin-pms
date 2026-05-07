@@ -261,7 +261,6 @@ def test_delete_requires_superadmin_when_not_cli(app, organization, regular_user
 
 
 def test_cli_gdpr_commands_work(app, organization, regular_user):
-    from click.testing import CliRunner
 
     other = User(
         email="cli-peer@test.local",

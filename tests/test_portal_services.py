@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from app.extensions import db
 from app.portal import services as portal_service
 
 

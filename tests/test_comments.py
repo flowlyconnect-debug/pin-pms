@@ -129,7 +129,7 @@ def test_comment_tenant_isolation(regular_user):
     db.session.add(guest)
     db.session.flush()
     reservation = _seed_reservation(org_b.id, guest.id)
-    row = CommentService.create(org_b.id, "reservation", reservation.id, regular_user.id, "x")
+    CommentService.create(org_b.id, "reservation", reservation.id, regular_user.id, "x")
     db.session.commit()
     try:
         CommentService.list_for_target(org_a.id, "reservation", reservation.id, include_internal=True)

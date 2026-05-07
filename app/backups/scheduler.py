@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import atexit
 import logging
-import threading
 from typing import Any
 
 from apscheduler.schedulers.background import BackgroundScheduler
