@@ -161,6 +161,18 @@ Paytrail testimoodi:
 
 Varoitus: Paytrailin testisecrettia ei saa kayttaa production-konfiguraatiossa.
 
+### Automaattinen savutesti
+
+Automaattinen Stripe/Paytrail-savutesti mockaa ulkoiset palvelut eikä tee
+oikeita verkkokutsuja (Stripe SDK ja Paytrailin `requests.post` on patchattu
+testikohtaisesti). Testit verifioivat checkout-redirectin sekä webhook-/
+callback-flown laskun maksetuksi merkitsemiseen ja audit-lokirivin
+syntymiseen.
+
+```bash
+pytest tests/test_payments_smoke.py -v
+```
+
 ## Docker startup
 
 First-time bring-up (after `cp .env.example .env`):
