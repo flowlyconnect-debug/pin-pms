@@ -1,8 +1,49 @@
 (function () {
   "use strict";
+  var palette = document.getElementById("admin-command-palette");
+  var openButtons = document.querySelectorAll("[data-command-open]");
+  var closeButtons = document.querySelectorAll("[data-command-close]");
+  var kbdHints = document.querySelectorAll("[data-kbd-hint]");
   var input = document.getElementById("admin-global-search");
   var list = document.getElementById("admin-global-search-results");
-  if (!input || !list) return;
+  if (!palette || !input || !list) return;
+
+  var isMac = /Mac|iPhone|iPad|iPod/i.test(window.navigator.platform || "");
+  kbdHints.forEach(function (node) {
+    node.textContent = isMac ? "⌘K" : "Ctrl K";
+  });
+
+  function openPalette() {
+    palette.hidden = false;
+    window.setTimeout(function () {
+      input.focus();
+    }, 0);
+  }
+
+  function closePalette() {
+    palette.hidden = true;
+    items = [];
+    render();
+  }
+
+  openButtons.forEach(function (button) {
+    button.addEventListener("click", openPalette);
+  });
+  closeButtons.forEach(function (button) {
+    button.addEventListener("click", closePalette);
+  });
+
+  document.addEventListener("keydown", function (ev) {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") {
+      ev.preventDefault();
+      openPalette();
+      return;
+    }
+    if (ev.key === "Escape" && !palette.hidden) {
+      ev.preventDefault();
+      closePalette();
+    }
+  });
   var timer = null;
   var items = [];
 
@@ -10,7 +51,6 @@
     list.innerHTML = "";
     if (!items.length) {
       list.hidden = true;
-      input.setAttribute("aria-expanded", "false");
       return;
     }
     items.forEach(function (item, index) {
@@ -22,7 +62,6 @@
       list.appendChild(el);
     });
     list.hidden = false;
-    input.setAttribute("aria-expanded", "true");
   }
 
   async function searchNow() {
@@ -45,14 +84,7 @@
   input.addEventListener("keydown", function (ev) {
     if (ev.key === "Enter" && items.length) window.location.href = items[0].url;
     if (ev.key === "Escape") {
-      items = [];
-      render();
-    }
-  });
-  document.addEventListener("keydown", function (ev) {
-    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") {
-      ev.preventDefault();
-      input.focus();
+      closePalette();
     }
   });
 })();

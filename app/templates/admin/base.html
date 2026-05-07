@@ -20,6 +20,7 @@
     <script src="{{ url_for('static', filename='js/admin-filters.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-bulk.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/admin-notifications.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin-search.js') }}" defer></script>
     {% block head_extra %}{% endblock %}
   </head>
   {% set ep = request.endpoint or '' %}
@@ -27,6 +28,7 @@
   {% set user_org = current_user.organization.name if current_user.is_authenticated and current_user.organization else "Organisaatio" %}
   {% set user_initials = (user_email[:2] if current_user.is_authenticated else "PM")|upper %}
   {% set current_page_title %}{% block page_title %}Hallinta{% endblock %}{% endset %}
+  {% set breadcrumb_text = "Hallinta · " ~ (current_page_title|trim) %}
   <body class="admin">
     <a class="skip-link" href="#main-content">Hyppää sisältöön</a>
     <div class="admin-sidebar-backdrop" aria-hidden="true"></div>
@@ -88,8 +90,15 @@
             <button type="button" class="admin-menu-toggle" aria-controls="admin-sidebar" aria-expanded="false" aria-label="Avaa valikko">
               <span class="admin-menu-bars" aria-hidden="true"></span>
             </button>
+            <span class="admin-topbar-breadcrumb">{{ breadcrumb_text }}</span>
           </div>
-          <span class="admin-topbar-title">{{ current_page_title|trim }}</span>
+          <button type="button" class="admin-global-search-trigger" data-command-open aria-label="Avaa haku">
+            <span class="admin-global-search-copy">
+              <span class="admin-global-search-icon" aria-hidden="true">⌕</span>
+              <span class="admin-global-search-placeholder">Hae varauksia, asiakkaita, laskuja…</span>
+            </span>
+            <kbd class="admin-global-search-kbd" data-kbd-hint>Ctrl K</kbd>
+          </button>
           <div class="admin-topbar-right">
             {% set notification_panel_id = "admin-notifications-panel-mobile" %}
             {% include "admin/_notification_bell.html" %}
@@ -119,7 +128,14 @@
         </header>
         <main id="main-content" class="admin-main" role="main" tabindex="-1">
           <header class="admin-desktop-topbar">
-            <h1 class="admin-desktop-title">{{ current_page_title|trim }}</h1>
+            <p class="admin-topbar-breadcrumb">{{ breadcrumb_text }}</p>
+            <button type="button" class="admin-global-search-trigger" data-command-open aria-label="Avaa haku">
+              <span class="admin-global-search-copy">
+                <span class="admin-global-search-icon" aria-hidden="true">⌕</span>
+                <span class="admin-global-search-placeholder">Hae varauksia, asiakkaita, laskuja…</span>
+              </span>
+              <kbd class="admin-global-search-kbd" data-kbd-hint>Ctrl K</kbd>
+            </button>
             <div class="admin-topbar-actions">
               {% set notification_panel_id = "admin-notifications-panel-desktop" %}
               {% include "admin/_notification_bell.html" %}
@@ -175,6 +191,37 @@
             {% block content %}{% endblock %}
           </div>
         </main>
+      </div>
+    </div>
+
+    <div id="admin-command-palette" class="admin-command-palette" hidden>
+      <div class="admin-command-palette-backdrop" data-command-close></div>
+      <div class="admin-command-dialog" role="dialog" aria-modal="true" aria-label="Komenttopaletti">
+        <div class="admin-command-input-row">
+          <span class="admin-global-search-icon" aria-hidden="true">⌕</span>
+          <input id="admin-global-search" type="text" placeholder="Hae varauksia, asiakkaita, laskuja…" autocomplete="off">
+        </div>
+        <div class="admin-command-section">
+          <p class="admin-command-heading">Mene</p>
+          <div class="admin-command-list">
+            <a href="{{ url_for('admin.admin_home') }}">Etusivu</a>
+            <a href="{{ url_for('admin.properties_list') }}">Kohteet</a>
+            <a href="{{ url_for('admin.invoices_list') }}">Laskut</a>
+            <a href="{{ url_for('admin.reservations_list') }}">Varaukset</a>
+          </div>
+        </div>
+        <div class="admin-command-section">
+          <p class="admin-command-heading">Luo</p>
+          <div class="admin-command-list">
+            <a href="{{ url_for('admin.invoices_new') }}">Uusi lasku</a>
+            <a href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a>
+            <a href="{{ url_for('admin.guests_new') }}">Uusi asiakas</a>
+          </div>
+        </div>
+        <div class="admin-command-section">
+          <p class="admin-command-heading">Hakuosumat</p>
+          <div id="admin-global-search-results" class="admin-command-list" hidden></div>
+        </div>
       </div>
     </div>
   </body>

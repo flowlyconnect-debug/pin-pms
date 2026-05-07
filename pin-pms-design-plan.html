@@ -1,0 +1,1731 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pin PMS — Design Refresh Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* New refined palette */
+    --bg: #FAFAF9;
+    --bg-alt: #F5F5F4;
+    --surface: #FFFFFF;
+    --border: #E7E5E4;
+    --border-strong: #D6D3D1;
+    --text: #0C0A09;
+    --text-muted: #57534E;
+    --text-soft: #78716C;
+    --primary: #B91C1C;
+    --primary-hover: #991B1B;
+    --primary-soft: #FEF2F2;
+    --primary-soft-border: #FECACA;
+    --success: #15803D;
+    --success-soft: #DCFCE7;
+    --warning: #B45309;
+    --warning-soft: #FEF3C7;
+    --info: #1D4ED8;
+    --info-soft: #DBEAFE;
+    --sidebar: #0C0A09;
+    --sidebar-text: #E7E5E4;
+    --sidebar-muted: #78716C;
+    --sidebar-active-bg: #1C1917;
+    --sidebar-active-text: #FFFFFF;
+
+    /* Old (for comparison) */
+    --old-bg: #FBF7F0;
+    --old-primary: #A52A2A;
+    --old-sidebar: #1A1A1A;
+    --old-purple: #8B5CF6;
+
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow-xs: 0 1px 2px rgba(12, 10, 9, 0.04);
+    --shadow-sm: 0 1px 3px rgba(12, 10, 9, 0.06), 0 1px 2px rgba(12, 10, 9, 0.04);
+    --shadow-md: 0 4px 6px rgba(12, 10, 9, 0.05), 0 2px 4px rgba(12, 10, 9, 0.04);
+    --shadow-lg: 0 10px 25px rgba(12, 10, 9, 0.08), 0 4px 10px rgba(12, 10, 9, 0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 64px 32px; }
+
+  /* Hero */
+  .hero {
+    padding: 80px 32px 48px;
+    background: linear-gradient(180deg, #FFFFFF 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+  }
+  .hero-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    border: 1px solid var(--primary-soft-border);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #0C0A09 0%, #57534E 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p { font-size: 19px; color: var(--text-muted); max-width: 720px; margin: 0 auto; }
+
+  /* Section heading */
+  section { margin-bottom: 96px; }
+  .section-num {
+    display: inline-block;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--text);
+    color: white;
+    font-weight: 700;
+    text-align: center;
+    line-height: 32px;
+    font-size: 14px;
+    margin-right: 12px;
+  }
+  h2 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+  }
+  .section-sub { color: var(--text-muted); font-size: 17px; margin-bottom: 36px; max-width: 800px; }
+  h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; letter-spacing: -0.01em; }
+
+  /* Compare grid */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+  .compare-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .compare-card.bad { border-color: #FCA5A5; }
+  .compare-card.good { border-color: #86EFAC; }
+  .compare-label {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .compare-card.bad .compare-label { background: #FEF2F2; color: #991B1B; }
+  .compare-card.good .compare-label { background: #F0FDF4; color: #166534; }
+
+  /* Color swatches */
+  .colors {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    padding: 20px;
+  }
+  .swatch {
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .swatch-color { height: 80px; }
+  .swatch-info { padding: 10px 12px; background: var(--surface); }
+  .swatch-name { font-weight: 600; font-size: 13px; }
+  .swatch-hex { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
+
+  /* Typography demo */
+  .type-demo { padding: 28px; background: var(--surface); }
+  .type-row { padding: 16px 0; border-bottom: 1px dashed var(--border); }
+  .type-row:last-child { border-bottom: none; }
+  .type-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); margin-bottom: 6px; }
+  .h1-demo { font-size: 36px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.1; }
+  .h2-demo { font-size: 24px; font-weight: 700; letter-spacing: -0.015em; }
+  .h3-demo { font-size: 18px; font-weight: 600; }
+  .body-demo { font-size: 15px; }
+  .small-demo { font-size: 13px; color: var(--text-muted); }
+  .label-demo { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); }
+
+  .type-demo.old { font-family: -apple-system, sans-serif; }
+  .type-demo.old .h1-demo { font-weight: 700; letter-spacing: 0; }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; padding: 28px; align-items: center; background: var(--surface); }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+  }
+  .btn-primary { background: var(--primary); color: white; box-shadow: var(--shadow-xs); }
+  .btn-primary:hover { background: var(--primary-hover); box-shadow: var(--shadow-sm); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); box-shadow: var(--shadow-xs); }
+  .btn-secondary:hover { background: var(--bg-alt); border-color: var(--text-soft); }
+  .btn-ghost { background: transparent; color: var(--text-muted); }
+  .btn-ghost:hover { background: var(--bg-alt); color: var(--text); }
+  .btn-danger { background: #DC2626; color: white; }
+
+  .btn-old {
+    padding: 8px 16px;
+    background: var(--old-primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .btn-old-2 {
+    padding: 8px 16px;
+    background: white;
+    color: var(--text);
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  /* Cards */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 24px; }
+  .stat-card {
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+  }
+  .stat-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+  .stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-soft);
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .stat-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; margin-bottom: 8px; }
+  .stat-trend { font-size: 12px; color: var(--success); font-weight: 500; display: flex; align-items: center; gap: 4px; }
+  .stat-trend.down { color: var(--primary); }
+  .stat-meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+  /* Old stat cards */
+  .stat-grid-old { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px; background: var(--old-bg); }
+  .stat-card-old {
+    padding: 16px;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .stat-label-old { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 8px; font-family: -apple-system, sans-serif; }
+  .stat-value-old { font-size: 30px; font-weight: 700; font-family: -apple-system, sans-serif; }
+  .stat-meta-old { font-size: 11px; color: #999; margin-top: 6px; font-family: -apple-system, sans-serif; }
+
+  /* Tables */
+  .table-wrap { padding: 0; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-soft);
+    font-weight: 600;
+    background: var(--bg-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  tbody tr:hover { background: var(--bg-alt); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .badge-success { background: var(--success-soft); color: var(--success); }
+  .badge-warning { background: var(--warning-soft); color: var(--warning); }
+  .badge-info { background: var(--info-soft); color: var(--info); }
+  .badge-neutral { background: var(--bg-alt); color: var(--text-muted); }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* Old table */
+  .table-old { background: var(--old-bg); padding: 16px; }
+  .table-old table { background: white; border-radius: 6px; overflow: hidden; font-family: -apple-system, sans-serif; }
+  .table-old thead th { background: white; border-bottom: 1px solid #e5e5e5; text-transform: uppercase; font-size: 11px; color: #999; padding: 12px; letter-spacing: 0; font-weight: 600; }
+  .table-old tbody td { padding: 14px 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+  .badge-old {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #FEF3C7;
+    color: #92400E;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  /* Spacing visualization */
+  .spacing-demo { display: flex; gap: 16px; padding: 24px; flex-wrap: wrap; background: var(--surface); }
+  .spacing-box {
+    background: var(--primary-soft);
+    border: 1px dashed var(--primary);
+    color: var(--primary);
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  /* Dashboard mockup */
+  .mockup {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    background: var(--surface);
+    margin: 24px 0;
+  }
+  .mockup-bar {
+    background: var(--bg-alt);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .mockup-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--border-strong); }
+  .mockup-dot.r { background: #EF4444; }
+  .mockup-dot.y { background: #F59E0B; }
+  .mockup-dot.g { background: #10B981; }
+  .mockup-url { margin-left: 16px; padding: 4px 12px; background: white; border-radius: 4px; font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 600px; }
+
+  /* Sidebar */
+  .sidebar { background: var(--sidebar); color: var(--sidebar-text); padding: 20px 14px; display: flex; flex-direction: column; }
+  .sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px; margin-bottom: 24px; }
+  .brand-logo {
+    width: 32px; height: 32px;
+    background: var(--primary);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 14px;
+  }
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 11px; color: var(--sidebar-muted); }
+  .nav-section { margin-bottom: 20px; }
+  .nav-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--sidebar-muted);
+    padding: 0 10px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--sidebar-text);
+    cursor: pointer;
+    margin-bottom: 2px;
+    transition: all 0.15s ease;
+  }
+  .nav-item:hover { background: var(--sidebar-active-bg); }
+  .nav-item.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-text); font-weight: 500; position: relative; }
+  .nav-item.active::before {
+    content: ''; position: absolute; left: -14px; top: 6px; bottom: 6px; width: 3px;
+    background: var(--primary); border-radius: 0 3px 3px 0;
+  }
+  .nav-icon { width: 16px; height: 16px; opacity: 0.9; }
+  .nav-badge { margin-left: auto; background: var(--primary); color: white; font-size: 10px; padding: 1px 6px; border-radius: 999px; font-weight: 600; }
+
+  /* Main content */
+  .main { padding: 24px 28px; background: var(--bg); overflow: hidden; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); }
+  .breadcrumb strong { color: var(--text); font-weight: 500; }
+  .topbar-actions { display: flex; gap: 8px; align-items: center; }
+  .search-input {
+    padding: 7px 12px 7px 32px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2378716C' stroke-width='2'><circle cx='11' cy='11' r='7'/><path d='m21 21-4.3-4.3'/></svg>") no-repeat 10px center;
+    font-size: 13px;
+    width: 220px;
+    font-family: inherit;
+  }
+  .icon-btn {
+    width: 32px; height: 32px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .icon-btn:hover { background: var(--bg-alt); }
+  .avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #B91C1C 0%, #7C2D12 100%);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.015em; margin-bottom: 4px; }
+  .page-subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+
+  .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-title { font-size: 14px; font-weight: 600; }
+  .panel-link { font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500; }
+
+  .activity-row { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: center; }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-row:first-child { padding-top: 0; }
+  .activity-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+  .activity-dot.warn { background: var(--warning); }
+  .activity-dot.info { background: var(--info); }
+  .activity-text { font-size: 13px; flex: 1; }
+  .activity-time { font-size: 11px; color: var(--text-soft); }
+
+  /* Form section */
+  .form-demo { padding: 28px; background: var(--surface); display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 13px; font-weight: 500; margin-bottom: 6px; display: block; }
+  .form-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    background: var(--surface);
+    transition: all 0.15s ease;
+  }
+  .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+  .checkbox-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .checkbox {
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--surface);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .checkbox.checked { background: var(--primary); border-color: var(--primary); color: white; }
+  .checkbox.checked::after { content: '✓'; font-size: 12px; font-weight: 700; }
+
+  /* Cursor prompts */
+  .prompt-block {
+    background: #0C0A09;
+    color: #E7E5E4;
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 16px 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #292524;
+  }
+  .prompt-tag {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #A8A29E;
+    font-weight: 600;
+  }
+  .prompt-copy {
+    background: #1C1917;
+    color: #E7E5E4;
+    border: 1px solid #292524;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .prompt-copy:hover { background: #292524; }
+  .prompt-block pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; line-height: 1.6; }
+
+  /* Sidebar comparison */
+  .sb-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .sb-old, .sb-new { border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); }
+  .sb-old { background: var(--old-sidebar); padding: 16px; min-height: 400px; }
+  .sb-old .sb-brand { color: white; font-weight: 700; font-size: 16px; margin-bottom: 16px; padding: 8px; }
+  .sb-old .sb-label { color: #888; font-size: 11px; text-transform: uppercase; padding: 8px; margin-top: 8px; }
+  .sb-old .sb-item { color: #ccc; padding: 10px 8px; font-size: 13px; font-family: -apple-system, sans-serif; }
+  .sb-old .sb-item.active { background: var(--old-primary); color: white; border-radius: 4px; }
+  .sb-new { background: var(--sidebar); padding: 16px; min-height: 400px; }
+
+  /* Improvement list */
+  .improvements {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .improvement-card {
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .improvement-card h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .improvement-card .priority {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    margin-left: auto;
+  }
+  .priority.high { background: var(--primary-soft); color: var(--primary); }
+  .priority.med { background: var(--warning-soft); color: var(--warning); }
+  .priority.low { background: var(--info-soft); color: var(--info); }
+  .improvement-card p { font-size: 13px; color: var(--text-muted); }
+
+  /* TOC */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin: 32px 0 64px;
+  }
+  .toc h3 { margin-bottom: 16px; }
+  .toc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px; }
+  .toc a { color: var(--text); text-decoration: none; font-size: 14px; display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+  .toc a:hover { color: var(--primary); }
+  .toc-num {
+    width: 22px; height: 22px;
+    background: var(--bg-alt);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+  }
+
+  /* Note box */
+  .note {
+    background: var(--info-soft);
+    border-left: 3px solid var(--info);
+    padding: 16px 20px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 14px;
+    margin: 20px 0;
+  }
+  .note strong { color: var(--info); }
+
+  .ascii-art {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    background: #0C0A09;
+    color: #86EFAC;
+    padding: 24px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  @media (max-width: 900px) {
+    .compare, .stat-grid, .form-demo, .section-grid, .sb-compare, .improvements, .toc-grid { grid-template-columns: 1fr; }
+    .stat-grid-old { grid-template-columns: repeat(2, 1fr); }
+    .app { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <span class="hero-tag">Design Refresh Plan • v1.0</span>
+  <h1>Pin PMS — Amatööristä Pro-tasolle</h1>
+  <p>Visuaalinen suunnitelma, miten Pin PMS:stä saadaan modernin SaaS-tason järjestelmä — Linearin, Notionin ja Stripen designkielen hengessä.<br>Sisältää väripaletit, typografian, komponentit, mockupit ja valmiit Cursor-promptit.</p>
+</div>
+
+<div class="container">
+
+<div class="toc">
+  <h3>Sisältö</h3>
+  <div class="toc-grid">
+    <a href="#filosofia"><span class="toc-num">0</span>Designfilosofia</a>
+    <a href="#typografia"><span class="toc-num">1</span>Typografia</a>
+    <a href="#varit"><span class="toc-num">2</span>Värit</a>
+    <a href="#napit"><span class="toc-num">3</span>Napit</a>
+    <a href="#taulukot"><span class="toc-num">4</span>Taulukot</a>
+    <a href="#spacing"><span class="toc-num">5</span>Spacing</a>
+    <a href="#kortit"><span class="toc-num">6</span>Statkortit & paneelit</a>
+    <a href="#sidebar"><span class="toc-num">7</span>Sidebar & navigaatio</a>
+    <a href="#lomakkeet"><span class="toc-num">8</span>Lomakkeet</a>
+    <a href="#dashboard"><span class="toc-num">9</span>Dashboard mockup</a>
+    <a href="#wow"><span class="toc-num">10</span>WOW-parannukset</a>
+    <a href="#muut"><span class="toc-num">11</span>Lisäehdotukset</a>
+    <a href="#cursor"><span class="toc-num">12</span>Cursor-promptit</a>
+    <a href="#roadmap"><span class="toc-num">13</span>Toteutusjärjestys</a>
+  </div>
+</div>
+
+<!-- 0. FILOSOFIA -->
+<section id="filosofia">
+  <h2><span class="section-num">0</span>Designfilosofia</h2>
+  <p class="section-sub">Hyvä SaaS-design ei ole "kaunis" — se on <strong>hiljainen</strong>. Se ei kilpaile käyttäjän kanssa. Se ohjaa silmän siihen mikä on tärkeää, ja kaikki muu jää taustalle. Tavoite: Pin PMS näyttää kalliilta, hallitulta ja modernilta — ei "tehty viikossa".</p>
+
+  <div class="improvements">
+    <div class="improvement-card">
+      <h4>1. Vähemmän on enemmän</h4>
+      <p>Poista turhat varjostukset, värit ja viivat. Jokainen pikseli pitää ansaita paikkansa. Jos jokin elementti ei lisää tietoa, se häiritsee.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>2. Hierarkia ohjaa silmää</h4>
+      <p>Tärkeä luku iso ja tumma, metadata pieni ja vaalea. Käyttäjä näkee 0,5 sekunnissa mitä tehdä seuraavaksi.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>3. Yksi väri = yksi merkitys</h4>
+      <p>Punainen = brändi & primaaritoiminto. Vihreä = onnistuminen. Keltainen = varoitus. Ei sekoiteta.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>4. 8px-grid pyhä</h4>
+      <p>Kaikki välistys, paddingit, marginit pyöristetään 4 tai 8 pikselin moninkertaisiin. Tämä on suurin yksittäinen ero amatööri- ja prodesignin välillä.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 1. TYPOGRAFIA -->
+<section id="typografia">
+  <h2><span class="section-num">1</span>Typografia</h2>
+  <p class="section-sub">Nykyinen "geneerinen" tunnelma johtuu järjestelmän default-fontista. Ratkaisu: <strong>Inter</strong> (ilmainen, Google Fonts) — sama fontti jota Stripe, Figma, Linear ja Notion käyttävät. Lisäksi tiukat <em>letter-spacing</em>-arvot otsikoissa antavat sen "kalliin" tunnun.</p>
+
+  <div class="compare">
+    <div class="compare-card bad">
+      <div class="compare-label">⚠ Nyt (geneerinen)</div>
+      <div class="type-demo old">
+        <div class="type-row">
+          <div class="type-label">H1 — system-ui, font-weight 700</div>
+          <div class="h1-demo">Hallintapaneeli</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">H2 — system-ui</div>
+          <div class="h2-demo">Yksiköiden tilanne</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">Body</div>
+          <div class="body-demo">Pindora HQ · Pindora Toimisto — Ville Testaaja</div>
+        </div>
+      </div>
+    </div>
+    <div class="compare-card good">
+      <div class="compare-label">✓ Uusi (Inter, tiukka tracking)</div>
+      <div class="type-demo">
+        <div class="type-row">
+          <div class="type-label">H1 — Inter 800, tracking -0.025em</div>
+          <div class="h1-demo">Hallintapaneeli</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">H2 — Inter 700, tracking -0.015em</div>
+          <div class="h2-demo">Yksiköiden tilanne</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">Body — Inter 400</div>
+          <div class="body-demo">Pindora HQ · Pindora Toimisto — Ville Testaaja</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">Label — Inter 600 + 0.08em tracking</div>
+          <div class="label-demo">KÄYTTÖASTE</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Skaalat (käytä näitä, ei muita)</h3>
+  <div class="panel">
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; font-size: 13px;">
+      <div><code>--text-xs: 11px</code> · labels, metadata</div>
+      <div><code>--text-sm: 13px</code> · table, helpers</div>
+      <div><code>--text-base: 15px</code> · body</div>
+      <div><code>--text-lg: 18px</code> · panel-otsikot</div>
+      <div><code>--text-xl: 22px</code> · sivuotsikot</div>
+      <div><code>--text-2xl: 28px</code> · stat-luvut</div>
+      <div><code>--text-3xl: 32px</code> · H2</div>
+      <div><code>--text-4xl: 40px</code> · marketing</div>
+      <div><code>line-height: 1.5</code> · default</div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. VÄRIT -->
+<section id="varit">
+  <h2><span class="section-num">2</span>Värit</h2>
+  <p class="section-sub">Nykyinen paletti on "muddy" koska kerma-pohja (#FBF7F0) tappaa kontrastin ja punainen on liian ruskea. Uusi paletti pitää brändi-punaisen mutta säätää sävyä raikkaammaksi ja vaihtaa pohjan neutraaliksi (#FAFAF9 — Stone-50). Tärkeintä: <strong>kontrastisuhteet</strong>.</p>
+
+  <div class="compare">
+    <div class="compare-card bad">
+      <div class="compare-label">⚠ Nyt (muddy)</div>
+      <div class="colors">
+        <div class="swatch"><div class="swatch-color" style="background:#FBF7F0"></div><div class="swatch-info"><div class="swatch-name">BG</div><div class="swatch-hex">#FBF7F0</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#A52A2A"></div><div class="swatch-info"><div class="swatch-name">Primary</div><div class="swatch-hex">#A52A2A</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#1A1A1A"></div><div class="swatch-info"><div class="swatch-name">Sidebar</div><div class="swatch-hex">#1A1A1A</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#8B5CF6"></div><div class="swatch-info"><div class="swatch-name">Checkbox??</div><div class="swatch-hex">#8B5CF6</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#FEF3C7"></div><div class="swatch-info"><div class="swatch-name">Open badge</div><div class="swatch-hex">#FEF3C7</div></div></div>
+      </div>
+    </div>
+    <div class="compare-card good">
+      <div class="compare-label">✓ Uusi (refined)</div>
+      <div class="colors">
+        <div class="swatch"><div class="swatch-color" style="background:#FAFAF9"></div><div class="swatch-info"><div class="swatch-name">BG</div><div class="swatch-hex">#FAFAF9</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#FFFFFF;border-bottom:1px solid #E7E5E4"></div><div class="swatch-info"><div class="swatch-name">Surface</div><div class="swatch-hex">#FFFFFF</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#B91C1C"></div><div class="swatch-info"><div class="swatch-name">Primary</div><div class="swatch-hex">#B91C1C</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#0C0A09"></div><div class="swatch-info"><div class="swatch-name">Sidebar</div><div class="swatch-hex">#0C0A09</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#15803D"></div><div class="swatch-info"><div class="swatch-name">Success</div><div class="swatch-hex">#15803D</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#B45309"></div><div class="swatch-info"><div class="swatch-name">Warning</div><div class="swatch-hex">#B45309</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#1D4ED8"></div><div class="swatch-info"><div class="swatch-name">Info</div><div class="swatch-hex">#1D4ED8</div></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#E7E5E4"></div><div class="swatch-info"><div class="swatch-name">Border</div><div class="swatch-hex">#E7E5E4</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Tärkein muutos:</strong> Lila (#8B5CF6) checkboxit pois — ne tappavat brändin yhtenäisyyden. Käytä punaista primary-väriä (#B91C1C) kaikissa interaktiivisissa elementeissä (checkbox, radio, focus ring, linkki, primary button).
+  </div>
+</section>
+
+<!-- 3. NAPIT -->
+<section id="napit">
+  <h2><span class="section-num">3</span>Napit</h2>
+  <p class="section-sub">Nykyiset napit ovat tasaiset ja "html-default". Uusi nappikieli: <strong>kevyt varjostus</strong>, <strong>hover-tilat</strong>, ja kolme selkeää tyyliä — primary, secondary, ghost. Lisäksi destructive-toimintoihin oma tyyli.</p>
+
+  <div class="compare">
+    <div class="compare-card bad">
+      <div class="compare-label">⚠ Nyt</div>
+      <div class="btn-row">
+        <button class="btn-old">Uusi lasku</button>
+        <button class="btn-old-2">Merkitse myöhässä</button>
+        <button class="btn-old-2">Suodata</button>
+      </div>
+    </div>
+    <div class="compare-card good">
+      <div class="compare-label">✓ Uusi</div>
+      <div class="btn-row">
+        <button class="btn btn-primary">+ Uusi lasku</button>
+        <button class="btn btn-secondary">Merkitse myöhässä</button>
+        <button class="btn btn-ghost">Suodata</button>
+        <button class="btn btn-danger">Poista</button>
+      </div>
+    </div>
+  </div>
+
+  <h3>Säännöt</h3>
+  <div class="panel">
+    <div style="display: grid; gap: 12px; font-size: 14px;">
+      <div>📌 <strong>Yksi primary per näkymä.</strong> Jos kaikki napit ovat punaisia, mikään ei nouse esiin.</div>
+      <div>📌 <strong>Padding 9px 16px</strong> — ei suuremmaksi, ei pienemmäksi. <code>border-radius: 6px</code>.</div>
+      <div>📌 <strong>Hover tummempi</strong> ei "tärisevä". <code>transition: all 0.15s ease</code>.</div>
+      <div>📌 <strong>Focus = 3px ring</strong> primary-soft värillä saavutettavuuden takia.</div>
+      <div>📌 <strong>Ikoni nappiin</strong> kun toiminto on selkeä (Lucide-icons, 16px, gap 8px).</div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. TAULUKOT -->
+<section id="taulukot">
+  <h2><span class="section-num">4</span>Taulukot</h2>
+  <p class="section-sub">Suurin yksittäinen "WOW"-mahdollisuus. Nyt taulukko näyttää HTML-prototyypiltä. Uusi: <strong>uppercase mini-otsikot</strong>, <strong>hover-rivit</strong>, <strong>oikean reunan toiminnot ikoneina</strong>, ja <strong>statusbadget</strong> dotteilla.</p>
+
+  <div class="compare-card bad" style="margin-bottom: 20px;">
+    <div class="compare-label">⚠ Nyt</div>
+    <div class="table-old">
+      <table>
+        <thead>
+          <tr><th>NUMERO</th><th>VEROTON</th><th>ALV %</th><th>YHTEENSÄ</th><th>ERÄ</th><th>TILA</th><th>TOIMINNOT</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>BIL-1-00000001</td><td>500.00 EUR</td><td>24.00</td><td>620.00 EUR</td><td>2026-05-15</td><td><span class="badge-old">open</span></td><td><a style="color:#A52A2A">Näytä</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="compare-card good">
+    <div class="compare-label">✓ Uusi</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Numero</th><th>Asiakas</th><th>Summa</th><th>Eräpäivä</th><th>Tila</th><th style="text-align:right">Toiminnot</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code style="font-size:13px">BIL-1-00000001</code></td>
+            <td>Ville Testaaja</td>
+            <td><strong>620,00 €</strong> <span style="color:var(--text-soft);font-size:12px">sis. ALV</span></td>
+            <td>15.5.2026</td>
+            <td><span class="badge badge-warning"><span class="badge-dot"></span>Avoin</span></td>
+            <td style="text-align:right; color:var(--text-muted)">⋯</td>
+          </tr>
+          <tr>
+            <td><code style="font-size:13px">BIL-1-00000002</code></td>
+            <td>Maija Mallikas Oy</td>
+            <td><strong>1 240,00 €</strong> <span style="color:var(--text-soft);font-size:12px">sis. ALV</span></td>
+            <td>20.5.2026</td>
+            <td><span class="badge badge-success"><span class="badge-dot"></span>Maksettu</span></td>
+            <td style="text-align:right; color:var(--text-muted)">⋯</td>
+          </tr>
+          <tr>
+            <td><code style="font-size:13px">BIL-1-00000003</code></td>
+            <td>Kalle Vuokralainen</td>
+            <td><strong>450,00 €</strong> <span style="color:var(--text-soft);font-size:12px">sis. ALV</span></td>
+            <td>2.5.2026</td>
+            <td><span class="badge" style="background:#FEE2E2;color:#991B1B"><span class="badge-dot"></span>Myöhässä</span></td>
+            <td style="text-align:right; color:var(--text-muted)">⋯</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>Erot pähkinänkuoressa</h3>
+  <div class="panel">
+    <div style="display: grid; gap: 8px; font-size: 14px;">
+      <div>✓ Otsikot pieniä mutta riittävän kontrastilla — ei "ISOJA HUUTOMERKKEJÄ" joka rivi</div>
+      <div>✓ Eurot oikein muotoiltu (1 240,00 €), ei "1240.00 EUR"</div>
+      <div>✓ Päivämäärä paikallisessa muodossa (15.5.2026)</div>
+      <div>✓ Tila-badge värikoodattu merkityksen mukaan + dot vasemmalla</div>
+      <div>✓ "Näytä"-linkki pois — käytä <strong>row-click</strong> tai kebab-menu (⋯)</div>
+      <div>✓ Hover-tila riveillä → käyttäjä näkee mihin klikata</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. SPACING -->
+<section id="spacing">
+  <h2><span class="section-num">5</span>Spacing — tärkein ero amatöörin ja pron välillä</h2>
+  <p class="section-sub">Tämä on se kohta josta sanoit "tärkein ero amatööri vs pro" — ja olet oikeassa. <strong>8 pikselin grid</strong> tarkoittaa että jokainen padding, margin ja gap on 4, 8, 12, 16, 20, 24, 32, 48 tai 64 pikseliä. Ei ikinä 7px tai 13px.</p>
+
+  <div class="panel">
+    <h3 style="margin-bottom:16px">Spacing tokens</h3>
+    <div class="spacing-demo">
+      <div class="spacing-box">4</div>
+      <div class="spacing-box" style="padding:8px">8</div>
+      <div class="spacing-box" style="padding:12px">12</div>
+      <div class="spacing-box" style="padding:16px">16</div>
+      <div class="spacing-box" style="padding:20px">20</div>
+      <div class="spacing-box" style="padding:24px">24</div>
+      <div class="spacing-box" style="padding:32px">32</div>
+      <div class="spacing-box" style="padding:48px">48</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 32px">Käyttösäännöt</h3>
+  <div class="improvements">
+    <div class="improvement-card">
+      <h4>4px</h4>
+      <p>Vain ikonin & tekstin gap, badge dotin & tekstin gap.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>8px</h4>
+      <p>Pieni vertikaalinen rytmi (label & input), badge padding.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>12px</h4>
+      <p>Korttien sisäinen elementti-väli, taulukko-cell.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>16px</h4>
+      <p>Default kortti-padding mobiilissa, form-group margin.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>20–24px</h4>
+      <p>Kortti-padding desktopissa, panel-padding.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>32–48px</h4>
+      <p>Sivun ja section'ien välit, sivun ulkomarginaali.</p>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:24px">
+    <strong>Sääntö:</strong> jos epäröit, valitse <em>isompi</em> spacing. Pro-design hengittää, amatööri-design tukehtuu.
+  </div>
+</section>
+
+<!-- 6. KORTIT -->
+<section id="kortit">
+  <h2><span class="section-num">6</span>Statkortit & paneelit</h2>
+  <p class="section-sub">Etusivun isot luvut (Käyttöaste, Tulot, Kulut, Nettokassavirta) ovat tärkein "ensivaikutelma". Nyt ne ovat ok, mutta puuttuu trendi-indikaattori, ikoni ja sparklines. Lisätään.</p>
+
+  <div class="compare-card bad" style="margin-bottom: 20px;">
+    <div class="compare-label">⚠ Nyt</div>
+    <div class="stat-grid-old">
+      <div class="stat-card-old"><div class="stat-label-old">KÄYTTÖASTE</div><div class="stat-value-old">50.0 %</div><div class="stat-meta-old">Tämän hetken vieraita: 1</div></div>
+      <div class="stat-card-old"><div class="stat-label-old">TULOT TÄSSÄ KUUSSA</div><div class="stat-value-old">0,00 €</div><div class="stat-meta-old">Edellinen kuukausi: 0,00 €</div></div>
+      <div class="stat-card-old"><div class="stat-label-old">KULUT TÄSSÄ KUUSSA</div><div class="stat-value-old">0,00 €</div><div class="stat-meta-old">Avoimet saatavat: 620,00 €</div></div>
+      <div class="stat-card-old"><div class="stat-label-old">NETTOKASSAVIRTA</div><div class="stat-value-old">0,00 €</div><div class="stat-meta-old">Avoimet laskut: 1 · Erääntyneitä: 0</div></div>
+    </div>
+  </div>
+
+  <div class="compare-card good">
+    <div class="compare-label">✓ Uusi</div>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Käyttöaste <span class="stat-icon">📊</span></div>
+        <div class="stat-value">50,0 %</div>
+        <div class="stat-trend">↗ +12% vs. ed. kk</div>
+        <div class="stat-meta">1 vuokralainen sisällä</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tulot toukokuussa <span class="stat-icon">💰</span></div>
+        <div class="stat-value">12 480 €</div>
+        <div class="stat-trend">↗ +8,2% vs. huhti</div>
+        <div class="stat-meta">8 maksua vastaanotettu</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Kulut toukokuussa <span class="stat-icon" style="background:#FEF3C7;color:#B45309">⚡</span></div>
+        <div class="stat-value">3 240 €</div>
+        <div class="stat-trend down">↘ -4,1% vs. huhti</div>
+        <div class="stat-meta">12 kulukirjausta</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Nettokassavirta <span class="stat-icon" style="background:#DCFCE7;color:#15803D">✓</span></div>
+        <div class="stat-value">9 240 €</div>
+        <div class="stat-trend">↗ Tervetullut</div>
+        <div class="stat-meta">1 avoin saatava: 620 €</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. SIDEBAR -->
+<section id="sidebar">
+  <h2><span class="section-num">7</span>Sidebar & navigaatio</h2>
+  <p class="section-sub">Nykyinen tumma sidebar on hyvä lähtökohta — pidetään se. Mutta päivitetään: <strong>brändilogo erottuu</strong>, <strong>aktiivinen tila</strong> on hienovaraisempi (vasen reuna -indikaattori, ei suuri täytetty alue), ja lisätään <strong>badget</strong> esim. "Vaatii toimintaa" -kohtaan.</p>
+
+  <div class="sb-compare">
+    <div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-soft);margin-bottom:8px">⚠ Nyt</div>
+      <div class="sb-old">
+        <div class="sb-brand"><span style="display:inline-block;width:24px;height:24px;background:#a52a2a;border-radius:4px;margin-right:8px;vertical-align:middle"></span>Pin PMS</div>
+        <div class="sb-label">PÄÄTOIMINNOT</div>
+        <div class="sb-item active">Etusivu</div>
+        <div class="sb-item">Kohteet</div>
+        <div class="sb-item">Asiakkaat</div>
+        <div class="sb-item">Varaukset</div>
+        <div class="sb-item">Vuokrasopimukset</div>
+        <div class="sb-item">Laskut</div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-soft);margin-bottom:8px">✓ Uusi</div>
+      <div class="sb-new">
+        <div class="sidebar-brand">
+          <div class="brand-logo">P</div>
+          <div>
+            <div class="brand-name" style="color:white">Pin PMS</div>
+            <div class="brand-sub">Flowly Solutions</div>
+          </div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Päätoiminnot</div>
+          <div class="nav-item active">📊 Etusivu</div>
+          <div class="nav-item">🏢 Kohteet</div>
+          <div class="nav-item">👥 Asiakkaat</div>
+          <div class="nav-item">📅 Varaukset</div>
+          <div class="nav-item">📄 Sopimukset</div>
+          <div class="nav-item">🧾 Laskut <span class="nav-badge">3</span></div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Operointi</div>
+          <div class="nav-item">🔧 Huolto</div>
+          <div class="nav-item">💸 Kulut</div>
+          <div class="nav-item">📆 Kalenteri</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:24px">
+    <strong>Hienovaraiset detaljit:</strong> brändi-section sisältää nyt yritysnimen ("Flowly Solutions") — aiemmin tämä oli erillinen Organisaatio-pudotusvalikko sivulla, mikä vei tilaa. Aktiivinen-tila on punainen "rail" vasemmalla, ei iso täytetty laatikko. Badget (3) tuovat "smart" tunnun.
+  </div>
+</section>
+
+<!-- 8. LOMAKKEET -->
+<section id="lomakkeet">
+  <h2><span class="section-num">8</span>Lomakkeet & checkboxit</h2>
+  <p class="section-sub">Kuten kuvassa näkyy, nykyiset checkboxit ovat <strong>liilat</strong> ja kerma-pohjalla — todella sekava. Ratkaisu: yhtenäiset, brändiväriset elementit.</p>
+
+  <div class="compare-card good">
+    <div class="compare-label">✓ Uusi lomake-tyyli</div>
+    <div class="form-demo">
+      <div>
+        <h3 style="margin-bottom:16px">Kohteen tiedot</h3>
+        <div class="form-group">
+          <label class="form-label">Nimi</label>
+          <input class="form-input" value="Pindora HQ">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Osoite</label>
+          <input class="form-input" value="Uutiskatu 2, 00240 Helsinki">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tyyppi</label>
+          <input class="form-input" value="Toimisto">
+        </div>
+      </div>
+      <div>
+        <h3 style="margin-bottom:16px">Ominaisuudet</h3>
+        <div class="checkbox-row"><div class="checkbox checked"></div><span>Hissi</span></div>
+        <div class="checkbox-row"><div class="checkbox checked"></div><span>Pysäköinti</span></div>
+        <div class="checkbox-row"><div class="checkbox"></div><span>Sauna</span></div>
+        <div class="checkbox-row"><div class="checkbox"></div><span>Sisäpiha</span></div>
+        <div class="checkbox-row"><div class="checkbox checked"></div><span>Ilmastointi</span></div>
+        <div style="margin-top:24px;display:flex;gap:8px">
+          <button class="btn btn-primary">Tallenna kohde</button>
+          <button class="btn btn-secondary">Peruuta</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9. DASHBOARD MOCKUP -->
+<section id="dashboard">
+  <h2><span class="section-num">9</span>Dashboard — koko kuva</h2>
+  <p class="section-sub">Näin Pin PMS:n etusivu voisi näyttää kun kaikki ylläoleva yhdistetään. Tämä on tavoitekuva.</p>
+
+  <div class="mockup">
+    <div class="mockup-bar">
+      <div class="mockup-dot r"></div>
+      <div class="mockup-dot y"></div>
+      <div class="mockup-dot g"></div>
+      <div class="mockup-url">app.pinpms.fi/dashboard</div>
+    </div>
+    <div class="app">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-logo">P</div>
+          <div>
+            <div class="brand-name" style="color:white">Pin PMS</div>
+            <div class="brand-sub">Flowly Solutions</div>
+          </div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Päätoiminnot</div>
+          <div class="nav-item active">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 6-6"/></svg>
+            Etusivu
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+            Kohteet
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0116 0v2"/></svg>
+            Asiakkaat
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            Varaukset
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+            Sopimukset
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 7l5-5h10l5 5v13a2 2 0 01-2 2H4a2 2 0 01-2-2z"/></svg>
+            Laskut
+            <span class="nav-badge">3</span>
+          </div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Operointi</div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94z"/></svg>
+            Huolto
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            Kulut
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            Kalenteri
+          </div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <div class="breadcrumb">Hallinta · <strong>Etusivu</strong></div>
+          <div class="topbar-actions">
+            <input class="search-input" placeholder="Hae varauksia, asiakkaita…">
+            <div class="icon-btn">🔔</div>
+            <div class="avatar">MA</div>
+          </div>
+        </div>
+        <div class="page-title">Hyvää huomenta, Matias 👋</div>
+        <div class="page-subtitle">Tässä yhteenveto kohteistasi tänään, keskiviikkona 6.5.2026.</div>
+
+        <div class="stat-grid" style="padding:0;margin-bottom:16px">
+          <div class="stat-card">
+            <div class="stat-label">Käyttöaste <span class="stat-icon">📊</span></div>
+            <div class="stat-value">50,0 %</div>
+            <div class="stat-trend">↗ +12% vs. ed. kk</div>
+            <div class="stat-meta">1 vuokralainen sisällä</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Tulot 5/2026 <span class="stat-icon">💰</span></div>
+            <div class="stat-value">12 480 €</div>
+            <div class="stat-trend">↗ +8,2%</div>
+            <div class="stat-meta">8 maksua vastaanotettu</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Kulut 5/2026 <span class="stat-icon" style="background:#FEF3C7;color:#B45309">⚡</span></div>
+            <div class="stat-value">3 240 €</div>
+            <div class="stat-trend down">↘ -4,1%</div>
+            <div class="stat-meta">12 kulukirjausta</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Nettokassavirta <span class="stat-icon" style="background:#DCFCE7;color:#15803D">✓</span></div>
+            <div class="stat-value">9 240 €</div>
+            <div class="stat-trend">↗ Tervetullut</div>
+            <div class="stat-meta">1 avoin saatava: 620 €</div>
+          </div>
+        </div>
+
+        <div class="section-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Vaatii toimintaa</div>
+              <a class="panel-link" href="#">Näytä kaikki →</a>
+            </div>
+            <div class="activity-row"><span class="activity-dot warn"></span><span class="activity-text"><strong>Lasku BIL-1-00000003</strong> erääntyi 3 päivää sitten</span><span class="activity-time">3pv</span></div>
+            <div class="activity-row"><span class="activity-dot info"></span><span class="activity-text"><strong>Pindora Toimisto</strong>: huoltotyö suunniteltu</span><span class="activity-time">15.5.</span></div>
+            <div class="activity-row"><span class="activity-dot"></span><span class="activity-text"><strong>Kalenteriristiriita</strong> ratkaistu Pindora HQ:ssa</span><span class="activity-time">tänään</span></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Tänään saapuu / lähtee</div>
+              <a class="panel-link" href="#">Kalenteri →</a>
+            </div>
+            <div class="activity-row"><span class="activity-dot"></span><span class="activity-text">Ei saapumisia tänään</span><span class="activity-time">–</span></div>
+            <div class="activity-row"><span class="activity-dot info"></span><span class="activity-text"><strong>Ville Testaaja</strong> (Pindora Toimisto)</span><span class="activity-time">9.5.</span></div>
+            <div class="activity-row"><span class="activity-dot"></span><span class="activity-text">Ei lähtöjä tänään</span><span class="activity-time">–</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10. WOW PARANNUKSET -->
+<section id="wow">
+  <h2><span class="section-num">10</span>WOW-parannukset</h2>
+  <p class="section-sub">Pieniä yksityiskohtia jotka erottavat Pin PMS:n geneerisistä admin-paneeleista. Nämä ovat "free" — eivät vaadi suurta refaktorointia mutta tuntuvat kalliilta.</p>
+
+  <div class="improvements">
+    <div class="improvement-card">
+      <h4>🎬 Skeleton-loaders <span class="priority high">Korkea</span></h4>
+      <p>Latauksen aikana näytä haalea harmaa "luuranko" sisällöstä — ei tyhjä valkoinen ruutu eikä spinner. Kuten Linear, Notion. Käytä CSS animation: pulse.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>✨ Mikro-animaatiot <span class="priority high">Korkea</span></h4>
+      <p>Hover, focus, modaali avautuu — kaikkialla 150–200ms ease transition. Ei yhtäkkiä, ei liian hitaasti. Tämä on suurin yksittäinen "kallis tuntu" -tekijä.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>⌨️ Komentopaletti (Cmd+K) <span class="priority high">Korkea</span></h4>
+      <p>Painamalla ⌘K aukeaa hakupaletti josta voi: hakea asiakasta, varausta, navigoida sivuille, luoda uuden laskun. Power-user-feature joka tekee vaikutuksen demoissa.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>📊 Sparklines stat-korteissa <span class="priority med">Keski</span></h4>
+      <p>Pieni mini-graafi (~60×20px) jokaisen ison luvun alla → näyttää 30 päivän trendin. SVG, ei kirjastoa.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>🌓 Dark mode kunnolla <span class="priority med">Keski</span></h4>
+      <p>Sinulla on jo "Auto" -valinta — tee siitä oikeasti hyvä. Ei pelkästään invertoitu, vaan oma paletti tummana (slate-950 bg, slate-100 text).</p>
+    </div>
+    <div class="improvement-card">
+      <h4>🔔 Toast-notifikaatiot <span class="priority high">Korkea</span></h4>
+      <p>Kun käyttäjä tallentaa, poistaa, lähettää — näytä oikeasta yläkulmasta liukuva toast (esim. Sonner-tyylinen). Ei alert(), ei "Tallennettu!" page reload.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>📆 Empty-states <span class="priority high">Korkea</span></h4>
+      <p>"Ei laskuja" → näytä iso ystävällinen kuva, otsikko "Ei vielä laskuja", primary CTA "Luo ensimmäinen lasku". Ei tyhjä taulukko.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>🎨 Avatarit värillä <span class="priority low">Matala</span></h4>
+      <p>Asiakas-/käyttäjälistoissa: jos ei profiilikuvaa, näytä gradientti-pallo nimikirjaimilla. Hash nimestä → konsistentti väri. Pikkuyksityiskohta joka ilahduttaa.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>📋 Kopioi-toiminnot <span class="priority med">Keski</span></h4>
+      <p>Lasku-numerot, asiakas-ID:t, viitenumerot — kaikki klikattavissa "kopioi"-toiminnolla (näytä copy-icon hover-tilassa).</p>
+    </div>
+    <div class="improvement-card">
+      <h4>📈 Kalenteri-viewi parannus <span class="priority high">Korkea</span></h4>
+      <p>Käyttöaste-kalenteri kuukausinäkymässä: värikoodatut "soluja" (vihreä = vapaa, sininen = varattu, harmaa = tyhjä). FullCalendar.io tyylinen.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 11. MUUT EHDOTUKSET -->
+<section id="muut">
+  <h2><span class="section-num">11</span>Lisäehdotukset (et maininnut näitä, mutta nämäkin pitäisi katsoa)</h2>
+  <p class="section-sub">Asioita joita huomasin screenshoteistasi, mitkä eivät ole värissä/typografiassa, mutta hyödyttävät kokonaisuutta.</p>
+
+  <div class="improvements">
+    <div class="improvement-card">
+      <h4>🇫🇮 Lukujen muotoilu <span class="priority high">Korkea</span></h4>
+      <p>"500.00 EUR" → "500,00 €". "BIL-1-00000001" voisi olla "BIL-001". Suomalaiset päivät: "2026-05-15" → "15.5.2026". <code>Intl.NumberFormat('fi-FI')</code>.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>🏢 Brändi-logo <span class="priority high">Korkea</span></h4>
+      <p>Punainen täyttölaatikko ei ole logo. Tee oikea wordmark — esim. "PinPMS" custom kirjasimella, tai geometrinen mark (P-kirjain talo-elementissä). Voin auttaa — pyydä erikseen.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>📤 Empty drop-down "Organisaatio" <span class="priority med">Keski</span></h4>
+      <p>"Organisaatio: Flowly · Vaihda" -rivi etusivulla on hieman irrallinen. Siirrä se sidebariin (käyttäjä-avatarin viereen) → vapauttaa tilaa.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>🔍 Globaali haku <span class="priority high">Korkea</span></h4>
+      <p>Topbarissa iso haku-kenttä joka hakee yli kaikki entiteetit (asiakkaat, kohteet, laskut, varaukset). Yhdistä Cmd+K -palettiin.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>⚙️ Asetukset eri sivulle <span class="priority low">Matala</span></h4>
+      <p>"Teema: Auto" -pudotus sidebarin alalaidassa on kömpelö. Siirrä asetukset omalle sivulle (käyttäjä-menun alle "Asetukset").</p>
+    </div>
+    <div class="improvement-card">
+      <h4>📊 Kalenteri konfliktit -näkymä <span class="priority med">Keski</span></h4>
+      <p>"Kalenteriristiriidat" sidebarissa on outo terminologia. Vaihda muotoon "Konfliktit" (lyhyempi) ja näytä ne korostetusti dashboardissa kun niitä on.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>📧 Sähköposti-templatet <span class="priority med">Keski</span></h4>
+      <p>Laskut, sopimukset, muistutukset — varmista että sähköpostit, jotka PMS lähettää asiakkaille, ovat samoin viimeisteltyjä. Tämä on usein unohdettu pinta.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>♿ Saavutettavuus (WCAG AA) <span class="priority high">Korkea</span></h4>
+      <p>Kontrastisuhteet, focus-renkaat, näppäimistö-navigaatio, ARIA-labelit. EU:n saavutettavuusdirektiivi (2025) edellyttää tätä jo nyt.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>📱 Mobiili-näkymä <span class="priority med">Keski</span></h4>
+      <p>Sidebar collapse → bottom nav mobiilissa. Taulukot → korttinäkymä. Property managerit kävelevät kohteilla — tämä on iso plus.</p>
+    </div>
+    <div class="improvement-card">
+      <h4>🔐 Audit-loki paranneltu <span class="priority low">Matala</span></h4>
+      <p>Sinulla on jo "Audit-loki" sidebarissa — tee siitä oikeasti hyvä. Aikajana, suodattimet käyttäjän/objektin/toiminnon mukaan.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 12. CURSOR PROMPTIT -->
+<section id="cursor">
+  <h2><span class="section-num">12</span>Cursor-promptit (kopioi suoraan)</h2>
+  <p class="section-sub">Kopioi nämä Cursor Composer / Agent -tilaan järjestyksessä. Jokainen prompt on suunniteltu siten että sen voi ajaa erillään muista — Cursor voi tehdä muutokset askel askeleelta. Käytä Claude Sonnet 4.5 tai parempaa mallia.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 1 / 12 · Design tokens & global CSS</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Luo design system -tokenit Pin PMS:lle.
+
+1. Lisää Inter-fontti Google Fontsista applikaation root-templateen (preconnect + font-display: swap).
+2. Luo tiedosto src/styles/tokens.css joka sisältää CSS custom properties:
+   - Värit: --bg (#FAFAF9), --surface (#FFFFFF), --border (#E7E5E4), --border-strong (#D6D3D1), --text (#0C0A09), --text-muted (#57534E), --text-soft (#78716C), --primary (#B91C1C), --primary-hover (#991B1B), --primary-soft (#FEF2F2), --success (#15803D), --success-soft (#DCFCE7), --warning (#B45309), --warning-soft (#FEF3C7), --info (#1D4ED8), --info-soft (#DBEAFE), --sidebar (#0C0A09), --sidebar-text (#E7E5E4)
+   - Spacing: --space-1 (4px) … --space-12 (48px) 4px-portain
+   - Typografia: --text-xs (11px), --text-sm (13px), --text-base (15px), --text-lg (18px), --text-xl (22px), --text-2xl (28px), --text-3xl (32px)
+   - Radius: --radius-sm (6px), --radius (10px), --radius-lg (14px)
+   - Shadow: --shadow-xs, --shadow-sm, --shadow-md, --shadow-lg (subtle)
+3. Lisää @media (prefers-color-scheme: dark) -block jossa samat tokenit dark-arvoille (bg #0C0A09, surface #1C1917, jne.)
+4. Aseta html { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+5. Vaihda body bg → var(--bg). Poista nykyinen #FBF7F0.
+
+Älä muuta vielä komponentteja — vain tokenit ja base.</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 2 / 12 · Typography refactor</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Päivitä kaikki otsikot ja teksti uuteen typografia-järjestelmään.
+
+Säännöt:
+- h1 (page title): 22px / weight 700 / letter-spacing -0.015em
+- h2 (section): 18px / weight 600 / letter-spacing -0.01em
+- h3 (card title): 14px / weight 600
+- Stat-luvut: 28px / weight 700 / letter-spacing -0.02em / line-height 1
+- Labels (UPPERCASE): 11px / weight 600 / letter-spacing 0.08em / color text-soft
+- Body: 15px / weight 400 / line-height 1.5
+- Small/meta: 13px / color text-muted
+- Mono (kun tarvitsee): 'JetBrains Mono' tai system-ui-mono
+
+Etsi kaikki sivut: src/pages/**, src/components/**.
+Korvaa inline font-size & weight -arvot näillä tokeneilla. Käytä tarvittaessa utility-luokkia (.text-label, .text-stat, .heading-page).
+
+Älä koske komponenttien rakenteeseen, vain typografia.</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 3 / 12 · Button system</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Luo Button-komponentti (jos ei ole) ja päivitä KAIKKI napit käyttämään sitä.
+
+Komponentti src/components/ui/Button.tsx:
+- Props: variant ('primary' | 'secondary' | 'ghost' | 'danger'), size ('sm' | 'md' | 'lg'), icon (ReactNode), loading (boolean)
+- Default md: padding 9px 16px, font-size 14px, font-weight 500, border-radius 6px
+- primary: bg primary, hover primary-hover, white text, shadow-xs
+- secondary: bg surface, border 1px border-strong, text text, hover bg bg-alt
+- ghost: bg transparent, text text-muted, hover bg bg-alt
+- danger: bg #DC2626, white text
+- Transition: all 150ms ease
+- Focus-visible: outline-offset 2px, outline-color primary-soft, 3px ring
+- Loading: korvaa ikoni spinnerillä (Lucide Loader2 + animate-spin)
+
+Etsi koko koodikannasta:
+- <button> -tagit ilman variant-luokkaa → korvaa tällä komponentilla
+- "Tallenna kohde", "Uusi lasku", "Suodata", "Vaihda", "Toteuta" -napit → primary
+- "Merkitse myöhässä", "Peruuta" -napit → secondary
+- Linkit "Näytä", "Muokkaa" taulukoissa → ghost-buttonit tai oikeat <Link>-elementit, ei punaisia tekstilinkkejä</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 4 / 12 · Sidebar redesign</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Päivitä sidebar (vasen navigaatio) modernimpaan tyyliin.
+
+Vaatimukset:
+1. Tausta: var(--sidebar) (#0C0A09), tekstit var(--sidebar-text)
+2. Brändi-osio yläreunassa:
+   - 32×32 punainen "P"-logo (border-radius 8px)
+   - "Pin PMS" weight 700, sen alla "Flowly Solutions" 11px sidebar-muted
+3. Navigaatio:
+   - Sectionit: "Päätoiminnot", "Operointi", "Hallinta" — pienet uppercase labelit (10px, 0.1em tracking, sidebar-muted)
+   - Nav-itemit: 8px 10px padding, 6px border-radius, 13px text, ikoni 16px vasemmalla, gap 10px
+   - Hover: bg #1C1917
+   - Aktiivinen tila: bg #1C1917 + valkoinen teksti + 3px punainen pystyrail vasemmassa reunassa (absolute, left -14px). EI iso punainen täyttölaatikko.
+4. Lisää badge-tuki nav-itemeille (esim. "Laskut" → punainen pieni 3-badge oikealla)
+5. Käytä Lucide-react ikoneita: LayoutDashboard, Building2, Users, Calendar, FileText, Receipt, Wrench, CreditCard, BarChart3, Settings
+6. Asetukset/teema-pudotus pois sidebarin alalaidasta — siirrä user-menun alle (klikkaa avataria → dropdown).
+
+Sivun layout: sidebar 240px leveys, sticky vasen reuna.</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 5 / 12 · Topbar with global search</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Luo modernit topbar-komponentit pääasialliselle layoutille.
+
+Topbar (sticky top, h-14, bg surface, border-bottom border):
+- Vasen: breadcrumb (esim. "Hallinta · <strong>Etusivu</strong>") 13px text-muted
+- Keskellä/oikealla: globaali search-input
+  * Placeholder: "Hae varauksia, asiakkaita, laskuja…"
+  * Vasen ikoni: Lucide Search (14px, text-soft)
+  * Oikealla pieni "⌘K"-kbd-kapseli (näytä vain ⌘ jos macOS, muuten Ctrl)
+  * Klikkaus tai ⌘K avaa Command Palette (cmdk-kirjasto, asenna se)
+- Oikealla:
+  * Notification icon button (Lucide Bell), näytä punainen piste jos unread
+  * Käyttäjäavatar (32×32, gradientti taustalle, initiaalit), klikkaus avaa dropdown: Profile, Settings, Theme, Logout
+
+Asenna: npm install cmdk lucide-react
+Sijainti: src/components/layout/Topbar.tsx + src/components/layout/CommandPalette.tsx
+
+Command Palette ehdottaa:
+- "Mene → Etusivu / Kohteet / Laskut / …"
+- "Luo → Uusi lasku / Uusi varaus / Uusi asiakas"
+- Hakuosumat asiakkaista, kohteista, laskuista (jos backend tukee)</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 6 / 12 · Stat cards with trend & sparkline</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Tee uusi StatCard-komponentti ja päivitä etusivun 4 isoa lukua.
+
+Komponentti src/components/ui/StatCard.tsx, props:
+- label (string)
+- value (string | number) — formatoidaan automaattisesti euroilla / prosenteilla
+- trend (number) — esim. +8.2 → "↗ +8,2% vs. ed. kk", negatiivinen punaisella alaspäin
+- meta (string) — pieni alarivi
+- icon (ReactNode) — pieni 28×28 ikoni-kapseli oikealla
+- sparkline (number[]) — optional pieni svg-graafi pohjalla
+- intent ('default' | 'success' | 'warning' | 'danger') — vaikuttaa ikonin taustaan
+
+Tyyli:
+- 20px padding, 1px border var(--border), border-radius 10px, bg surface
+- Hover: border-strong + shadow-sm
+- Label: 11px uppercase, 0.08em tracking, text-soft, weight 600 — flex justify-between (label + ikoni)
+- Value: 28px / weight 700 / -0.02em tracking
+- Trend: 12px, success vihreä / danger punainen, "↗" / "↘" -nuoli
+- Meta: 12px text-muted
+
+Sparkline: 60×20px SVG, polyline, stroke 1.5px primary, fill primary-soft 20% opacity.
+
+Etusivulla (Hallintapaneeli) korvaa nykyiset 4 statia näillä:
+- Käyttöaste (with sparkline last 30 days)
+- Tulot tässä kuussa
+- Kulut tässä kuussa
+- Nettokassavirta
+
+Lue datat olemassa olevasta API-endpointista, jos backend ei tarjoa sparkline-arrayta, käytä [] kunnes lisätään.</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 7 / 12 · Tables redesign</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Päivitä KAIKKI taulukot (Laskut, Asiakkaat, Kohteet, Vuokrasopimukset, Audit-loki).
+
+Luo src/components/ui/Table.tsx + StatusBadge.tsx + RowActions.tsx.
+
+Table-komponentti:
+- thead th: 12px 16px padding, 11px uppercase 0.08em tracking, weight 600, color text-soft, bg bg-alt, border-bottom border
+- tbody td: 14px 16px padding, 14px text, border-bottom border
+- tr:hover: bg bg-alt, cursor pointer (jos klikattava)
+- Tyhjä taulukko → EmptyState-komponentti (otsikko, kuva, primary CTA)
+
+StatusBadge:
+- Variantit: success, warning, danger, info, neutral
+- 3px 8px padding, 11px weight 600 uppercase 0.04em, border-radius 999px
+- Vasemmalla 6px värillinen dot
+- Värit:
+  * paid / completed / active → success (vihreä)
+  * open / pending → warning (keltainen)
+  * overdue / failed / cancelled → danger (punainen)
+  * draft / info → info (sininen)
+
+RowActions (oikean reunan kebab):
+- "⋯" -ikoni-button text-muted, klikkaus → dropdown: Näytä, Muokkaa, Lähetä uudelleen, Kopioi viite, Poista (punainen)
+
+Päivitä Laskut-taulukko erityisesti:
+- Numero (mono-fontti)
+- Asiakas (uusi sarake — hae sopimukselta jos puuttuu)
+- Summa (Intl.NumberFormat fi-FI EUR) — bold, "sis. ALV" muted
+- Eräpäivä (formatoituna 15.5.2026)
+- Tila (StatusBadge)
+- ⋯ kebab-actions
+
+Poista nykyinen "Näytä"-tekstilinkki, koko rivi klikattava → /laskut/:id. Poista myös "Hae listasta" -tekstikenttä, "Tila" pudotus, alkaen/asti — siirrä ne yhdeksi suodatinriviksi taulukon yläpuolelle (FilterBar-komponentti).</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 8 / 12 · Forms & checkboxes</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Yhdenmukaista lomake-elementit. POISTA lila checkbox-tyyli kokonaan.
+
+Komponentit src/components/ui/:
+- Input.tsx: 8px 12px padding, 1px border-strong, 6px radius, 14px text, focus → 1px primary border + 3px primary-soft ring (box-shadow)
+- Label.tsx: 13px weight 500, margin-bottom 6px, display block
+- Checkbox.tsx: 18×18px, 1.5px border-strong, 4px radius, bg surface
+  * Checked: bg primary, border primary, valkoinen ✓ (Lucide Check 12px)
+  * Hover: border text-soft
+  * Focus-visible: 3px primary-soft ring
+  * EI lila #8B5CF6 missään!
+- Radio.tsx: sama kuin checkbox, mutta pyöreä
+- Select.tsx: kuten Input, oikealla ChevronDown ikoni 14px
+
+Etsi koko koodikannasta inline checkbox-tyylit, korvaa Checkbox-komponentilla.
+
+Kohteet → Muokkaa-sivulla (Ominaisuudet-osio):
+- Hissi, Pysäköinti, Sauna, Sisäpiha, Ilmastointi
+- Aseta vertical stack, gap 8px, label vasemmalla, checkbox oikealla EI — vaihda: checkbox vasemmalla, label oikealla, klikkaus toimii koko rivillä</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 9 / 12 · Empty states, toasts, loading</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Lisää 3 puuttuvaa UX-pintaa: empty states, toasts, skeleton-loaders.
+
+1. EmptyState.tsx
+   - Props: icon (Lucide), title, description, action (button)
+   - Layout: keskitetty, 64px ikoni text-soft, otsikko 18px weight 600, kuvaus 14px text-muted, primary CTA alapuolella
+   - Käytä: Laskut-tyhjä, Asiakkaat-tyhjä, Varaukset-tyhjä, Huolto-tyhjä, Kalenteri-tyhjä päivä
+
+2. Toaster (asenna sonner: npm install sonner)
+   - Lisää <Toaster /> root layoutiin, position top-right
+   - Kun lasku tallennetaan, kohde luodaan, varaus muokataan → toast.success("Lasku tallennettu")
+   - Virheet: toast.error("Tallennus epäonnistui")
+   - Korvaa kaikki alert() -kutsut ja "Tallennettu!"-redirect-stringit
+
+3. Skeleton.tsx
+   - Props: variant ('text' | 'circle' | 'card'), width, height
+   - bg gradient: linear-gradient(90deg, var(--bg-alt), var(--border), var(--bg-alt)) animation 1.5s ease-in-out infinite
+   - Käytä taulukoiden, stat-korttien, paneelien lataus-tilaan ENNEN kuin data on saatavilla. Älä näytä tyhjää tai spinneriä.</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 10 / 12 · Locale & formatting</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Yhdenmukaista lukujen ja päivien näyttömuoto suomeksi.
+
+Luo src/lib/format.ts:
+
+export const formatCurrency = (n: number) =>
+  new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' }).format(n)
+// → "1 240,00 €"
+
+export const formatDate = (d: Date | string) =>
+  new Intl.DateTimeFormat('fi-FI', { day: 'numeric', month: 'numeric', year: 'numeric' })
+    .format(new Date(d))
+// → "15.5.2026"
+
+export const formatDateTime = (d: Date | string) =>
+  new Intl.DateTimeFormat('fi-FI', { dateStyle: 'short', timeStyle: 'short' })
+    .format(new Date(d))
+// → "15.5.2026 14:30"
+
+export const formatPercent = (n: number, decimals = 1) =>
+  new Intl.NumberFormat('fi-FI', { style: 'percent', minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    .format(n / 100)
+// → "50,0 %"
+
+export const formatRelative = (d: Date | string) => { ... }
+// → "3 päivää sitten", "tänään", "huomenna"
+
+Etsi & korvaa koko koodikannasta:
+- Kova-koodatut "EUR" → formatCurrency()
+- "YYYY-MM-DD"-päivät → formatDate()
+- "X.XX %" -prosentit → formatPercent()
+
+ÄLÄ koske backend-API-vastauksiin tai tietokantatietoihin — vain UI-näyttömuotoon.</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 11 / 12 · Dark mode polish</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Tee dark mode kunnolla — ei vain inverttiä.
+
+1. tokens.css → lisää :root[data-theme="dark"]:
+   --bg: #0A0A0A
+   --bg-alt: #1C1917
+   --surface: #1C1917
+   --border: #292524
+   --border-strong: #44403C
+   --text: #FAFAF9
+   --text-muted: #A8A29E
+   --text-soft: #78716C
+   --primary: #EF4444  (kirkkaampi tummalla taustalla)
+   --primary-soft: rgba(239, 68, 68, 0.15)
+   --sidebar: #0A0A0A
+   --shadow-*: vahvempia rgba(0,0,0, 0.4)
+
+2. Theme provider: src/lib/theme.ts
+   - localStorage-key: "pin-pms-theme" → "light" | "dark" | "auto"
+   - Auto: kuuntele matchMedia('(prefers-color-scheme: dark)')
+   - Aseta document.documentElement.dataset.theme
+
+3. Theme switcher (käyttäjä-menun alle, EI sidebar-bottomiin):
+   - 3 kuvaketta: Sun (light), Moon (dark), Monitor (auto)
+   - Animoitu siirtymä — varmista että kaikki tokenit on vars-pohjaisia jotta ei tarvitse reloadia
+
+4. Käy läpi koko sovellus dark-tilassa, korjaa hard-coded valkoiset/mustat (#fff, #000) tokenien sijaan. Erityisesti:
+   - Modaalit ja dropdownit
+   - Form-inputit
+   - Hover-tilat
+   - Badge-värit (säädä kontrasti tummalla taustalla)</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-header">
+      <span class="prompt-tag">PROMPT 12 / 12 · Polish pass — micro-animations & details</span>
+      <button class="prompt-copy" onclick="copyPrompt(this)">Kopioi</button>
+    </div>
+<pre>Tehtävä: Viimeistele "kalliin tunnun" -yksityiskohdat.
+
+1. Globaali transition utility:
+   * { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease; }
+   (älä lisää tätä tähtiselektorilla jos suorituskyky on ongelma — käytä mieluummin ui-komponenteissa)
+
+2. Hover-microinteractions:
+   - Stat-kortti: hover → border-strong + shadow-sm + lievä scale(1.005)
+   - Taulukon rivi: hover bg bg-alt
+   - Sidebar-item: hover bg #1C1917 + 50ms transform translateX(2px)
+
+3. Modaalit (jos olemassa):
+   - Backdrop fade-in 200ms
+   - Sisältö slide-up 200ms cubic-bezier(0.16, 1, 0.3, 1)
+   - Käytä Radix UI Dialog -komponenttia jos ei vielä ole (npm install @radix-ui/react-dialog)
+
+4. Form focus -tilat: 3px primary-soft ring (box-shadow), border primary, transition 150ms
+
+5. Tooltip-komponentti (Radix Tooltip) lyhyiden selitysten näyttämiseen — käytä esim. trend-luvut ("vs. edellinen kuukausi"), ikonien yhteydessä.
+
+6. Avatar-komponentti:
+   - 32×32 (md), 24×24 (sm), 40×40 (lg)
+   - Jos kuva → näytä se
+   - Jos ei → gradientti-tausta (hash nimestä → hue), valkoinen 12px weight 600 initiaalit
+
+7. Käy läpi 4 sivua jotka käyttäjä avaa eniten (Etusivu, Laskut, Kohteet, Asiakkaat) ja varmista:
+   - Ei layout-shifttiä (CLS) latauksessa → varaa tila skeleton-loadereille
+   - Kaikki interaktiiviset elementit ovat ≥ 32px korkeita (touch-friendly)
+   - Focus-tilat näkyvät selvästi näppäimistöllä navigoidessa
+   - Kontrastisuhteet ≥ 4.5:1 tekstille (WCAG AA)
+
+Lopuksi: aja `npm run build` ja varmista ettei TypeScript-virheitä. Tarkista responsiivisuus 360px, 768px, 1024px, 1440px.</pre>
+  </div>
+
+  <div class="note">
+    <strong>Vinkki Cursorin käyttöön:</strong> Pidä jokainen prompt erillisessä Composer-sessiossa. Älä tee 12 muutosta yhdellä kertaa — Cursor menee sekaisin. Aja prompt → review diff → commit → seuraava prompt. Näin pidät hallinnan. Käytä Claude Sonnet 4.5 tai Opus, ei pienempää mallia.
+  </div>
+</section>
+
+<!-- 13. ROADMAP -->
+<section id="roadmap">
+  <h2><span class="section-num">13</span>Toteutusjärjestys (suosittelen tätä)</h2>
+  <p class="section-sub">Älä tee kaikkea kerralla. Tämän järjestyksen takana on syynsä — alkuvaiheen muutokset ovat <em>foundation</em>, ja ilman niitä myöhemmät prompit eivät toimi yhtä hyvin.</p>
+
+  <div class="ascii-art">
+WEEK 1 — Foundation
+├─ Prompt 1   Design tokens & global CSS         (1–2 h)
+├─ Prompt 2   Typography refactor                (1 h)
+└─ Prompt 10  Locale & formatting helpers        (30 min)
+              ↓ commit & deploy
+
+WEEK 2 — Core components
+├─ Prompt 3   Button system                      (2 h)
+├─ Prompt 8   Forms & checkboxes                 (2 h)
+└─ Prompt 7   Tables (alkaen Laskut-sivulta)     (3 h)
+              ↓ commit & deploy
+
+WEEK 3 — Layout & navigation
+├─ Prompt 4   Sidebar redesign                   (2 h)
+├─ Prompt 5   Topbar + globaali haku + ⌘K        (3 h)
+└─ Prompt 6   Stat cards w/ trend & sparkline    (2 h)
+              ↓ commit & deploy
+
+WEEK 4 — Polish & UX
+├─ Prompt 9   Empty states, toasts, skeletons    (2 h)
+├─ Prompt 11  Dark mode polish                   (3 h)
+└─ Prompt 12  Micro-animations & details         (3 h)
+              ↓ commit & deploy → BEFORE/AFTER showcase!
+
+YHTEENSÄ ~24h hands-on → 4 viikkoa rauhallisesti
+                       → 1 viikko intensiivisesti
+  </div>
+
+  <div class="note" style="margin-top: 32px">
+    <strong>Pro-tip:</strong> Ota screenshotit jokaisesta sivusta <em>ennen</em> ja <em>jälkeen</em> jokaista viikkoa. Talleta ne kansioon <code>docs/design-progress/</code>. Kun olet valmis, sinulla on uskomattoman vakuuttava before/after-kollaasi joka toimii sekä portfoliossa että myynnissä asiakkaille.
+  </div>
+</section>
+
+<div style="text-align: center; padding: 64px 0 32px; color: var(--text-muted); font-size: 14px;">
+  Pin PMS Design Refresh Plan • Laadittu Flowly Solutionsille • Toukokuu 2026
+</div>
+
+</div>
+
+<script>
+function copyPrompt(btn) {
+  const block = btn.closest('.prompt-block');
+  const pre = block.querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    const original = btn.innerText;
+    btn.innerText = '✓ Kopioitu';
+    btn.style.background = '#15803D';
+    btn.style.color = 'white';
+    setTimeout(() => {
+      btn.innerText = original;
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 1500);
+  });
+}
+</script>
+
+</body>
+</html>
