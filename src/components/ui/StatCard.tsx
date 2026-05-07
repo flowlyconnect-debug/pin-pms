@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { Sparkline } from "./Sparkline";
 
 type StatCardIntent = "default" | "success" | "warning" | "danger";
 
@@ -17,6 +18,20 @@ const intentBg: Record<StatCardIntent, string> = {
   success: "var(--color-success-soft, #f0fdf4)",
   warning: "var(--color-warning-soft, #fffbeb)",
   danger: "var(--color-danger-soft, #fef2f2)",
+};
+
+const intentSparklineStroke: Record<StatCardIntent, string> = {
+  default: "var(--primary)",
+  success: "#15803D",
+  warning: "#B45309",
+  danger: "#DC2626",
+};
+
+const intentSparklineFill: Record<StatCardIntent, string> = {
+  default: "var(--primary-soft)",
+  success: "rgba(21, 128, 61, 0.2)",
+  warning: "rgba(180, 83, 9, 0.2)",
+  danger: "rgba(220, 38, 38, 0.2)",
 };
 
 const rootStyle: CSSProperties = {
@@ -59,24 +74,6 @@ function formatByLabel(value: string | number, label: string): string {
   return value.toLocaleString("fi-FI");
 }
 
-function buildSparklinePoints(values: number[]): string {
-  if (values.length === 0) {
-    return "";
-  }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const width = 60;
-  const height = 20;
-  return values
-    .map((v, index) => {
-      const x = (index / Math.max(values.length - 1, 1)) * width;
-      const y = height - ((v - min) / range) * height;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
-}
-
 export function StatCard({
   label,
   value,
@@ -95,9 +92,6 @@ export function StatCard({
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   })}% vs. ed. kk`;
-  const polylinePoints = buildSparklinePoints(sparkline);
-  const areaPoints = polylinePoints ? `0,20 ${polylinePoints} 60,20` : "";
-
   return (
     <article style={rootStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -130,21 +124,12 @@ export function StatCard({
 
       <p style={{ margin: 0, fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em" }}>{formattedValue}</p>
       <p style={{ margin: 0, fontSize: 12, color: trendColor }}>{trendText}</p>
+      <Sparkline
+        data={sparkline}
+        stroke={intentSparklineStroke[intent]}
+        fill={intentSparklineFill[intent]}
+      />
       <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>{meta}</p>
-
-      {polylinePoints && (
-        <svg width="60" height="20" viewBox="0 0 60 20" role="img" aria-label={`${label} sparkline`}>
-          <polygon points={areaPoints} fill="var(--color-primary, #c62828)" opacity="0.2" />
-          <polyline
-            points={polylinePoints}
-            fill="none"
-            stroke="var(--color-primary, #c62828)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )}
     </article>
   );
 }

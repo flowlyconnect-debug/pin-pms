@@ -314,6 +314,63 @@ def admin_home():
     )
 
 
+@admin_bp.get("/api/dashboard/stats")
+@require_admin_pms_access
+def api_dashboard_stats():
+    selected_org_id = _pms_org_id()
+    summary = admin_service.get_dashboard_stats(
+        organization_id=selected_org_id,
+        viewer_is_superadmin=current_user.is_superadmin,
+        range_key="30d",
+    )
+    modern_summary = admin_service.dashboard_summary(organization_id=selected_org_id)
+    kpi = modern_summary.get("kpi", {})
+    occupancy_trend = modern_summary.get("trend_occupancy_30d", [])
+    revenue_trend = modern_summary.get("trend_revenue_30d", [])
+    occupancy_sparkline = [float(item.get("pct", 0) or 0) for item in occupancy_trend]
+    revenue_sparkline = [float(item.get("value", 0) or 0) for item in revenue_trend]
+    expenses_this_month = float((summary.get("cash_flow") or {}).get("expenses_this_month") or 0)
+    net_cash_flow_this_month = float((summary.get("cash_flow") or {}).get("net_cash_flow_this_month") or 0)
+    revenue_this_month = float(kpi.get("revenue_this_month") or 0)
+    revenue_last_month = float(kpi.get("revenue_last_month") or 0)
+    occupancy_today = float(kpi.get("occupancy_today_pct") or 0)
+    occupancy_7d_avg = float(kpi.get("occupancy_7d_avg_pct") or 0)
+
+    def _trend_pct(current: float, previous: float) -> float:
+        if previous == 0:
+            return 0.0
+        return round(((current - previous) / previous) * 100, 1)
+
+    return jsonify(
+        {
+            "occupancy": {
+                "value": round(occupancy_today, 1),
+                "trend": round(occupancy_today - occupancy_7d_avg, 1),
+                "sparkline": occupancy_sparkline,
+                "intent": "default",
+            },
+            "revenue": {
+                "value": revenue_this_month,
+                "trend": _trend_pct(revenue_this_month, revenue_last_month),
+                "sparkline": revenue_sparkline,
+                "intent": "success",
+            },
+            "expenses": {
+                "value": expenses_this_month,
+                "trend": 0.0,
+                "sparkline": [],
+                "intent": "warning",
+            },
+            "net_cash_flow": {
+                "value": net_cash_flow_this_month,
+                "trend": 0.0,
+                "sparkline": [],
+                "intent": "danger" if net_cash_flow_this_month < 0 else "success",
+            },
+        }
+    )
+
+
 def _parse_report_range() -> tuple[date, date, str | None]:
     start_date_raw = (request.args.get("start_date") or "").strip()
     end_date_raw = (request.args.get("end_date") or "").strip()
