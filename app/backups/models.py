@@ -71,6 +71,12 @@ class Backup(db.Model):
     # is the sibling tar.gz next to the SQL dump; NULL when the deployment has
     # no uploads directory or it was empty at backup time.
     uploads_filename = db.Column(db.String(255), nullable=True)
+    # Init template §8: human-readable JSON exports of the email templates and
+    # the settings table are written next to the SQL dump so an operator can
+    # audit them without restoring the whole database. NULL on rows created
+    # before this column existed or when the export step was skipped.
+    email_templates_filename = db.Column(db.String(255), nullable=True)
+    settings_filename = db.Column(db.String(255), nullable=True)
     # Optional S3 URI for the off-site uploaded SQL dump.
     s3_uri = db.Column(db.String(1024), nullable=True)
 

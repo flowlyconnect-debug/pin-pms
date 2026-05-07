@@ -22,6 +22,7 @@ Security
 from __future__ import annotations
 
 import gzip
+import json
 import logging
 import os
 import shutil
@@ -29,7 +30,7 @@ import subprocess
 import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from urllib.parse import urlparse
 
 import boto3
@@ -38,10 +39,11 @@ from flask import current_app
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
 from app.backups.models import Backup, BackupStatus, BackupTrigger
-from app.email.models import TemplateKey
+from app.email.models import EmailTemplate, TemplateKey
 from app.email.services import send_template
 from app.extensions import db
 from app.notifications import services as notification_service
+from app.settings.models import Setting
 from app.users.models import User
 
 logger = logging.getLogger(__name__)
@@ -59,6 +61,308 @@ class BackupError(RuntimeError):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+# Init template §8: secret settings must never travel as plaintext through a
+# JSON export. The redaction marker is the exact string callers and the
+# selective-restore code branch on, so it is defined once and reused.
+SECRET_REDACTED = "<redacted>"
+
+
+def _isoformat_or_none(value: Any) -> Optional[str]:
+    """Return ``value.isoformat()`` for a datetime, or ``None`` when missing.
+
+    Centralised because :func:`export_email_templates_json` and
+    :func:`export_settings_json` both need to serialise nullable timestamps
+    consistently.
+    """
+
+    if value is None:
+        return None
+    try:
+        return value.isoformat()
+    except AttributeError:  # pragma: no cover — defensive, callers pass datetimes
+        return None
+
+
+def _json_export_path(stamp: str, suffix: str, backup_dir: Path | str) -> tuple[str, Path]:
+    """Build ``(filename, absolute_path)`` for a JSON export sibling file."""
+
+    filename = f"{stamp}.{suffix}.json"
+    return filename, Path(backup_dir) / filename
+
+
+def _stamp_from_sql_filename(sql_filename: str) -> str:
+    """Strip ``.sql.gz`` so JSON siblings share the SQL dump's timestamp stem."""
+
+    if sql_filename.endswith(".sql.gz"):
+        return sql_filename[: -len(".sql.gz")]
+    return sql_filename
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Write ``payload`` as a UTF-8 JSON file with deterministic key order."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fp:
+        json.dump(payload, fp, ensure_ascii=False, sort_keys=True, indent=2)
+
+
+def export_email_templates_json(stamp: str, backup_dir: Path | str) -> str:
+    """Write every ``email_templates`` row to ``<stamp>.email_templates.json``.
+
+    Returns the bare filename (matching ``Backup.email_templates_filename``);
+    the absolute path is reconstructed from ``BACKUP_DIR`` when needed.
+    """
+
+    filename, abs_path = _json_export_path(stamp, "email_templates", backup_dir)
+
+    rows: list[dict[str, Any]] = []
+    for template in EmailTemplate.query.order_by(EmailTemplate.key.asc()).all():
+        rows.append(
+            {
+                "key": template.key,
+                "subject": template.subject,
+                # Use the project's actual column names. The init template
+                # talks about ``html_body``/``text_body`` generically; in this
+                # codebase the canonical fields are ``body_html`` / ``body_text``
+                # (the ``*_content`` aliases are kept for compatibility).
+                "body_text": template.body_text,
+                "body_html": template.body_html,
+                "text_content": template.text_content,
+                "html_content": template.html_content,
+                "description": template.description,
+                "available_variables": template.available_variables,
+                "updated_at": _isoformat_or_none(template.updated_at),
+            }
+        )
+
+    _write_json(
+        abs_path,
+        {
+            "export_type": "email_templates",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "rows": rows,
+        },
+    )
+    return filename
+
+
+def _read_json_export(filename: str) -> dict[str, Any]:
+    """Load a JSON export from ``BACKUP_DIR / filename`` and return its dict."""
+
+    backup_dir = Path(current_app.config.get("BACKUP_DIR", "/var/backups/pindora"))
+    path = backup_dir / filename
+    if not path.exists():
+        raise BackupError(f"JSON export file not found: {filename}")
+    try:
+        with open(path, "r", encoding="utf-8") as fp:
+            data = json.load(fp)
+    except (OSError, json.JSONDecodeError) as err:
+        raise BackupError(f"Failed to read JSON export {filename!r}: {err}") from err
+    if not isinstance(data, dict):
+        raise BackupError(f"JSON export {filename!r} is not a JSON object")
+    return data
+
+
+def restore_email_templates_from_json(filename: str) -> dict[str, int]:
+    """Upsert email templates from ``filename``. Returns ``{created, updated}``.
+
+    The natural identifier is ``key``; ids in the export are ignored. Fields
+    written: ``subject``, ``body_text``, ``body_html``, ``text_content``,
+    ``html_content``, ``description``, ``available_variables``.
+    """
+
+    data = _read_json_export(filename)
+    rows = data.get("rows") or []
+    if not isinstance(rows, list):
+        raise BackupError(f"JSON export {filename!r} has no usable 'rows' list")
+
+    created = 0
+    updated = 0
+    now = datetime.now(timezone.utc)
+
+    for raw in rows:
+        if not isinstance(raw, dict):
+            continue
+        key = raw.get("key")
+        if not key:
+            continue
+
+        template = EmailTemplate.query.filter_by(key=key).first()
+        is_create = template is None
+        if template is None:
+            template = EmailTemplate(key=key)
+            db.session.add(template)
+
+        if "subject" in raw and raw["subject"] is not None:
+            template.subject = str(raw["subject"])
+        if "body_text" in raw and raw["body_text"] is not None:
+            template.body_text = str(raw["body_text"])
+        if "body_html" in raw:
+            template.body_html = raw["body_html"]
+        if "text_content" in raw and raw["text_content"] is not None:
+            template.text_content = str(raw["text_content"])
+        if "html_content" in raw:
+            template.html_content = raw["html_content"]
+        if "description" in raw and raw["description"] is not None:
+            template.description = str(raw["description"])
+        if "available_variables" in raw and raw["available_variables"] is not None:
+            template.available_variables = raw["available_variables"]
+        template.updated_at = now
+
+        if is_create:
+            created += 1
+        else:
+            updated += 1
+
+    db.session.commit()
+    return {"created": created, "updated": updated}
+
+
+def restore_settings_from_json(filename: str) -> dict[str, int]:
+    """Upsert settings from ``filename``. Returns counts incl. redaction stats.
+
+    Behaviour for the redaction marker (:data:`SECRET_REDACTED`):
+
+    * Existing row → keep the current DB value untouched (count under
+      ``redacted_preserved``).
+    * Missing row → skip creation entirely (count under
+      ``skipped_redacted_missing``). The canonical secret cannot be
+      reconstructed from the export, so creating a row with a NULL value
+      would either store a misleading masked literal or silently drop the
+      ``is_secret`` semantics.
+    """
+
+    data = _read_json_export(filename)
+    rows = data.get("rows") or []
+    if not isinstance(rows, list):
+        raise BackupError(f"JSON export {filename!r} has no usable 'rows' list")
+
+    created = 0
+    updated = 0
+    skipped_redacted_missing = 0
+    redacted_preserved = 0
+    now = datetime.now(timezone.utc)
+
+    for raw in rows:
+        if not isinstance(raw, dict):
+            continue
+        key = raw.get("key")
+        if not key:
+            continue
+
+        setting = Setting.query.filter_by(key=key).first()
+        incoming_value = raw.get("value")
+        is_secret_in_export = bool(raw.get("is_secret"))
+        value_is_redacted = incoming_value == SECRET_REDACTED
+
+        if setting is None:
+            if value_is_redacted:
+                skipped_redacted_missing += 1
+                continue
+            setting = Setting(key=key)
+            if "type" in raw and raw["type"]:
+                setting.type = str(raw["type"])
+            setting.is_secret = is_secret_in_export
+            if "description" in raw and raw["description"] is not None:
+                setting.description = str(raw["description"])
+            setting.value = None if incoming_value is None else str(incoming_value)
+            setting.updated_at = now
+            db.session.add(setting)
+            created += 1
+            continue
+
+        if "type" in raw and raw["type"]:
+            setting.type = str(raw["type"])
+        setting.is_secret = is_secret_in_export
+        if "description" in raw and raw["description"] is not None:
+            setting.description = str(raw["description"])
+
+        if value_is_redacted:
+            redacted_preserved += 1
+        else:
+            setting.value = None if incoming_value is None else str(incoming_value)
+        setting.updated_at = now
+        updated += 1
+
+    db.session.commit()
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped_redacted_missing": skipped_redacted_missing,
+        "redacted_preserved": redacted_preserved,
+    }
+
+
+def restore_json_exports_for_backup(
+    *,
+    email_templates_filename: Optional[str],
+    settings_filename: Optional[str],
+) -> dict[str, dict[str, int]]:
+    """Run both JSON-export upserts and return a combined summary dict.
+
+    Each export is optional — older backups taken before this feature shipped
+    have NULL filename columns. Missing files raise :class:`BackupError` from
+    the underlying helpers; callers should treat that as a hard failure and
+    surface it to the operator.
+    """
+
+    summary: dict[str, dict[str, int]] = {}
+    if email_templates_filename:
+        summary["email_templates"] = restore_email_templates_from_json(
+            email_templates_filename
+        )
+    else:
+        summary["email_templates"] = {"created": 0, "updated": 0}
+    if settings_filename:
+        summary["settings"] = restore_settings_from_json(settings_filename)
+    else:
+        summary["settings"] = {
+            "created": 0,
+            "updated": 0,
+            "skipped_redacted_missing": 0,
+            "redacted_preserved": 0,
+        }
+    return summary
+
+
+def export_settings_json(stamp: str, backup_dir: Path | str) -> str:
+    """Write every ``settings`` row to ``<stamp>.settings.json``.
+
+    Secret values (``is_secret == True``) are replaced with
+    :data:`SECRET_REDACTED` before serialisation so the human-readable export
+    never contains a plaintext secret.
+    """
+
+    filename, abs_path = _json_export_path(stamp, "settings", backup_dir)
+
+    rows: list[dict[str, Any]] = []
+    for setting in Setting.query.order_by(Setting.key.asc()).all():
+        if setting.is_secret:
+            value: Optional[str] = SECRET_REDACTED
+        else:
+            value = setting.value
+        rows.append(
+            {
+                "key": setting.key,
+                "value": value,
+                "type": setting.type,
+                "description": setting.description,
+                "is_secret": bool(setting.is_secret),
+                "updated_at": _isoformat_or_none(setting.updated_at),
+            }
+        )
+
+    _write_json(
+        abs_path,
+        {
+            "export_type": "settings",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "rows": rows,
+        },
+    )
+    return filename
 
 
 def _parse_database_url(url: str) -> dict[str, str]:
@@ -364,10 +668,74 @@ def create_backup(
             logger.exception("Failed to archive uploads directory")
             _safe_unlink(uploads_target_path)
 
+    # Init template §8: write human-readable JSON exports of email templates
+    # and settings next to the SQL dump. Failure here aborts the backup and
+    # cleans up partial files in the same way the SQL-dump failure path does
+    # so a half-finished backup is never recorded as a success.
+    stamp = _stamp_from_sql_filename(filename)
+    email_templates_filename: str | None = None
+    settings_filename: str | None = None
+    try:
+        email_templates_filename = export_email_templates_json(stamp, backup_dir)
+        settings_filename = export_settings_json(stamp, backup_dir)
+    except Exception as err:  # noqa: BLE001 — turn unexpected failures into BackupError
+        logger.exception("Failed to write JSON exports for backup %s", filename)
+        backup.status = BackupStatus.FAILED
+        backup.completed_at = datetime.now(timezone.utc)
+        backup.error_message = _truncate_error(str(err))
+        db.session.commit()
+        audit_record(
+            "backup.created.failed",
+            status=AuditStatus.FAILURE,
+            actor_id=actor_user_id,
+            target_type="backup",
+            target_id=backup.id,
+            context={
+                "filename": backup.filename,
+                "trigger": backup.trigger,
+                "stage": "json_exports",
+                "error": backup.error_message,
+            },
+            commit=True,
+        )
+        _safe_unlink(location)
+        if uploads_filename:
+            _safe_unlink(backup_dir / uploads_filename)
+        if email_templates_filename:
+            _safe_unlink(backup_dir / email_templates_filename)
+        if settings_filename:
+            _safe_unlink(backup_dir / settings_filename)
+        if actor_user is not None:
+            notification_service.create(
+                organization_id=actor_user.organization_id,
+                user_id=actor_user.id,
+                type="backup.failed",
+                title="Varmuuskopiointi epaonnistui",
+                body=backup.error_message,
+                link="/admin/backup/restore",
+                severity="danger",
+            )
+        _send_notification(ok=False, backup=backup, error_message=backup.error_message)
+        raise BackupError(str(err)) from err
+
+    # JSON exports add to the on-disk footprint reported on the row.
+    if email_templates_filename:
+        try:
+            size_bytes += (backup_dir / email_templates_filename).stat().st_size
+        except OSError:
+            pass
+    if settings_filename:
+        try:
+            size_bytes += (backup_dir / settings_filename).stat().st_size
+        except OSError:
+            pass
+
     backup.status = BackupStatus.SUCCESS
     backup.size_bytes = size_bytes
     backup.completed_at = datetime.now(timezone.utc)
     backup.uploads_filename = uploads_filename
+    backup.email_templates_filename = email_templates_filename
+    backup.settings_filename = settings_filename
     db.session.commit()
 
     audit_record(
@@ -381,6 +749,8 @@ def create_backup(
             "trigger": backup.trigger,
             "size_bytes": size_bytes,
             "location": backup.location,
+            "email_templates_filename": email_templates_filename,
+            "settings_filename": settings_filename,
         },
         commit=True,
     )
@@ -486,6 +856,18 @@ def prune_old_backups() -> int:
                     "Failed to remove old uploads archive %s", uploads_sibling
                 )
 
+        # Init template §8: also drop the JSON sibling exports so retention
+        # cleanup does not leave behind orphan template/settings files.
+        for json_name in _row_json_siblings(row, path.name):
+            json_sibling = backup_dir / json_name
+            if json_sibling.exists():
+                try:
+                    json_sibling.unlink()
+                except OSError:
+                    logger.exception(
+                        "Failed to remove old JSON export %s", json_sibling
+                    )
+
         if row is not None:
             db.session.delete(row)
 
@@ -528,12 +910,37 @@ def _safe_unlink(path: Path) -> None:
         logger.exception("Failed to remove partial backup file %s", path)
 
 
+def _row_json_siblings(row: Backup | None, sql_filename: str) -> list[str]:
+    """Return the JSON export filenames associated with a backup row.
+
+    Falls back to deriving the names from ``sql_filename`` when ``row`` is
+    None or its columns are blank — that covers backups taken before this
+    feature shipped (no DB record of the exports) as well as files copied
+    in out of band by an operator.
+    """
+
+    names: list[str] = []
+    if row is not None:
+        for candidate in (row.email_templates_filename, row.settings_filename):
+            if candidate:
+                names.append(candidate)
+    if not names:
+        stamp = _stamp_from_sql_filename(sql_filename)
+        names = [f"{stamp}.email_templates.json", f"{stamp}.settings.json"]
+    return names
+
+
 # ---------------------------------------------------------------------------
 # Restore
 # ---------------------------------------------------------------------------
 
 
-def restore_backup(*, filename: str, actor_user_id: Optional[int] = None) -> tuple[str, str]:
+def restore_backup(
+    *,
+    filename: str,
+    actor_user_id: Optional[int] = None,
+    restore_json_exports: bool = False,
+) -> tuple[str, str]:
     """Restore the database from ``filename`` (located inside ``BACKUP_DIR``).
 
     Caller is expected to have **already verified** the operator's password
@@ -546,6 +953,11 @@ def restore_backup(*, filename: str, actor_user_id: Optional[int] = None) -> tup
        so any error rolls the entire restore back atomically.
     3. Audit ``backup.restored`` and email every superadmin via the
        ``admin_notification`` template.
+    4. When ``restore_json_exports`` is ``True``, also upsert the email
+       templates and settings JSON exports paired with this backup. The
+       default is ``False`` so callers must explicitly opt in (init
+       template §8). A separate ``backup.restore_json_exports`` audit row
+       is written summarising the upsert counts.
 
     Returns ``(safe_copy_filename, safe_copy_size_human)``. On any failure
     raises :class:`BackupError`; the audit row + notification are written first.
@@ -731,6 +1143,49 @@ def restore_backup(*, filename: str, actor_user_id: Optional[int] = None) -> tup
         safe_copy_filename=safe_copy_filename,
     )
     logger.info(f"Restore complete: loaded {filename} (safe-copy: {safe_copy_filename})")
+
+    # 6) Init template §8: if the operator opted in, replay the human-readable
+    #    JSON exports on top of the freshly-restored DB so a selectively
+    #    edited template/setting can be promoted back without restoring the
+    #    full SQL dump on top of unrelated data. The audit row stays separate
+    #    from ``backup.restored`` so an observer can see exactly which run
+    #    touched email templates and settings.
+    if restore_json_exports:
+        # Re-resolve the row inside the just-restored database — its id may
+        # have changed if the dump came from a different environment.
+        restored_target_row = Backup.query.filter_by(filename=filename).first()
+        target_row_for_audit = restored_target_row.id if restored_target_row is not None else target_row_id
+        email_templates_filename = (
+            restored_target_row.email_templates_filename if restored_target_row is not None else None
+        )
+        settings_filename_value = (
+            restored_target_row.settings_filename if restored_target_row is not None else None
+        )
+
+        summary = restore_json_exports_for_backup(
+            email_templates_filename=email_templates_filename,
+            settings_filename=settings_filename_value,
+        )
+
+        audit_record(
+            "backup.restore_json_exports",
+            status=AuditStatus.SUCCESS,
+            actor_id=actor_user_id,
+            target_type="backup",
+            target_id=target_row_for_audit,
+            context={
+                "email_templates_filename": email_templates_filename,
+                "settings_filename": settings_filename_value,
+                "summary": summary,
+            },
+            commit=True,
+        )
+        logger.info(
+            "JSON exports restored for backup %s (summary=%s)",
+            filename,
+            summary,
+        )
+
     refreshed_safe_copy = Backup.query.get(safe_copy_id) if safe_copy_id is not None else None
     if refreshed_safe_copy is not None:
         return refreshed_safe_copy.filename, refreshed_safe_copy.size_human

@@ -102,19 +102,29 @@ def backups_restore(backup_id: int):
         elif auth == "totp":
             error = "Vahvistuskoodi ei täsmännyt."
         else:
+            restore_json = bool(request.form.get("restore_json_exports"))
             try:
-                safe_copy = restore_backup(
+                safe_copy_filename, _ = restore_backup(
                     filename=backup.filename,
                     actor_user_id=current_user.id,
+                    restore_json_exports=restore_json,
                 )
             except BackupError:
                 flash("Palautus epäonnistui.")
                 return redirect(url_for("backups_admin.backups_list"))
 
-            flash(
-                f"Palautus suoritettu varmuuskopiosta {backup.filename}. "
-                f"Edellinen tila tallennettiin turvakopiona nimellä {safe_copy.filename}."
-            )
+            if restore_json:
+                flash(
+                    f"Palautus suoritettu varmuuskopiosta {backup.filename}. "
+                    "Sähköpostipohjat ja järjestelmäasetukset palautettiin "
+                    "JSON-exporteista (salaisuusarvot säilyivät ennallaan). "
+                    f"Edellinen tila tallennettiin turvakopiona nimellä {safe_copy_filename}."
+                )
+            else:
+                flash(
+                    f"Palautus suoritettu varmuuskopiosta {backup.filename}. "
+                    f"Edellinen tila tallennettiin turvakopiona nimellä {safe_copy_filename}."
+                )
             return redirect(url_for("backups_admin.backups_list"))
 
     return render_template(

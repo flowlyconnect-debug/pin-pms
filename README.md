@@ -338,6 +338,20 @@ settings, which are stored as DB tables). When `UPLOADS_DIR` exists and is
 non-empty, a sibling `<stamp>.uploads.tar.gz` is produced alongside the
 SQL dump and tracked in the `backups.uploads_filename` column.
 
+In addition to the gzipped SQL dump, every successful backup writes two
+human-readable JSON exports next to it under `BACKUP_DIR` (init template §8):
+
+- `<stamp>.email_templates.json` — every row of the `email_templates` table
+  serialised by `key` (subject, both bodies, available variables, description,
+  `updated_at`). Tracked on `backups.email_templates_filename`.
+- `<stamp>.settings.json` — every row of the `settings` table. **Rows with
+  `is_secret=true` have their `value` replaced by the literal string
+  `"<redacted>"`** so secret values never travel as plaintext through the
+  export. Tracked on `backups.settings_filename`.
+
+The exports are intended for audit/inspection and selective restore — the
+canonical source of truth remains the SQL dump.
+
 Download / restore:
 
 - Admin UI: `/admin/backups` → "Download" or "Restore…" links
@@ -347,10 +361,28 @@ Download / restore:
 - If a paired uploads tarball exists it is extracted automatically into
   `UPLOADS_DIR`
 
+Selective JSON-export restore (off by default):
+
+- Admin UI restore form has a separate checkbox "Palauta myös sähköpostipohjat
+  ja järjestelmäasetukset JSON-exporteista". CLI: pass
+  `--restore-json-exports` to `flask backup-restore`.
+- Upserts by `key` against `email_templates` and `settings`. **Existing
+  values are overwritten** — this option ships with a visible warning in the
+  admin UI.
+- Settings rows whose JSON value is `"<redacted>"` are **never** written
+  back: an existing DB secret is preserved as-is, and a missing secret row
+  is skipped (counted in the `backup.restore_json_exports` audit context as
+  `skipped_redacted_missing`). Operators must rotate secrets through the
+  normal settings flow.
+- Every JSON-export restore writes a separate `backup.restore_json_exports`
+  audit row including the upsert summary (`created` / `updated` /
+  `redacted_preserved` / `skipped_redacted_missing`).
+
 Retention:
 
 - `BACKUP_RETENTION_DAYS` (default 30) controls how long files live
-- pruning runs automatically after every successful backup
+- pruning runs automatically after every successful backup and removes the
+  paired uploads tarball plus both JSON exports alongside the SQL dump
 - pre-restore safe-copies are exempt from pruning
 
 ## Mailgun setup

@@ -264,10 +264,18 @@ def register_cli_commands(app: Flask) -> None:
         except BackupError as err:
             raise click.ClickException(f"Backup failed: {err}") from err
 
-        click.echo("Backup complete:")
-        click.echo(f"  Filename: {backup.filename}")
-        click.echo(f"  Location: {backup.location}")
-        click.echo(f"  Size:     {backup.size_human}")
+        backup_dir = Path(app.config.get("BACKUP_DIR", "/var/backups/pindora"))
+        click.echo("Backup created:")
+        click.echo(f"  SQL dump:            {backup.location}")
+        if backup.email_templates_filename:
+            click.echo(
+                f"  Email templates JSON: {backup_dir / backup.email_templates_filename}"
+            )
+        if backup.settings_filename:
+            click.echo(
+                f"  Settings JSON:        {backup_dir / backup.settings_filename}"
+            )
+        click.echo(f"  Size:                {backup.size_human}")
 
     @app.cli.command("backup-restore")
     @click.option(
@@ -281,7 +289,17 @@ def register_cli_commands(app: Flask) -> None:
         default=False,
         help="Skip the interactive confirmation prompt (use with care).",
     )
-    def backup_restore(filename: str, no_confirm: bool) -> None:
+    @click.option(
+        "--restore-json-exports",
+        is_flag=True,
+        default=False,
+        help=(
+            "Also upsert email templates and settings from the JSON exports "
+            "paired with this backup. Redacted secret values are preserved as-is "
+            "in the database."
+        ),
+    )
+    def backup_restore(filename: str, no_confirm: bool, restore_json_exports: bool) -> None:
         """Load a backup file over the current database.
 
         The web UI gates this behind a password + 2FA challenge; the CLI
@@ -298,13 +316,23 @@ def register_cli_commands(app: Flask) -> None:
                 bold=True,
             )
         )
+        if restore_json_exports:
+            click.echo(
+                click.style(
+                    "JSON exports (email templates + settings) will also be "
+                    "upserted; redacted secret values stay as-is in the database.",
+                    fg="yellow",
+                )
+            )
         if not no_confirm:
             click.confirm("Proceed with restore?", abort=True)
 
         click.echo("Restoring…")
         try:
             safe_copy_filename, safe_copy_size = restore_backup(
-                filename=filename, actor_user_id=None
+                filename=filename,
+                actor_user_id=None,
+                restore_json_exports=restore_json_exports,
             )
         except BackupError as err:
             raise click.ClickException(f"Restore failed: {err}") from err
