@@ -43,13 +43,28 @@
   </section>
 
   <section class="content-card availability-card">
+    <div class="availability-legend" role="list" aria-label="Selitteet">
+      <span class="availability-legend-item" role="listitem"><span class="availability-legend-swatch availability-legend-swatch--free" aria-hidden="true"></span>Vapaa</span>
+      <span class="availability-legend-item" role="listitem"><span class="availability-legend-swatch availability-legend-swatch--reserved" aria-hidden="true"></span>Varattu</span>
+      <span class="availability-legend-item" role="listitem"><span class="availability-legend-swatch availability-legend-swatch--checkin" aria-hidden="true"></span>Saapuu</span>
+      <span class="availability-legend-item" role="listitem"><span class="availability-legend-swatch availability-legend-swatch--checkout" aria-hidden="true"></span>Vaihto</span>
+      <span class="availability-legend-item" role="listitem"><span class="availability-legend-swatch availability-legend-swatch--maintenance" aria-hidden="true"></span>Huolto</span>
+      <span class="availability-legend-item" role="listitem"><span class="availability-legend-swatch availability-legend-swatch--blocked" aria-hidden="true"></span>Estetty</span>
+    </div>
+    {% set today_iso = (today.isoformat() if (today is defined and today) else "") %}
     <div class="availability-table-wrap">
       <table class="availability-table">
         <thead>
           <tr>
             <th class="availability-sticky-col">Kohde / Yksikkö</th>
             {% for day_iso in matrix.date_range %}
-              <th>{{ day_iso[5:] }}</th>
+              {% set m = day_iso[5:7]|int %}
+              {% set d = day_iso[8:10]|int %}
+              <th{% if day_iso == today_iso %} class="is-today" data-today="true"{% endif %} title="{{ day_iso }}">
+                <span class="availability-day-cell">
+                  <span class="availability-day-date">{{ d }}.{{ m }}.</span>
+                </span>
+              </th>
             {% endfor %}
           </tr>
         </thead>

@@ -1,0 +1,345 @@
+/*
+ * polish.css — final corrective overrides
+ *
+ * Loaded LAST so it can defeat any earlier rule. Use !important sparingly,
+ * only on the rules where we've seen earlier styles win when they
+ * shouldn't (mostly hover-states, headers, buttons and form controls).
+ */
+
+/* ───────────────────────────────────────────────────────────────
+ * 1. Native form controls — accent colour
+ *    Browser default for checkboxes & radios on some Windows builds
+ *    is purple (#8B5CF6). Force the brand red instead.
+ * ─────────────────────────────────────────────────────────────── */
+:root {
+  accent-color: var(--primary);
+}
+
+input[type="checkbox"],
+input[type="radio"],
+progress,
+meter {
+  accent-color: var(--primary) !important;
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 2. Tables — header & row hover
+ *    Earlier rules sometimes leak the dark sidebar colour into
+ *    table headers / hover. Pin the header to the light surface
+ *    and the hover to a very subtle warm-grey wash.
+ * ─────────────────────────────────────────────────────────────── */
+.admin-main table thead,
+.admin-main table thead tr,
+.admin-main table thead th,
+main table thead,
+main table thead tr,
+main table thead th,
+.data-table thead th,
+.ui-table thead th,
+.admin-table-panel thead th {
+  background: var(--bg-alt, #F5F5F4) !important;
+  color: var(--text-soft, #78716C) !important;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border, #E7E5E4);
+}
+
+.admin-main table tbody tr:hover,
+.admin-main table tbody tr:hover td,
+main table tbody tr:hover,
+main table tbody tr:hover td,
+.data-table tbody tr:hover,
+.data-table tbody tr:hover td,
+.ui-table tbody tr:hover,
+.ui-table tbody tr:hover td,
+.admin-table-panel tbody tr:hover,
+.admin-table-panel tbody tr:hover td {
+  background: var(--bg-alt, #F5F5F4) !important;
+  color: var(--text, #0C0A09) !important;
+}
+
+/* Defeat any tailwind-style dark utility that might have leaked in */
+.admin-main tbody tr.bg-black,
+.admin-main tbody tr.bg-stone-900,
+.admin-main tbody tr.bg-neutral-900,
+.admin-main tbody tr.bg-zinc-900,
+.admin-main tbody td.bg-black,
+.admin-main tbody td.bg-stone-900,
+.admin-main tbody td.bg-neutral-900,
+.admin-main tbody td.bg-zinc-900 {
+  background: var(--surface, #FFFFFF) !important;
+  color: var(--text, #0C0A09) !important;
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 3. Buttons — make any button that *should* be primary actually red
+ *    Targets buttons that have data-variant="primary" but also
+ *    accidentally got the .btn-secondary class.
+ * ─────────────────────────────────────────────────────────────── */
+button[data-variant="primary"],
+a[data-variant="primary"],
+.btn-primary,
+.admin-main button[data-variant="primary"],
+.admin-main a[data-variant="primary"],
+.admin-main .btn-primary {
+  background: var(--primary, #B91C1C) !important;
+  color: #FFFFFF !important;
+  border: 1px solid var(--primary, #B91C1C) !important;
+}
+
+button[data-variant="primary"]:hover,
+a[data-variant="primary"]:hover,
+.btn-primary:hover,
+.admin-main button[data-variant="primary"]:hover,
+.admin-main a[data-variant="primary"]:hover,
+.admin-main .btn-primary:hover {
+  background: var(--primary-hover, #991B1B) !important;
+  border-color: var(--primary-hover, #991B1B) !important;
+  color: #FFFFFF !important;
+}
+
+/* The "Päivitä" submit button on the availability filter and similar
+ * naked submit buttons inside an admin form should default to primary. */
+.admin-main form button[type="submit"]:not(.btn-secondary):not(.btn-ghost):not(.btn-danger):not([data-variant="secondary"]):not([data-variant="ghost"]):not([data-variant="danger"]) {
+  background: var(--primary, #B91C1C) !important;
+  color: #FFFFFF !important;
+  border: 1px solid var(--primary, #B91C1C) !important;
+}
+
+.admin-main form button[type="submit"]:not(.btn-secondary):not(.btn-ghost):not(.btn-danger):not([data-variant="secondary"]):not([data-variant="ghost"]):not([data-variant="danger"]):hover {
+  background: var(--primary-hover, #991B1B) !important;
+  border-color: var(--primary-hover, #991B1B) !important;
+}
+
+/* "Toteuta" bulk-action button: the macro applies both .btn-secondary
+ * and data-variant="primary"; data-variant should win. */
+.admin-bulk-bar button[data-variant="primary"],
+.admin-bulk-bar button[data-bulk-submit] {
+  background: var(--primary, #B91C1C) !important;
+  color: #FFFFFF !important;
+  border: 1px solid var(--primary, #B91C1C) !important;
+}
+.admin-bulk-bar button[data-variant="primary"]:hover,
+.admin-bulk-bar button[data-bulk-submit]:hover {
+  background: var(--primary-hover, #991B1B) !important;
+  border-color: var(--primary-hover, #991B1B) !important;
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 4. Trend indicator — neutral colour & arrow when value is zero
+ * ─────────────────────────────────────────────────────────────── */
+.dashboard-stat-card__trend.is-neutral {
+  color: var(--text-soft, #78716C) !important;
+}
+.dashboard-stat-card__trend.is-up {
+  color: var(--success, #15803D);
+}
+.dashboard-stat-card__trend.is-down {
+  color: var(--primary, #B91C1C);
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 5. Sparklines — make them visible
+ * ─────────────────────────────────────────────────────────────── */
+.dashboard-stat-card__sparkline {
+  width: 100% !important;
+  height: 32px !important;
+  margin-top: 8px;
+  opacity: 1 !important;
+}
+.dashboard-stat-card__sparkline polyline {
+  stroke: var(--primary, #B91C1C);
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dashboard-stat-card__sparkline polygon {
+  fill: var(--primary, #B91C1C);
+  fill-opacity: 0.12;
+  stroke: none;
+}
+.dashboard-stat-card--success .dashboard-stat-card__sparkline polyline {
+  stroke: var(--success, #15803D);
+}
+.dashboard-stat-card--success .dashboard-stat-card__sparkline polygon {
+  fill: var(--success, #15803D);
+  fill-opacity: 0.12;
+}
+.dashboard-stat-card--warning .dashboard-stat-card__sparkline polyline {
+  stroke: var(--warning, #B45309);
+}
+.dashboard-stat-card--warning .dashboard-stat-card__sparkline polygon {
+  fill: var(--warning, #B45309);
+  fill-opacity: 0.12;
+}
+.dashboard-stat-card--danger .dashboard-stat-card__sparkline polyline {
+  stroke: #DC2626;
+}
+.dashboard-stat-card--danger .dashboard-stat-card__sparkline polygon {
+  fill: #DC2626;
+  fill-opacity: 0.12;
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 6. Info banner — better contrast
+ * ─────────────────────────────────────────────────────────────── */
+.empty-state-banner-info {
+  background: var(--info-soft, #DBEAFE) !important;
+  border-left: 3px solid var(--info, #1D4ED8) !important;
+  color: #1E3A8A !important;
+  padding: 12px 16px !important;
+  border-radius: 0 8px 8px 0 !important;
+}
+.empty-state-banner-info p {
+  color: #1E3A8A !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 7. Yksiköiden tilanne — clean unit links (not red underlined)
+ * ─────────────────────────────────────────────────────────────── */
+.dashboard-upcoming-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.dashboard-upcoming-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border, #E7E5E4);
+  border-radius: 6px;
+  transition: background-color 150ms ease;
+}
+.dashboard-upcoming-list li:last-child {
+  border-bottom: none;
+}
+.dashboard-upcoming-list li:hover {
+  background: var(--bg-alt, #F5F5F4);
+}
+.dashboard-upcoming-list li::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-soft, #78716C);
+  flex-shrink: 0;
+}
+.dashboard-upcoming-list li[data-state="occupied"]::before,
+.dashboard-upcoming-list li[data-state="reserved"]::before {
+  background: var(--info, #1D4ED8);
+}
+.dashboard-upcoming-list li[data-state="free"]::before,
+.dashboard-upcoming-list li[data-state="available"]::before {
+  background: var(--success, #15803D);
+}
+.dashboard-upcoming-list li[data-state="maintenance"]::before {
+  background: var(--warning, #B45309);
+}
+.dashboard-upcoming-list li a {
+  color: var(--text, #0C0A09) !important;
+  text-decoration: none !important;
+  font-weight: 500;
+}
+.dashboard-upcoming-list li a:hover {
+  color: var(--primary, #B91C1C) !important;
+}
+.dashboard-upcoming-list li a strong {
+  font-weight: 600;
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 8. Availability table — proper status colours, dot indicators
+ * ─────────────────────────────────────────────────────────────── */
+.availability-legend {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: var(--surface, #FFFFFF);
+  border: 1px solid var(--border, #E7E5E4);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-muted, #57534E);
+}
+.availability-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.availability-legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+.availability-legend-swatch--free       { background: #DCFCE7; border-color: #86EFAC; }
+.availability-legend-swatch--reserved   { background: #DBEAFE; border-color: #93C5FD; }
+.availability-legend-swatch--maintenance{ background: #FEF3C7; border-color: #FDE68A; }
+.availability-legend-swatch--checkout   { background: #FED7AA; border-color: #FDBA74; }
+.availability-legend-swatch--checkin    { background: #BBF7D0; border-color: #86EFAC; }
+.availability-legend-swatch--blocked    { background: #F5F5F4; border-color: #D6D3D1; }
+
+/* Force readable status cells */
+.availability-status-reserved   { background: #DBEAFE !important; }
+.availability-status-checkout   { background: #FED7AA !important; }
+.availability-status-checkin    { background: #BBF7D0 !important; }
+.availability-status-maintenance{ background: #FEF3C7 !important; }
+.availability-status-blocked    { background: #F5F5F4 !important; color: #78716C; }
+.availability-status-free       { background: #FFFFFF; }
+
+.availability-table th[data-today="true"],
+.availability-table th.is-today {
+  background: var(--primary-soft, #FEF2F2) !important;
+  color: var(--primary, #B91C1C) !important;
+  font-weight: 700;
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 9. Tooltip "i" icons — only show when something will happen
+ * ─────────────────────────────────────────────────────────────── */
+.ui-tooltip-trigger {
+  background: var(--bg-alt, #F5F5F4);
+  color: var(--text-soft, #78716C);
+  border: 1px solid var(--border, #E7E5E4);
+}
+.ui-tooltip-trigger:hover,
+.ui-tooltip-trigger:focus-visible {
+  background: var(--primary-soft, #FEF2F2);
+  color: var(--primary, #B91C1C);
+  border-color: var(--primary, #B91C1C);
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * 10. Dark mode safety net
+ *     (Only active if user prefers dark; fix the leaks the dev had.)
+ * ─────────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"],
+  :root[data-theme="dark"] {
+    --bg-alt: #292524;
+    --bg-hover: #292524;
+    --table-header-bg: #292524;
+    --table-row-hover: #292524;
+    --table-header-text: #A8A29E;
+  }
+
+  :root[data-theme="auto"] .empty-state-banner-info,
+  :root[data-theme="dark"] .empty-state-banner-info {
+    background: rgba(29, 78, 216, 0.15) !important;
+    color: #93C5FD !important;
+  }
+  :root[data-theme="auto"] .empty-state-banner-info p,
+  :root[data-theme="dark"] .empty-state-banner-info p {
+    color: #BFDBFE !important;
+  }
+}

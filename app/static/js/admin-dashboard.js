@@ -62,6 +62,7 @@
         label: "Kulut tässä kuussa",
         value: stats.expenses_this_month_fi || "0,00 €",
         trend: 0,
+        invertTrend: true, // for expenses, going down is good
         meta: `Avoimet saatavat: ${stats.open_receivables_fi || "0,00 €"}`,
         intent: "warning",
         icon: "🧾",
@@ -139,13 +140,28 @@
 
 function renderStatCard(model) {
   const trendValue = Number(model.trend || 0);
-  const trendUp = trendValue >= 0;
-  const trendArrow = trendUp ? "↗" : "↘";
-  const trendClass = trendUp ? "is-up" : "is-down";
-  const trendLabel = `${trendArrow} ${trendValue > 0 ? "+" : ""}${trendValue.toLocaleString("fi-FI", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })}% vs. ed. kk`;
+  const inverted = Boolean(model.invertTrend);
+
+  let trendArrow;
+  let trendClass;
+  let trendLabel;
+
+  if (trendValue === 0 || !Number.isFinite(trendValue)) {
+    trendArrow = "→";
+    trendClass = "is-neutral";
+    trendLabel = `${trendArrow} Ei muutosta vs. ed. kk`;
+  } else {
+    const isPositive = trendValue > 0;
+    // For "inverted" metrics (e.g. expenses) a decrease is good.
+    const isGood = inverted ? !isPositive : isPositive;
+    trendArrow = isPositive ? "↗" : "↘";
+    trendClass = isGood ? "is-up" : "is-down";
+    const formatted = Math.abs(trendValue).toLocaleString("fi-FI", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+    trendLabel = `${trendArrow} ${isPositive ? "+" : "−"}${formatted}% vs. ed. kk`;
+  }
   const sparkline = Array.isArray(model.sparkline) ? model.sparkline : [];
   const sparklineSvg = sparkline.length > 1 ? renderSparkline(sparkline) : "";
   return `
@@ -171,22 +187,33 @@ function renderStatCard(model) {
 }
 
 function renderSparkline(values) {
-  const width = 60;
-  const height = 20;
+  // Drop a flat-line sparkline — it would render as a straight line at the
+  // top edge and look broken; better to render nothing.
   const min = Math.min(...values);
   const max = Math.max(...values);
+  if (max === min) return "";
+
+  const width = 120;
+  const height = 32;
+  const padding = 2; // keep the stroke from clipping at the edges
   const range = max - min || 1;
+  const innerH = height - padding * 2;
   const points = values
     .map((value, index) => {
       const x = (index / Math.max(values.length - 1, 1)) * width;
-      const y = height - ((value - min) / range) * height;
+      const y = padding + (innerH - ((value - min) / range) * innerH);
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(" ");
+  // Last point gets a circle so the trend has a clear endpoint
+  const lastValue = values[values.length - 1];
+  const lastX = width;
+  const lastY = padding + (innerH - ((lastValue - min) / range) * innerH);
   return `
-    <svg class="dashboard-stat-card__sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+    <svg class="dashboard-stat-card__sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
       <polygon points="0,${height} ${points} ${width},${height}" />
       <polyline points="${points}" />
+      <circle cx="${lastX.toFixed(2)}" cy="${lastY.toFixed(2)}" r="2.5" fill="currentColor" stroke="white" stroke-width="1" />
     </svg>
   `;
 }

@@ -601,6 +601,7 @@ def availability_page():
         start_date=start_d,
         end_date=end_d,
         days=days,
+        today=date.today(),
         prev_from=(start_d - timedelta(days=7)).isoformat(),
         next_from=(start_d + timedelta(days=7)).isoformat(),
     )
