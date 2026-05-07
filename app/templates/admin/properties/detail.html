@@ -30,6 +30,7 @@
     <p><strong>Pysäköinti:</strong> {{ "Kyllä" if row.has_parking else "Ei" }}</p>
     <p><strong>Sauna:</strong> {{ "Kyllä" if row.has_sauna else "Ei" }}</p>
     <p><strong>Sisäpiha:</strong> {{ "Kyllä" if row.has_courtyard else "Ei" }}</p>
+    <p><strong>Ilmastointi:</strong> {{ "Kyllä" if row.has_air_conditioning else "Ei" }}</p>
   </div>
   {% set resource = "properties" %}
   {% set resource_id = row.id %}

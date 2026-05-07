@@ -543,6 +543,7 @@ def create_property():
             has_parking=bool(payload.get("has_parking", False)),
             has_sauna=bool(payload.get("has_sauna", False)),
             has_courtyard=bool(payload.get("has_courtyard", False)),
+            has_air_conditioning=bool(payload.get("has_air_conditioning", False)),
             description=payload.get("description"),
             url=payload.get("url"),
             actor_user_id=_actor_user_id(),

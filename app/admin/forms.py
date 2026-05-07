@@ -113,6 +113,7 @@ class PropertyForm(FlaskForm):
     has_parking = BooleanField("Pysäköinti")
     has_sauna = BooleanField("Sauna")
     has_courtyard = BooleanField("Sisäpiha")
+    has_air_conditioning = BooleanField("Ilmastointi")
     description = TextAreaField("Kuvaus", validators=[Optional()])
     url = StringField("Verkko-osoite", validators=[Optional(), Length(max=500), URL(require_tld=False)])
 

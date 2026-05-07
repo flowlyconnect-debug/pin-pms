@@ -1013,6 +1013,61 @@ body.admin-sidebar-open {
   margin-top: 0.5rem;
 }
 
+.property-features-stack {
+  display: grid;
+  gap: 8px;
+  margin-top: 0.25rem;
+}
+
+.property-feature-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin: 0 !important;
+  padding: 6px 0;
+  cursor: pointer;
+  user-select: none;
+  width: fit-content;
+}
+
+.property-feature-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0;
+  flex-shrink: 0;
+  border: 1.5px solid var(--color-border-strong) !important;
+  border-radius: 4px !important;
+  background: var(--color-surface) !important;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+}
+
+.property-feature-checkbox:hover {
+  border-color: var(--text-soft, var(--color-text-muted)) !important;
+}
+
+.property-feature-checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.property-feature-checkbox:checked {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.property-feature-checkbox:checked::after {
+  content: "";
+  width: 8px;
+  height: 4px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: translateY(-1px) rotate(-45deg);
+}
+
 /* —— Buttons —— */
 .actions {
   margin-top: 1rem;

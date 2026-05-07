@@ -32,6 +32,7 @@ def _serialize_property(row: Property) -> dict:
         "has_parking": row.has_parking,
         "has_sauna": row.has_sauna,
         "has_courtyard": row.has_courtyard,
+        "has_air_conditioning": row.has_air_conditioning,
         "description": row.description,
         "url": row.url,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -98,6 +99,7 @@ def create_property(
     has_parking: bool = False,
     has_sauna: bool = False,
     has_courtyard: bool = False,
+    has_air_conditioning: bool = False,
     description: str | None = None,
     url: str | None = None,
     actor_user_id: int | None = None,
@@ -124,6 +126,7 @@ def create_property(
         has_parking=bool(has_parking),
         has_sauna=bool(has_sauna),
         has_courtyard=bool(has_courtyard),
+        has_air_conditioning=bool(has_air_conditioning),
         description=(description or "").strip() or None,
         url=(url or "").strip() or None,
     )
@@ -169,6 +172,7 @@ def update_property(
     has_parking: bool = False,
     has_sauna: bool = False,
     has_courtyard: bool = False,
+    has_air_conditioning: bool = False,
     description: str | None = None,
     url: str | None = None,
     actor_user_id: int | None = None,
@@ -201,6 +205,7 @@ def update_property(
     row.has_parking = bool(has_parking)
     row.has_sauna = bool(has_sauna)
     row.has_courtyard = bool(has_courtyard)
+    row.has_air_conditioning = bool(has_air_conditioning)
     row.description = (description or "").strip() or None
     row.url = (url or "").strip() or None
     db.session.commit()

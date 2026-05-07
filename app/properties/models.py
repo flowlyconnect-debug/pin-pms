@@ -24,6 +24,7 @@ class Property(TimestampMixin, db.Model):
     has_parking = db.Column(db.Boolean, nullable=False, default=False)
     has_sauna = db.Column(db.Boolean, nullable=False, default=False)
     has_courtyard = db.Column(db.Boolean, nullable=False, default=False)
+    has_air_conditioning = db.Column(db.Boolean, nullable=False, default=False)
     description = db.Column(db.Text, nullable=True)
     url = db.Column(db.String(500), nullable=True)
 

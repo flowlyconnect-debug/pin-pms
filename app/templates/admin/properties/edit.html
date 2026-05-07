@@ -35,10 +35,28 @@
     <label for="url">Verkko-osoite</label>
     {{ form.url(id="url", type="url") }}
     <h2>Ominaisuudet</h2>
-    <label>{{ form.has_elevator() }} Hissi</label>
-    <label>{{ form.has_parking() }} Pysäköinti</label>
-    <label>{{ form.has_sauna() }} Sauna</label>
-    <label>{{ form.has_courtyard() }} Sisäpiha</label>
+    <div class="property-features-stack">
+      <label class="property-feature-row" for="has_elevator">
+        {{ form.has_elevator(id="has_elevator", class_="property-feature-checkbox") }}
+        <span>Hissi</span>
+      </label>
+      <label class="property-feature-row" for="has_parking">
+        {{ form.has_parking(id="has_parking", class_="property-feature-checkbox") }}
+        <span>Pysäköinti</span>
+      </label>
+      <label class="property-feature-row" for="has_sauna">
+        {{ form.has_sauna(id="has_sauna", class_="property-feature-checkbox") }}
+        <span>Sauna</span>
+      </label>
+      <label class="property-feature-row" for="has_courtyard">
+        {{ form.has_courtyard(id="has_courtyard", class_="property-feature-checkbox") }}
+        <span>Sisäpiha</span>
+      </label>
+      <label class="property-feature-row" for="has_air_conditioning">
+        {{ form.has_air_conditioning(id="has_air_conditioning", class_="property-feature-checkbox") }}
+        <span>Ilmastointi</span>
+      </label>
+    </div>
     <div class="actions">
       <button type="submit">Tallenna kohde</button>
     </div>

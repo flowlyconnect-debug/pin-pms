@@ -57,6 +57,7 @@ class PropertySchema(TypedDict, total=False):
     has_parking: bool
     has_sauna: bool
     has_courtyard: bool
+    has_air_conditioning: bool
     description: str | None
     url: str | None
     created_at: str | None
