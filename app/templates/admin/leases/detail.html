@@ -6,6 +6,7 @@
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.leases_list') }}">Takaisin vuokriin</a>
     <a class="btn" href="{{ url_for('admin.leases_edit', lease_id=row.id) }}">Muokkaa sopimusta</a>
+    <a class="btn" href="{{ url_for('admin.leases_pdf', lease_id=row.id) }}">Lataa PDF</a>
   </div>
   <h1>Vuokrasopimus #{{ row.id }}</h1>
   <div class="card">
@@ -48,6 +49,16 @@
   {% endif %}
 
   {% if row.status in ["draft", "active"] %}
+    <h2>Allekirjoitus</h2>
+    <form method="post" action="{{ url_for('admin.leases_send_for_signing', lease_id=row.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="actions">
+        <button type="submit" class="btn">Laheta allekirjoitettavaksi</button>
+      </div>
+    </form>
+  {% endif %}
+
+  {% if row.status in ["draft", "active", "pending_signature"] %}
     <h2>Peruuta vuokra</h2>
     <form method="post" action="{{ url_for('admin.leases_cancel', lease_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

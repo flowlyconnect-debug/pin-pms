@@ -165,3 +165,10 @@ class UnitForm(FlaskForm):
     )
     description = TextAreaField("Kuvaus", validators=[Optional()])
     floor_plan_image_id = IntegerField("Pohjapiirroskuvan ID", validators=[Optional(), NumberRange(min=1)])
+
+
+class LeaseTemplateForm(FlaskForm):
+    name = StringField("Nimi", validators=[DataRequired(), Length(min=1, max=255)])
+    description = TextAreaField("Kuvaus", validators=[Optional()])
+    body_markdown = TextAreaField("Sisalto (Markdown)", validators=[DataRequired(), Length(min=1)])
+    is_default = BooleanField("Oletuspohja")

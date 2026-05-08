@@ -318,6 +318,43 @@ SEED_TEMPLATES: list[TemplateSeed] = [
         ],
     },
     {
+        "key": "lease_sign_request",
+        "subject": "Vuokrasopimus allekirjoitettavaksi",
+        "body_text": (
+            "Hei {{ tenant_name }},\n\n"
+            "Sinulle on lahetetty vuokrasopimus allekirjoitettavaksi.\n"
+            "Sopimus #{{ lease_id }}\n"
+            "Vuokra: {{ rent_amount }}\n"
+            "Laskutusjakso: {{ billing_cycle }}\n"
+            "Voimassa: {{ lease_start_date }} - {{ lease_end_date }}\n\n"
+            "Allekirjoita taalla: {{ sign_url }}\n\n"
+            "— {{ from_name }}\n"
+        ),
+        "body_html": (
+            "<p>Hei {{ tenant_name }},</p>"
+            "<p>Sinulle on lahetetty vuokrasopimus allekirjoitettavaksi.</p>"
+            "<ul>"
+            "<li>Sopimus #{{ lease_id }}</li>"
+            "<li>Vuokra: {{ rent_amount }}</li>"
+            "<li>Laskutusjakso: {{ billing_cycle }}</li>"
+            "<li>Voimassa: {{ lease_start_date }} - {{ lease_end_date }}</li>"
+            "</ul>"
+            '<p><a href="{{ sign_url }}">Avaa allekirjoituslinkki</a></p>'
+            "<p>— {{ from_name }}</p>"
+        ),
+        "description": "Vuokrasopimuksen allekirjoituspyynto asiakkaalle.",
+        "available_variables": [
+            "tenant_name",
+            "lease_id",
+            "rent_amount",
+            "billing_cycle",
+            "lease_start_date",
+            "lease_end_date",
+            "sign_url",
+            "from_name",
+        ],
+    },
+    {
         "key": "payment_link",
         "subject": "Maksulinkki laskulle {{ invoice_number }}",
         "body_text": (

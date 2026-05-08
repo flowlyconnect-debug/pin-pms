@@ -1,0 +1,28 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Vuokrasopimuksen allekirjoitus{% endblock %}
+
+{% block content %}
+  <div class="container" style="max-width: 780px; margin: 2rem auto;">
+    <h1>Vuokrasopimus</h1>
+    {% if error %}
+      <p class="flash flash-error">{{ error }}</p>
+    {% elif row %}
+      <p><strong>Sopimus:</strong> #{{ row.id }}</p>
+      <p><strong>Tila:</strong> {{ row.status }}</p>
+      <p><strong>Vuokra:</strong> {{ row.rent_amount }}</p>
+      <p><strong>Laskutusjakso:</strong> {{ row.billing_cycle }}</p>
+      {% if row.signed_at %}
+        <p>Sopimus on jo allekirjoitettu {{ row.signed_at }}.</p>
+      {% else %}
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn">Hyvaksyyn ja allekirjoitan sopimuksen</button>
+        </form>
+      {% endif %}
+      {% if signed %}
+        <p class="flash flash-success">Kiitos, sopimus on allekirjoitettu.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endblock %}

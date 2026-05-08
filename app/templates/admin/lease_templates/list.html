@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Sopimuspohjat · Pin PMS{% endblock %}
+
+{% block content %}
+  <div class="actions">
+    <a class="btn" href="{{ url_for('admin.lease_templates_new') }}">Luo sopimuspohja</a>
+  </div>
+  <h1>Sopimuspohjat</h1>
+  <table class="data-table ui-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nimi</th>
+        <th>Oletus</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.name }}</td>
+          <td>{{ "Kyllä" if row.is_default else "Ei" }}</td>
+          <td class="actions">
+            <a class="btn btn-secondary" href="{{ url_for('admin.lease_templates_edit', template_id=row.id) }}">Muokkaa</a>
+            <form method="post" action="{{ url_for('admin.lease_templates_set_default', template_id=row.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn">Aseta oletukseksi</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.lease_templates_delete', template_id=row.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-danger">Poista</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4"><em>Ei sopimuspohjia.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

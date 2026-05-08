@@ -14,8 +14,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.billing.models import Invoice
-from app.billing.services import InvoiceServiceError
+from app.billing.models import Invoice, Lease
+from app.billing.services import InvoiceServiceError, LeaseServiceError
 from app.settings import services as settings_services
 
 
@@ -282,4 +282,42 @@ def generate_invoice_pdf(invoice_id: int) -> bytes:
     return buffer.getvalue()
 
 
-__all__ = ["generate_invoice_pdf"]
+def generate_lease_pdf(*, lease_id: int, content: str, template_name: str | None = None) -> bytes:
+    lease = Lease.query.get(lease_id)
+    if lease is None:
+        raise LeaseServiceError(
+            code="not_found",
+            message="Lease not found.",
+            status=404,
+        )
+    styles = getSampleStyleSheet()
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=2 * cm,
+        leftMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
+        pageCompression=0,
+    )
+    story: list[Any] = []
+    heading = f"Vuokrasopimus #{lease.id}"
+    if template_name:
+        heading = f"{heading} - {template_name}"
+    story.append(Paragraph(_p(heading), styles["Title"]))
+    story.append(Spacer(1, 0.4 * cm))
+    story.append(Paragraph(f"<b>Vuokralainen:</b> {_p(lease.guest.full_name if lease.guest else '')}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Alku:</b> {_p(lease.start_date.isoformat() if lease.start_date else '')}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Loppu:</b> {_p(lease.end_date.isoformat() if lease.end_date else '-')}", styles["Normal"]))
+    story.append(Spacer(1, 0.4 * cm))
+    for line in (content or "").splitlines():
+        if line.strip():
+            story.append(Paragraph(_p(line), styles["Normal"]))
+        else:
+            story.append(Spacer(1, 0.2 * cm))
+    doc.build(story)
+    return buffer.getvalue()
+
+
+__all__ = ["generate_invoice_pdf", "generate_lease_pdf"]

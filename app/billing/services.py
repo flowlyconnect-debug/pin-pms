@@ -7,9 +7,14 @@ from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Mapping
 
+from jinja2.sandbox import SandboxedEnvironment
+
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
-from app.billing.models import Invoice, Lease
+from app.billing.models import Invoice, Lease, LeaseTemplate
+from app.core.security import hash_token
+from app.core.utils import utcnow
+from app.email.services import send_template, send_template_with_attachments_now
 from app.extensions import db
 from app.guests.models import Guest
 from app.notifications import services as notification_service
@@ -37,6 +42,7 @@ class InvoiceServiceError(Exception):
 
 _BILLING_CYCLES = frozenset({"monthly", "weekly", "one_time"})
 _INVOICE_STATUSES = frozenset({"draft", "open", "paid", "overdue", "cancelled"})
+_LEASE_STATUSES = frozenset({"draft", "pending_signature", "active", "ended", "cancelled"})
 
 
 def _parse_iso_date(raw: str | None, field_name: str) -> date:
@@ -203,6 +209,10 @@ def _get_lease_row(*, organization_id: int, lease_id: int) -> Lease | None:
     return Lease.query.filter_by(id=lease_id, organization_id=organization_id).first()
 
 
+def _get_lease_template_row(*, organization_id: int, template_id: int) -> LeaseTemplate | None:
+    return LeaseTemplate.query.filter_by(id=template_id, organization_id=organization_id).first()
+
+
 def _get_invoice_row(*, organization_id: int, invoice_id: int) -> Invoice | None:
     return Invoice.query.filter_by(id=invoice_id, organization_id=organization_id).first()
 
@@ -227,6 +237,10 @@ def _serialize_lease(row: Lease) -> dict:
         "billing_cycle": row.billing_cycle,
         "status": row.status,
         "notes": row.notes,
+        "template_id": row.template_id,
+        "signing_sent_at": row.signing_sent_at.isoformat() if row.signing_sent_at else None,
+        "signed_at": row.signed_at.isoformat() if row.signed_at else None,
+        "signed_pdf_filename": row.signed_pdf_filename,
         "created_by_id": row.created_by_id,
         "updated_by_id": row.updated_by_id,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -260,6 +274,210 @@ def _serialize_invoice(row: Invoice) -> dict:
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+
+
+def _serialize_lease_template(row: LeaseTemplate) -> dict:
+    return {
+        "id": row.id,
+        "organization_id": row.organization_id,
+        "name": row.name,
+        "description": row.description,
+        "body_markdown": row.body_markdown,
+        "is_default": bool(row.is_default),
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def list_lease_templates_for_organization(*, organization_id: int) -> list[dict]:
+    rows = (
+        LeaseTemplate.query.filter_by(organization_id=organization_id)
+        .order_by(LeaseTemplate.is_default.desc(), LeaseTemplate.name.asc(), LeaseTemplate.id.asc())
+        .all()
+    )
+    return [_serialize_lease_template(row) for row in rows]
+
+
+def create_lease_template(
+    *,
+    organization_id: int,
+    name: str,
+    description: str | None,
+    body_markdown: str,
+    is_default: bool,
+    actor_user_id: int,
+) -> dict:
+    nm = (name or "").strip()
+    if not nm:
+        raise LeaseServiceError(code="validation_error", message="Template name is required.", status=400)
+    body = (body_markdown or "").strip()
+    if not body:
+        raise LeaseServiceError(
+            code="validation_error", message="Template body_markdown is required.", status=400
+        )
+    row = LeaseTemplate(
+        organization_id=organization_id,
+        name=nm,
+        description=(description or "").strip() or None,
+        body_markdown=body,
+        is_default=bool(is_default),
+    )
+    db.session.add(row)
+    db.session.flush()
+    if row.is_default:
+        (
+            LeaseTemplate.query.filter(
+                LeaseTemplate.organization_id == organization_id, LeaseTemplate.id != row.id
+            ).update({"is_default": False}, synchronize_session=False)
+        )
+    db.session.commit()
+    audit_record(
+        "lease.template.created",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="lease_template",
+        target_id=row.id,
+        metadata={
+            "template_id": row.id,
+            "template_name": row.name,
+            "organization_id": row.organization_id,
+            "is_default": bool(row.is_default),
+        },
+        commit=True,
+    )
+    return _serialize_lease_template(row)
+
+
+def update_lease_template(
+    *,
+    organization_id: int,
+    template_id: int,
+    name: str,
+    description: str | None,
+    body_markdown: str,
+    is_default: bool,
+    actor_user_id: int,
+) -> dict:
+    row = _get_lease_template_row(organization_id=organization_id, template_id=template_id)
+    if row is None:
+        raise LeaseServiceError(code="not_found", message="Lease template not found.", status=404)
+    nm = (name or "").strip()
+    if not nm:
+        raise LeaseServiceError(code="validation_error", message="Template name is required.", status=400)
+    body = (body_markdown or "").strip()
+    if not body:
+        raise LeaseServiceError(
+            code="validation_error", message="Template body_markdown is required.", status=400
+        )
+    row.name = nm
+    row.description = (description or "").strip() or None
+    row.body_markdown = body
+    row.is_default = bool(is_default)
+    if row.is_default:
+        (
+            LeaseTemplate.query.filter(
+                LeaseTemplate.organization_id == organization_id, LeaseTemplate.id != row.id
+            ).update({"is_default": False}, synchronize_session=False)
+        )
+    db.session.commit()
+    audit_record(
+        "lease.template.updated",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="lease_template",
+        target_id=row.id,
+        metadata={
+            "template_id": row.id,
+            "template_name": row.name,
+            "organization_id": row.organization_id,
+            "is_default": bool(row.is_default),
+        },
+        commit=True,
+    )
+    return _serialize_lease_template(row)
+
+
+def set_default_lease_template(
+    *, organization_id: int, template_id: int, actor_user_id: int
+) -> dict:
+    row = _get_lease_template_row(organization_id=organization_id, template_id=template_id)
+    if row is None:
+        raise LeaseServiceError(code="not_found", message="Lease template not found.", status=404)
+    (
+        LeaseTemplate.query.filter(LeaseTemplate.organization_id == organization_id).update(
+            {"is_default": False}, synchronize_session=False
+        )
+    )
+    row.is_default = True
+    db.session.commit()
+    audit_record(
+        "lease.template.updated",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="lease_template",
+        target_id=row.id,
+        metadata={
+            "template_id": row.id,
+            "template_name": row.name,
+            "organization_id": row.organization_id,
+            "is_default": True,
+        },
+        commit=True,
+    )
+    return _serialize_lease_template(row)
+
+
+def delete_lease_template(*, organization_id: int, template_id: int, actor_user_id: int) -> None:
+    row = _get_lease_template_row(organization_id=organization_id, template_id=template_id)
+    if row is None:
+        raise LeaseServiceError(code="not_found", message="Lease template not found.", status=404)
+    db.session.delete(row)
+    db.session.commit()
+    audit_record(
+        "lease.template.deleted",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="lease_template",
+        target_id=template_id,
+        metadata={
+            "template_id": template_id,
+            "template_name": row.name,
+            "organization_id": organization_id,
+            "is_default": bool(row.is_default),
+        },
+        commit=True,
+    )
+
+
+def render_lease_template(*, template_id: int, lease_id: int, organization_id: int) -> str:
+    template = _get_lease_template_row(organization_id=organization_id, template_id=template_id)
+    if template is None:
+        raise LeaseServiceError(code="not_found", message="Lease template not found.", status=404)
+    lease = _get_lease_row(organization_id=organization_id, lease_id=lease_id)
+    if lease is None:
+        raise LeaseServiceError(code="not_found", message="Lease not found.", status=404)
+    unit = lease.unit
+    prop = unit.property if unit is not None else None
+    guest = lease.guest
+    ctx = {
+        "tenant_name": guest.full_name if guest is not None else "",
+        "rent_amount": str(lease.rent_amount),
+        "deposit_amount": str(lease.deposit_amount),
+        "billing_cycle": lease.billing_cycle or "",
+        "lease_start_date": lease.start_date.isoformat() if lease.start_date else "",
+        "lease_end_date": lease.end_date.isoformat() if lease.end_date else "",
+        "unit_name": unit.name if unit is not None else "",
+        "property_name": prop.name if prop is not None else "",
+        "property_address": prop.address if prop is not None and prop.address else "",
+        "organization_name": lease.organization.name if lease.organization is not None else "",
+    }
+    env = SandboxedEnvironment(autoescape=False)
+    rendered = env.from_string(template.body_markdown).render(**ctx)
+    return str(rendered or "")
 
 
 def _finalize_invoice_number(row: Invoice) -> None:
@@ -354,6 +572,7 @@ def create_lease(
         billing_cycle=cycle,
         status="draft",
         notes=(notes or "").strip() or None,
+        template_id=None,
         created_by_id=actor_user_id,
         updated_by_id=None,
     )
@@ -459,7 +678,7 @@ def update_lease(
         )
 
     if "rent_amount" in data:
-        if status not in {"draft", "active"}:
+        if status not in {"draft", "pending_signature", "active"}:
             raise LeaseServiceError(
                 code="validation_error",
                 message="rent_amount cannot be changed in the current status.",
@@ -468,7 +687,7 @@ def update_lease(
         row.rent_amount = _parse_amount(data["rent_amount"], error_cls=LeaseServiceError)
 
     if "deposit_amount" in data:
-        if status not in {"draft", "active"}:
+        if status not in {"draft", "pending_signature", "active"}:
             raise LeaseServiceError(
                 code="validation_error",
                 message="deposit_amount cannot be changed in the current status.",
@@ -519,10 +738,10 @@ def activate_lease(*, organization_id: int, lease_id: int, actor_user_id: int) -
             message="Lease not found.",
             status=404,
         )
-    if row.status != "draft":
+    if row.status not in {"draft", "pending_signature"}:
         raise LeaseServiceError(
             code="validation_error",
-            message="Only draft leases can be activated.",
+            message="Only draft or pending_signature leases can be activated.",
             status=400,
         )
     row.status = "active"
@@ -1090,3 +1309,193 @@ def log_invoice_pdf_downloaded(*, invoice_id: int, organization_id: int) -> None
         metadata={},
         commit=True,
     )
+
+
+def send_lease_for_signing(
+    *,
+    organization_id: int,
+    lease_id: int,
+    actor_user_id: int,
+    token: str,
+    signed_pdf_filename: str,
+    signed_pdf_path: str,
+    sign_url: str,
+    recipient_email: str,
+) -> dict:
+    lease = _get_lease_row(organization_id=organization_id, lease_id=lease_id)
+    if lease is None:
+        raise LeaseServiceError(code="not_found", message="Lease not found.", status=404)
+    if not recipient_email.strip():
+        raise LeaseServiceError(
+            code="validation_error", message="Lease guest email is required for signing.", status=400
+        )
+    if lease.status in {"ended", "cancelled"}:
+        raise LeaseServiceError(
+            code="validation_error",
+            message="Ended or cancelled lease cannot be sent for signing.",
+            status=400,
+        )
+    lease.signed_token_hash = hash_token(token)
+    lease.signing_sent_at = utcnow()
+    lease.signed_pdf_filename = signed_pdf_filename
+    lease.status = "pending_signature"
+    db.session.commit()
+    context = {
+        "tenant_name": lease.guest.full_name if lease.guest is not None else "",
+        "organization_name": lease.organization.name if lease.organization is not None else "",
+        "lease_id": lease.id,
+        "rent_amount": str(lease.rent_amount),
+        "billing_cycle": lease.billing_cycle,
+        "lease_start_date": lease.start_date.isoformat() if lease.start_date else "",
+        "lease_end_date": lease.end_date.isoformat() if lease.end_date else "",
+        "sign_url": sign_url,
+        "from_name": "Pin PMS",
+    }
+    try:
+        sent = send_template_with_attachments_now(
+            "lease_sign_request",
+            to=recipient_email.strip(),
+            context=context,
+            attachment_paths=[signed_pdf_path],
+        )
+    except Exception:  # noqa: BLE001
+        sent = False
+    if not sent:
+        # Fallback to queue-only send when immediate transport failed.
+        if not send_template("lease_sign_request", to=recipient_email.strip(), context=context):
+            raise LeaseServiceError(
+                code="email_failed",
+                message="Signing email could not be sent.",
+                status=502,
+            )
+    audit_record(
+        "lease.sign_request.sent",
+        status=AuditStatus.SUCCESS,
+        actor_id=actor_user_id,
+        organization_id=organization_id,
+        target_type="lease",
+        target_id=lease.id,
+        metadata={"lease_id": lease.id, "status": lease.status},
+        commit=True,
+    )
+    return _serialize_lease(lease)
+
+
+def sign_lease_with_token(
+    *,
+    signed_token: str,
+    signed_ip: str | None,
+    signed_user_agent: str | None,
+) -> dict:
+    token_hash = hash_token(signed_token)
+    lease = Lease.query.filter_by(signed_token_hash=token_hash).first()
+    if lease is None:
+        raise LeaseServiceError(code="not_found", message="Signing link is invalid.", status=404)
+    previous_status = lease.status
+    if lease.signed_at is None:
+        lease.signed_at = utcnow()
+        lease.signed_ip = (signed_ip or "").strip()[:64] or None
+        lease.signed_user_agent = (signed_user_agent or "").strip()[:512] or None
+        lease.status = "active"
+        db.session.commit()
+        audit_record(
+            "lease.signed",
+            status=AuditStatus.SUCCESS,
+            actor_type=ActorType.ANONYMOUS,
+            actor_id=None,
+            organization_id=lease.organization_id,
+            target_type="lease",
+            target_id=lease.id,
+            metadata={
+                "lease_id": lease.id,
+                "organization_id": lease.organization_id,
+                "signed_at": lease.signed_at.isoformat() if lease.signed_at else None,
+                "signed_ip": lease.signed_ip,
+                "user_agent": lease.signed_user_agent,
+                "previous_status": previous_status,
+                "new_status": lease.status,
+            },
+            commit=True,
+        )
+    return _serialize_lease(lease)
+
+
+def get_lease_by_signed_token(*, signed_token: str) -> dict:
+    token_hash = hash_token(signed_token)
+    row = Lease.query.filter_by(signed_token_hash=token_hash).first()
+    if row is None:
+        raise LeaseServiceError(code="not_found", message="Signing link is invalid.", status=404)
+    return _serialize_lease(row)
+
+
+def generate_due_lease_invoices(*, run_date: date | None = None) -> dict[str, Any]:
+    today = run_date or datetime.now(timezone.utc).date()
+    leases = Lease.query.filter(Lease.status == "active").all()
+    summary: dict[str, Any] = {"created": 0, "skipped": 0, "errors": []}
+    for lease in leases:
+        try:
+            cycle = (lease.billing_cycle or "").strip().lower()
+            if cycle not in _BILLING_CYCLES:
+                summary["skipped"] += 1
+                continue
+            should_create = False
+            period_key: str
+            if cycle == "monthly":
+                should_create = today.day == 1
+                period_key = f"{today.year:04d}-{today.month:02d}"
+            elif cycle == "weekly":
+                should_create = today.weekday() == 0
+                iso_year, iso_week, _ = today.isocalendar()
+                period_key = f"{iso_year:04d}-W{iso_week:02d}"
+            else:
+                should_create = True
+                period_key = "one_time"
+            if not should_create:
+                summary["skipped"] += 1
+                continue
+            exists = Invoice.query.filter(
+                Invoice.organization_id == lease.organization_id,
+                Invoice.lease_id == lease.id,
+                Invoice.metadata_json["lease_billing_period"].as_string() == period_key,
+            ).first()
+            if exists is not None:
+                summary["skipped"] += 1
+                continue
+            if cycle == "one_time":
+                already = Invoice.query.filter(
+                    Invoice.organization_id == lease.organization_id,
+                    Invoice.lease_id == lease.id,
+                ).first()
+                if already is not None:
+                    summary["skipped"] += 1
+                    continue
+            create_invoice(
+                organization_id=lease.organization_id,
+                subtotal_excl_vat_raw=lease.rent_amount,
+                due_date_raw=today.isoformat(),
+                currency="EUR",
+                description=f"Lease #{lease.id} ({lease.billing_cycle})",
+                lease_id=lease.id,
+                reservation_id=lease.reservation_id,
+                guest_id=lease.guest_id,
+                status="open",
+                metadata_json={"lease_billing_period": period_key, "generated_by": "lease-cycle-billing"},
+                actor_user_id=lease.created_by_id,
+                vat_rate_raw=None,
+            )
+            audit_record(
+                "lease.cycle_invoice.created",
+                status=AuditStatus.SUCCESS,
+                actor_type=ActorType.SYSTEM,
+                actor_id=None,
+                organization_id=lease.organization_id,
+                target_type="lease",
+                target_id=lease.id,
+                metadata={"lease_id": lease.id, "billing_period": period_key, "billing_cycle": cycle},
+                commit=True,
+            )
+            summary["created"] += 1
+        except Exception as err:  # noqa: BLE001
+            summary["errors"].append({"lease_id": lease.id, "error": str(err)})
+            summary["skipped"] += 1
+    return summary

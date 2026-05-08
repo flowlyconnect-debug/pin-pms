@@ -72,6 +72,16 @@ def _invoice_overdue_scheduled_job(app: Flask) -> None:
         logger.info("Scheduled invoice overdue pass marked %s invoice(s).", n)
 
 
+def _lease_cycle_billing_scheduled_job(app: Flask) -> None:
+    """Generate lease-cycle invoices (all tenants)."""
+
+    from app.billing import services as billing_services
+
+    with app.app_context():
+        summary = billing_services.generate_due_lease_invoices(run_date=None)
+        logger.info("Scheduled lease cycle billing run summary=%s", summary)
+
+
 def _scheduled_backup_job(app: Flask) -> None:
     """The cron-fired job. Acquires the advisory lock or no-ops."""
 
@@ -118,11 +128,12 @@ def init_scheduler(app: Flask) -> Any:
 
     backup_on = app.config.get("BACKUP_SCHEDULER_ENABLED")
     invoice_on = app.config.get("INVOICE_OVERDUE_SCHEDULER_ENABLED")
+    lease_cycle_on = app.config.get("LEASE_CYCLE_BILLING_SCHEDULER_ENABLED")
 
-    if not backup_on and not invoice_on:
+    if not backup_on and not invoice_on and not lease_cycle_on:
         logger.info(
             "Background scheduler idle — BACKUP_SCHEDULER_ENABLED and "
-            "INVOICE_OVERDUE_SCHEDULER_ENABLED are both off."
+            "INVOICE_OVERDUE_SCHEDULER_ENABLED and LEASE_CYCLE_BILLING_SCHEDULER_ENABLED are off."
         )
         return None
 
@@ -164,6 +175,23 @@ def init_scheduler(app: Flask) -> Any:
                 replace_existing=True,
             )
             logger.info("Invoice overdue job registered (cron=%r).", cron_inv)
+    if lease_cycle_on:
+        cron_lease_cycle = app.config.get("LEASE_CYCLE_BILLING_SCHEDULE_CRON", "0 6 * * *")
+        try:
+            trigger_lease_cycle = _build_trigger(cron_lease_cycle)
+        except ValueError as err:
+            logger.error("Invalid LEASE_CYCLE_BILLING_SCHEDULE_CRON: %s", err)
+        else:
+            scheduler.add_job(
+                _lease_cycle_billing_scheduled_job,
+                trigger=trigger_lease_cycle,
+                args=[app],
+                id="pindora_lease_cycle_billing",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+            logger.info("Lease cycle billing job registered (cron=%r).", cron_lease_cycle)
 
     if not scheduler.get_jobs():
         logger.error("Scheduler had no valid jobs — not starting.")

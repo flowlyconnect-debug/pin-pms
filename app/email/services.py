@@ -28,6 +28,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping, Optional
 
 import requests
@@ -307,7 +308,44 @@ def send_template_sync(
         return False
 
 
-def _send_rendered(*, key: str, to: str, rendered) -> bool:
+@traced("email.send_template_with_attachments_now")
+def send_template_with_attachments_now(
+    key: str,
+    *,
+    to: str,
+    context: Optional[Mapping[str, Any]] = None,
+    attachment_paths: Optional[list[str]] = None,
+) -> bool:
+    context = _sanitize_context(context or {})
+    try:
+        rendered = render_template_for(key, context)
+    except EmailTemplateNotFound:
+        raise
+    except Exception as err:  # noqa: BLE001
+        logger.exception("Failed to render email template %s for immediate send", key)
+        audit_record(
+            "email.failed",
+            status=AuditStatus.FAILURE,
+            target_type="email_template",
+            context={"key": key, "to": _mask_email(to), "stage": "render", "error": _safe_error_text(err)},
+            commit=True,
+        )
+        return False
+    return _send_rendered(
+        key=key,
+        to=to,
+        rendered=rendered,
+        attachment_paths=attachment_paths,
+    )
+
+
+def _send_rendered(
+    *,
+    key: str,
+    to: str,
+    rendered,
+    attachment_paths: Optional[list[str]] = None,
+) -> bool:
     cfg = current_app.config
     log_only = bool(cfg.get("MAIL_DEV_LOG_ONLY")) or not (cfg.get("MAILGUN_API_KEY") or "").strip()
 
@@ -347,6 +385,12 @@ def _send_rendered(*, key: str, to: str, rendered) -> bool:
     }
     if rendered.html:
         payload["html"] = rendered.html
+    files = []
+    for attachment_path in attachment_paths or []:
+        p = Path(attachment_path)
+        if not p.exists() or not p.is_file():
+            continue
+        files.append(("attachment", (p.name, p.read_bytes(), "application/pdf")))
 
     try:
         resp = trace_http_call(
@@ -355,6 +399,7 @@ def _send_rendered(*, key: str, to: str, rendered) -> bool:
             f"{base_url}/{domain}/messages",
             auth=("api", cfg["MAILGUN_API_KEY"]),
             data=payload,
+            files=files or None,
             timeout=15,
         )
     except requests.RequestException as err:

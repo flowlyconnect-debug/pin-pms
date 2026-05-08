@@ -21,6 +21,28 @@ This project provides the core operational platform for PMS use cases:
 - Mailgun-backed template email delivery
 - scheduled/manual backups with guarded restore
 
+## Lease lifecycle
+
+A) Sopimuspohjat
+- superadmin yllapitaa `lease_templates`-pohjia (`/admin/lease-templates`)
+- organisaatiolla voi olla vain yksi oletuspohja kerrallaan
+- `body_markdown` tukee muuttujia kuten `{{ tenant_name }}` ja `{{ rent_amount }}`
+
+B) PDF + allekirjoitus
+- admin voi ladata leasesta PDF:n (`/admin/leases/<id>/pdf`)
+- admin voi lahettaa leaselle allekirjoituspyynnon
+- asiakas allekirjoittaa julkisella token-linkilla (`/lease/sign/<token>`)
+- allekirjoitus kirjaa ajan, IP:n ja user-agentin
+- lease siirtyy `pending_signature -> active`
+
+C) Automaattinen laskutus
+- scheduler luo laskut aktiivisista leaseista laskutusjakson mukaan
+- `pending_signature`, `draft`, `ended`, `cancelled` eivat luo laskuja
+- samaa lease + billing period -yhdistelmaa ei laskuteta kahdesti
+
+Manuaalitesti:
+`superadmin luo template -> admin luo lease -> lahettaa allekirjoitukseen -> asiakas allekirjoittaa -> ensimmainen lasku syntyy automaattisesti`
+
 ## Tarkoitus — tukipaketit
 
 ### `app/subscriptions/`

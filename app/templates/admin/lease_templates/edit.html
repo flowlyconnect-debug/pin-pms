@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Muokkaa sopimuspohjaa · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Muokkaa sopimuspohjaa #{{ row.id }}</h1>
+  <form method="post">
+    {{ form.csrf_token }}
+    <label for="name">Nimi</label>
+    {{ form.name(id="name") }}
+    <label for="description">Kuvaus</label>
+    {{ form.description(id="description") }}
+    <label for="body_markdown">Sisalto (Markdown)</label>
+    {{ form.body_markdown(id="body_markdown", rows=14) }}
+    <label>{{ form.is_default() }} Oletuspohja</label>
+    <div class="actions">
+      <button type="submit" class="btn">Tallenna muutokset</button>
+      <a class="btn btn-secondary" href="{{ url_for('admin.lease_templates_list') }}">Takaisin</a>
+    </div>
+  </form>
+{% endblock %}

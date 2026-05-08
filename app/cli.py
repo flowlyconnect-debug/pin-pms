@@ -355,6 +355,15 @@ def register_cli_commands(app: Flask) -> None:
         n = billing_service.mark_overdue_invoices(organization_id=organization_id)
         click.echo(f"Marked {n} invoice(s) as overdue.")
 
+    @app.cli.command("leases-generate-cycle-invoices")
+    def leases_generate_cycle_invoices() -> None:
+        """Generate due lease-cycle invoices (all organizations)."""
+
+        summary = billing_service.generate_due_lease_invoices(run_date=None)
+        click.echo(
+            f"Lease cycle invoices created={summary['created']} skipped={summary['skipped']} errors={len(summary['errors'])}"
+        )
+
     @app.cli.command("ical-sync")
     @click.option(
         "--organization-id",

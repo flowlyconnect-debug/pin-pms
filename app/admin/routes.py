@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import secrets
 import time
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
@@ -35,6 +36,7 @@ from sqlalchemy import or_
 from app.admin import admin_bp
 from app.admin import services as admin_service
 from app.admin.forms import (
+    LeaseTemplateForm,
     ApiKeyForm,
     EmailTemplateForm,
     EmailTemplateTestSendForm,
@@ -58,7 +60,7 @@ from app.audit.models import ActorType, AuditLog, AuditStatus
 from app.auth.routes import require_superadmin_2fa
 from app.billing import services as billing_service
 from app.billing.models import Invoice
-from app.billing.pdf import generate_invoice_pdf
+from app.billing.pdf import generate_invoice_pdf, generate_lease_pdf
 from app.comments.services import CommentService, CommentServiceError
 from app.core.decorators import require_tenant_access
 from app.email.models import EmailQueueItem, EmailTemplate, OutgoingEmailStatus, TemplateKey
@@ -2084,6 +2086,108 @@ def leases_list():
     )
 
 
+@admin_bp.get("/lease-templates")
+@require_admin_pms_access
+def lease_templates_list():
+    if not current_user.is_superadmin:
+        abort(403)
+    rows = billing_service.list_lease_templates_for_organization(organization_id=_pms_org_id())
+    return render_template("admin/lease_templates/list.html", rows=rows)
+
+
+@admin_bp.route("/lease-templates/new", methods=["GET", "POST"])
+@require_admin_pms_access
+def lease_templates_new():
+    if not current_user.is_superadmin:
+        abort(403)
+    form = LeaseTemplateForm()
+    if form.validate_on_submit():
+        try:
+            row = billing_service.create_lease_template(
+                organization_id=_pms_org_id(),
+                name=form.name.data or "",
+                description=form.description.data,
+                body_markdown=form.body_markdown.data or "",
+                is_default=bool(form.is_default.data),
+                actor_user_id=current_user.id,
+            )
+        except billing_service.LeaseServiceError as err:
+            flash(err.message, "error")
+        else:
+            flash("Sopimuspohja luotu.", "success")
+            return redirect(url_for("admin.lease_templates_edit", template_id=row["id"]))
+    return render_template("admin/lease_templates/new.html", form=form)
+
+
+@admin_bp.route("/lease-templates/<int:template_id>/edit", methods=["GET", "POST"])
+@require_admin_pms_access
+def lease_templates_edit(template_id: int):
+    if not current_user.is_superadmin:
+        abort(403)
+    rows = billing_service.list_lease_templates_for_organization(organization_id=_pms_org_id())
+    row = next((x for x in rows if x["id"] == template_id), None)
+    if row is None:
+        abort(404)
+    form = LeaseTemplateForm(data=row)
+    if form.validate_on_submit():
+        try:
+            _ = billing_service.update_lease_template(
+                organization_id=_pms_org_id(),
+                template_id=template_id,
+                name=form.name.data or "",
+                description=form.description.data,
+                body_markdown=form.body_markdown.data or "",
+                is_default=bool(form.is_default.data),
+                actor_user_id=current_user.id,
+            )
+        except billing_service.LeaseServiceError as err:
+            flash(err.message, "error")
+        else:
+            flash("Sopimuspohja paivitetty.", "success")
+            return redirect(url_for("admin.lease_templates_edit", template_id=template_id))
+    return render_template("admin/lease_templates/edit.html", form=form, row=row)
+
+
+@admin_bp.post("/lease-templates/<int:template_id>/set-default")
+@require_admin_pms_access
+def lease_templates_set_default(template_id: int):
+    if not current_user.is_superadmin:
+        abort(403)
+    try:
+        _ = billing_service.set_default_lease_template(
+            organization_id=_pms_org_id(),
+            template_id=template_id,
+            actor_user_id=current_user.id,
+        )
+    except billing_service.LeaseServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message, "error")
+    else:
+        flash("Oletuspohja paivitetty.", "success")
+    return redirect(url_for("admin.lease_templates_list"))
+
+
+@admin_bp.post("/lease-templates/<int:template_id>/delete")
+@require_admin_pms_access
+def lease_templates_delete(template_id: int):
+    if not current_user.is_superadmin:
+        abort(403)
+    try:
+        billing_service.delete_lease_template(
+            organization_id=_pms_org_id(),
+            template_id=template_id,
+            actor_user_id=current_user.id,
+        )
+    except billing_service.LeaseServiceError as err:
+        if err.status == 404:
+            abort(404)
+        flash(err.message, "error")
+    else:
+        flash("Sopimuspohja poistettu.", "success")
+    return redirect(url_for("admin.lease_templates_list"))
+
+
 @admin_bp.route("/leases/new", methods=["GET", "POST"])
 @require_admin_pms_access
 def leases_new():
@@ -2166,6 +2270,97 @@ def leases_detail(lease_id: int):
     except billing_service.LeaseServiceError:
         abort(404)
     return render_template("admin/leases/detail.html", row=row)
+
+
+@admin_bp.get("/leases/<int:lease_id>/pdf")
+@require_admin_pms_access
+def leases_pdf(lease_id: int):
+    org_id = _pms_org_id()
+    try:
+        lease = billing_service.get_lease_for_org(organization_id=org_id, lease_id=lease_id)
+    except billing_service.LeaseServiceError:
+        abort(404)
+    templates = billing_service.list_lease_templates_for_organization(organization_id=org_id)
+    template_id_raw = (request.args.get("template_id") or "").strip()
+    selected = None
+    if template_id_raw.isdigit():
+        selected = next((t for t in templates if t["id"] == int(template_id_raw)), None)
+    if selected is None:
+        selected = next((t for t in templates if t["is_default"]), None)
+    if selected is not None:
+        text = billing_service.render_lease_template(
+            template_id=selected["id"],
+            lease_id=lease_id,
+            organization_id=org_id,
+        )
+        template_name = selected["name"]
+    else:
+        text = lease.get("notes") or "Vuokrasopimus"
+        template_name = None
+    pdf_bytes = generate_lease_pdf(lease_id=lease_id, content=text, template_name=template_name)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"lease-{lease_id}.pdf",
+    )
+
+
+@admin_bp.post("/leases/<int:lease_id>/send-for-signing")
+@require_admin_pms_access
+def leases_send_for_signing(lease_id: int):
+    org_id = _pms_org_id()
+    try:
+        lease = billing_service.get_lease_for_org(organization_id=org_id, lease_id=lease_id)
+    except billing_service.LeaseServiceError:
+        abort(404)
+    templates = billing_service.list_lease_templates_for_organization(organization_id=org_id)
+    selected = next((t for t in templates if t["is_default"]), None)
+    if selected is not None:
+        content = billing_service.render_lease_template(
+            template_id=selected["id"],
+            lease_id=lease_id,
+            organization_id=org_id,
+        )
+        template_name = selected["name"]
+    else:
+        content = lease.get("notes") or "Vuokrasopimus"
+        template_name = None
+    pdf_bytes = generate_lease_pdf(lease_id=lease_id, content=content, template_name=template_name)
+    import os
+    uploads_dir = (current_app.config.get("UPLOADS_DIR") or "").strip() or os.path.join(
+        current_app.instance_path, "uploads"
+    )
+
+    os.makedirs(uploads_dir, exist_ok=True)
+    filename = f"lease-{lease_id}-{int(time.time())}.pdf"
+    path = os.path.join(uploads_dir, filename)
+    with open(path, "wb") as fp:
+        fp.write(pdf_bytes)
+    token = secrets.token_urlsafe(32)
+    sign_url = url_for("core.lease_sign_get", signed_token=token, _external=True)
+    guest_email = ""
+    try:
+        guest = guest_service.get_guest(int(lease["guest_id"]), org_id)
+        guest_email = (guest.get("email") or "").strip()
+    except Exception:  # noqa: BLE001
+        guest_email = ""
+    try:
+        _ = billing_service.send_lease_for_signing(
+            organization_id=org_id,
+            lease_id=lease_id,
+            actor_user_id=current_user.id,
+            token=token,
+            signed_pdf_filename=filename,
+            signed_pdf_path=path,
+            sign_url=sign_url,
+            recipient_email=guest_email,
+        )
+    except billing_service.LeaseServiceError as err:
+        flash(err.message, "error")
+        return redirect(url_for("admin.leases_detail", lease_id=lease_id))
+    flash("Allekirjoituspyynto lahetetty.", "success")
+    return redirect(url_for("admin.leases_detail", lease_id=lease_id))
 
 
 @admin_bp.route("/leases/<int:lease_id>/edit", methods=["GET", "POST"])

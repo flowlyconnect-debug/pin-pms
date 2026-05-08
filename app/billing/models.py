@@ -7,6 +7,7 @@ from decimal import Decimal
 from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 
+from app.core.utils import utcnow
 from app.extensions import db
 from app.models import TimestampMixin
 
@@ -25,6 +26,30 @@ def _invoice_coerce_legacy_amount_only(target: "Invoice") -> None:
         target.subtotal_excl_vat = a
         target.vat_amount = Decimal("0.00")
         target.vat_rate = Decimal("0.00")
+
+
+class LeaseTemplate(db.Model):
+    __tablename__ = "lease_templates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    body_markdown = db.Column(db.Text, nullable=False)
+    is_default = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    organization = db.relationship("Organization", lazy="select")
+    leases = db.relationship("Lease", back_populates="template", lazy="select")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<LeaseTemplate {self.id} org={self.organization_id}>"
 
 
 class Lease(TimestampMixin, db.Model):
@@ -62,6 +87,18 @@ class Lease(TimestampMixin, db.Model):
     billing_cycle = db.Column(db.String(20), nullable=False, default="monthly")
     status = db.Column(db.String(20), nullable=False, default="draft", index=True)
     notes = db.Column(db.Text, nullable=True)
+    template_id = db.Column(
+        db.Integer,
+        db.ForeignKey("lease_templates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    signed_token_hash = db.Column(db.String(64), nullable=True, index=True)
+    signing_sent_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    signed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    signed_ip = db.Column(db.String(64), nullable=True)
+    signed_user_agent = db.Column(db.String(512), nullable=True)
+    signed_pdf_filename = db.Column(db.String(512), nullable=True)
     created_by_id = db.Column(
         db.Integer,
         db.ForeignKey("users.id", ondelete="RESTRICT"),
@@ -77,6 +114,7 @@ class Lease(TimestampMixin, db.Model):
     unit = db.relationship("Unit", lazy="joined")
     guest = db.relationship("Guest", lazy="joined")
     reservation = db.relationship("Reservation", lazy="joined")
+    template = db.relationship("LeaseTemplate", back_populates="leases", lazy="select")
     created_by = db.relationship("User", foreign_keys=[created_by_id], lazy="joined")
     updated_by = db.relationship("User", foreign_keys=[updated_by_id], lazy="joined")
     invoices = db.relationship("Invoice", back_populates="lease", lazy="select")

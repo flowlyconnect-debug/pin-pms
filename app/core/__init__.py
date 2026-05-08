@@ -116,6 +116,32 @@ def accessibility_statement():
     return render_template("accessibility.html")
 
 
+@core_bp.get("/lease/sign/<signed_token>")
+def lease_sign_get(signed_token: str):
+    from app.billing import services as billing_service
+
+    try:
+        row = billing_service.get_lease_by_signed_token(signed_token=signed_token)
+    except billing_service.LeaseServiceError:
+        return render_template("lease/sign.html", error="Allekirjoituslinkki ei ole kelvollinen.", row=None), 404
+    return render_template("lease/sign.html", row=row, token=signed_token, error=None)
+
+
+@core_bp.post("/lease/sign/<signed_token>")
+def lease_sign_post(signed_token: str):
+    from app.billing import services as billing_service
+
+    try:
+        row = billing_service.sign_lease_with_token(
+            signed_token=signed_token,
+            signed_ip=request.headers.get("X-Forwarded-For", request.remote_addr),
+            signed_user_agent=request.headers.get("User-Agent"),
+        )
+    except billing_service.LeaseServiceError:
+        return render_template("lease/sign.html", error="Allekirjoituslinkki ei ole kelvollinen.", row=None), 404
+    return render_template("lease/sign.html", row=row, token=signed_token, signed=True, error=None)
+
+
 @core_bp.get("/api/conflicts")
 def conflicts_api():
     if not current_user.is_authenticated:
