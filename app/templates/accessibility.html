@@ -1,26 +1,119 @@
-{% extends "portal/base.html" %}
+<!doctype html>
+{% set ui_theme = request.cookies.get("ui_theme", "auto") %}
+<html lang="{{ g.locale|default(config.get('BABEL_DEFAULT_LOCALE', 'fi')) }}" data-theme="{{ ui_theme if ui_theme in ['light', 'dark', 'auto'] else 'auto' }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Saavutettavuusseloste · Pin PMS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='ui-polish-v2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css', v='button-variants-v1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/skip-link.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/polish.css', v='polish-v3') }}">
+    <style>
+      body.standalone {
+        background: var(--color-surface, #f7f5f1);
+        color: var(--color-text, #1f2937);
+        margin: 0;
+        font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      .standalone-shell {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem;
+      }
+      .standalone-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+      .standalone-brand-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: var(--color-primary, #1f2937);
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+      }
+      .standalone-brand-name {
+        font-weight: 600;
+        font-size: 1.05rem;
+      }
+      .standalone-brand-meta {
+        display: block;
+        font-size: 0.8rem;
+        color: var(--color-text-muted, #6b7280);
+      }
+      .standalone-card {
+        background: var(--color-surface-1, #fff);
+        border: 1px solid var(--color-border, #e5e7eb);
+        border-radius: 12px;
+        padding: 1.75rem 2rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+      .standalone-card h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.6rem;
+      }
+      .standalone-card h2 {
+        margin: 1.5rem 0 0.5rem;
+        font-size: 1.1rem;
+      }
+      .standalone-card p {
+        margin: 0 0 0.5rem;
+        line-height: 1.55;
+      }
+      .standalone-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 1.5rem;
+        color: var(--color-primary, #1f2937);
+        text-decoration: none;
+        font-size: 0.95rem;
+      }
+      .standalone-back:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body class="standalone">
+    <a class="skip-link" href="#main-content">Hyppää sisältöön</a>
+    <div class="standalone-shell">
+      <div class="standalone-header">
+        <span class="standalone-brand-mark" aria-hidden="true">P</span>
+        <span>
+          <span class="standalone-brand-name">Pin PMS</span>
+          <span class="standalone-brand-meta">Flowly Solutions</span>
+        </span>
+      </div>
+      <main id="main-content" role="main" tabindex="-1">
+        <article class="standalone-card">
+          <h1>Saavutettavuusseloste</h1>
+          <p>Tämä seloste koskee Pin PMS -järjestelmän admin-paneelia ja vierasportaalia.</p>
 
-{% block title %}Saavutettavuusseloste · Pin PMS{% endblock %}
+          <h2>Saavutettavuuden tila</h2>
+          <p>Palvelu pyritään pitämään WCAG 2.1 AA -tason mukaisena.</p>
 
-{% block content %}
-  <article class="content-card accessibility-statement">
-    <h1>Saavutettavuusseloste</h1>
-    <p>Tämä seloste koskee Pin PMS -järjestelmän admin-paneelia ja vierasportaalia.</p>
+          <h2>Havaitut rajoitukset</h2>
+          <p>Kaikkia yksittäisiä sivuja ei välttämättä ole vielä validoitu manuaalisesti ruudunlukijalla.</p>
 
-    <h2>Saavutettavuuden tila</h2>
-    <p>Palvelu pyritään pitämään WCAG 2.1 AA -tason mukaisena.</p>
+          <h2>Palautekanava</h2>
+          <p>Jos huomaat saavutettavuuspuutteen, ilmoita siitä sähköpostitse:
+            <a href="mailto:support@pinpms.example">support@pinpms.example</a></p>
 
-    <h2>Havaitut rajoitukset</h2>
-    <p>Kaikkia yksittäisiä sivuja ei välttämättä ole vielä validoitu manuaalisesti ruudunlukijalla.</p>
+          <h2>Päivitys</h2>
+          <p>Seloste päivitetty: {{ now().strftime('%Y-%m-%d') if now is defined else '2026-05-06' }}</p>
 
-    <h2>Palautekanava</h2>
-    <p>Jos huomaat saavutettavuuspuutteen, ilmoita siitä sähköpostitse:
-      <a href="mailto:support@pinpms.example">support@pinpms.example</a>
-    </p>
-
-    <h2>Päivitys</h2>
-    <p>Seloste päivitetty:
-      {{ now().strftime('%Y-%m-%d') if now is defined else '2026-05-06' }}
-    </p>
-  </article>
-{% endblock %}
+          <a class="standalone-back" href="/">← Etusivulle</a>
+        </article>
+      </main>
+    </div>
+  </body>
+</html>

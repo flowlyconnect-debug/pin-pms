@@ -82,7 +82,7 @@
                   {% if status in ["reserved", "checkin", "checkout"] %}
                     <td class="{{ cell_class }}" title="{{ day.guest_name or 'Varaus' }}{% if day.reservation_id %} · Varaus #{{ day.reservation_id }}{% endif %}">
                       <a class="availability-cell-link" href="{% if day.reservation_id %}{{ url_for('admin.reservations_edit', reservation_id=day.reservation_id) }}{% else %}{{ url_for('admin.reservations_new') }}{% endif %}">
-                        {% if day.is_first_day %}{{ (day.guest_name or "Varaus")|truncate(24, True, "…") }}{% endif %}
+                        {{ (day.guest_name or "Varaus")|truncate(10, True, "…") }}
                       </a>
                     </td>
                   {% elif status == "maintenance" %}
