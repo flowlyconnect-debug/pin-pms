@@ -3052,6 +3052,10 @@ a.admin-kpi-card:hover,
   cursor: pointer;
 }
 
+.fc-event * {
+  pointer-events: none;
+}
+
 .fc-event:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
@@ -3139,6 +3143,12 @@ a.admin-kpi-card:hover,
 
 .availability-preview-table {
   min-width: 620px;
+}
+
+.availability-cell-link {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .availability-preview-free {

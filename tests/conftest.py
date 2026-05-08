@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from pathlib import Path
 
 import psycopg2
@@ -78,6 +79,10 @@ DEFAULT_TEST_API_SCOPES = ",".join(
         "webhooks:write",
     ]
 )
+
+
+def _unique_email(prefix: str) -> str:
+    return f"{prefix}-{secrets.token_hex(4)}@test.local"
 
 
 def _default_postgres_host() -> str:
@@ -361,7 +366,11 @@ def app():
     yield application
 
     db.session.remove()
-    db.drop_all()
+    try:
+        db.drop_all()
+    except Exception:
+        # Some optional tables may not exist in lightweight local schemas.
+        db.session.rollback()
     ctx.pop()
 
 
@@ -395,13 +404,13 @@ def db_isolation(request):
     # mid-test) cannot leak into the per-table DELETE pass below.
     db.session.remove()
 
-    from sqlalchemy.exc import InternalError, ProgrammingError
+    from sqlalchemy.exc import InternalError, OperationalError, ProgrammingError
 
     # sorted_tables is parent->child; reverse so child rows are deleted first.
     for table in reversed(db.metadata.sorted_tables):
         try:
             db.session.execute(table.delete())
-        except (ProgrammingError, InternalError):
+        except (ProgrammingError, InternalError, OperationalError):
             # Missing table (optional models) or aborted transaction — skip and reset.
             db.session.rollback()
 
@@ -419,9 +428,11 @@ def organization(app):
     from app.extensions import db
     from app.organizations.models import Organization
 
-    org = Organization(name="Test Org")
+    org = Organization(name=f"Test Org {secrets.token_hex(3)}")
     db.session.add(org)
-    db.session.commit()
+    # Flush keeps the row persisted for dependent fixtures while avoiding
+    # commit-time expiration of the ORM instance.
+    db.session.flush()
     return org
 
 
@@ -433,7 +444,7 @@ def regular_user(organization):
     from app.users.models import User, UserRole
 
     user = User(
-        email="user@test.local",
+        email=_unique_email("user"),
         password_hash=generate_password_hash("UserPass123!"),
         organization_id=organization.id,
         role=UserRole.USER.value,
@@ -454,7 +465,7 @@ def admin_user(organization):
     from app.users.models import User, UserRole
 
     user = User(
-        email="adminuser@test.local",
+        email=_unique_email("adminuser"),
         password_hash=generate_password_hash("AdminUserPass123!"),
         organization_id=organization.id,
         role=UserRole.ADMIN.value,
@@ -476,7 +487,7 @@ def superadmin(organization):
 
     secret = pyotp.random_base32()
     user = User(
-        email="admin@test.local",
+        email=_unique_email("superadmin"),
         password_hash=generate_password_hash("AdminPass123!"),
         organization_id=organization.id,
         role=UserRole.SUPERADMIN.value,

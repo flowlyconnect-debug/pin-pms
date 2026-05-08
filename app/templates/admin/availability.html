@@ -81,23 +81,23 @@
                   {% set cell_class = "availability-status-" ~ status %}
                   {% if status == "reserved" %}
                     <td class="{{ cell_class }}" title="{{ day.guest }} · Varaus #{{ day.reservation_id }}">
-                      <a href="{{ url_for('admin.reservations_edit', reservation_id=day.reservation_id) }}">
+                      <a class="availability-cell-link" href="{{ url_for('admin.reservations_edit', reservation_id=day.reservation_id) }}">
                         {{ day.guest }}
                       </a>
                     </td>
                   {% elif status == "maintenance" %}
                     <td class="{{ cell_class }}" title="Huolto #{{ day.request_id }}">
-                      <a href="{{ url_for('admin.maintenance_requests_detail', request_id=day.request_id) }}">Huolto</a>
+                      <a class="availability-cell-link" href="{{ url_for('admin.maintenance_requests_detail', request_id=day.request_id) }}">Huolto</a>
                     </td>
                   {% elif status in ["checkout", "checkin"] %}
                     <td class="{{ cell_class }}" title="Klikkaa luodaksesi varauksen">
-                      <a href="{{ url_for('admin.reservations_new') }}">{{ "Vaihto" if status == "checkout" else "Saapuu" }}</a>
+                      <a class="availability-cell-link" href="{{ url_for('admin.reservations_new') }}">{{ "Vaihto" if status == "checkout" else "Saapuu" }}</a>
                     </td>
                   {% elif status == "blocked" %}
                     <td class="{{ cell_class }}" title="Yksikkö estetty">Estetty</td>
                   {% else %}
                     <td class="{{ cell_class }}" title="Klikkaa luodaksesi varauksen">
-                      <a href="{{ url_for('admin.reservations_new') }}">Vapaa</a>
+                      <a class="availability-cell-link" href="{{ url_for('admin.reservations_new') }}">Vapaa</a>
                     </td>
                   {% endif %}
                 {% endfor %}
