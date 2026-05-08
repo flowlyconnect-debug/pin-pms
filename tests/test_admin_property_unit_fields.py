@@ -114,7 +114,9 @@ def test_admin_property_and_unit_edit_views_show_all_fields(client, admin_user):
 def test_admin_unit_area_sqm_validation(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
-    prop = Property(organization_id=admin_user.organization_id, name="Validointikohde", address=None)
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Validointikohde", address=None
+    )
     db.session.add(prop)
     db.session.commit()
 

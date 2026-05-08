@@ -265,13 +265,17 @@ def _replacement_creator_user(*, organization_id: int, exclude_user_id: int) -> 
 
 
 def _reassign_created_by_before_user_delete(*, user_id: int, organization_id: int) -> None:
-    replacement = _replacement_creator_user(organization_id=organization_id, exclude_user_id=user_id)
+    replacement = _replacement_creator_user(
+        organization_id=organization_id, exclude_user_id=user_id
+    )
     if replacement is None:
         raise UserServiceError(
             "Cannot delete user: organization has no other user to reassign "
             "created_by_id references on leases, invoices, or maintenance requests."
         )
-    Lease.query.filter_by(created_by_id=user_id).update({"created_by_id": replacement.id}, synchronize_session=False)
+    Lease.query.filter_by(created_by_id=user_id).update(
+        {"created_by_id": replacement.id}, synchronize_session=False
+    )
     Invoice.query.filter_by(created_by_id=user_id).update(
         {"created_by_id": replacement.id}, synchronize_session=False
     )

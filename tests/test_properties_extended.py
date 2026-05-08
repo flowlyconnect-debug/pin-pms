@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from werkzeug.security import generate_password_hash
+
 from app.api.models import ApiKey
 from app.extensions import db
 from app.organizations.models import Organization
 from app.properties.models import Property
 from app.users.models import User, UserRole
-from werkzeug.security import generate_password_hash
 
 
 def _auth_headers(raw_key: str) -> dict[str, str]:

@@ -153,9 +153,7 @@ def test_reports_export_csv(app, client, organization, admin_user):
     db.session.add(invoice)
     db.session.commit()
     _login_admin(client, admin_user)
-    rv = client.get(
-        "/admin/reports/cash-flow?start_date=2026-03-01&end_date=2026-03-31&export=csv"
-    )
+    rv = client.get("/admin/reports/cash-flow?start_date=2026-03-01&end_date=2026-03-31&export=csv")
     assert rv.status_code == 200
     text = rv.data.decode("utf-8")
     assert "period,income,expenses,net" in text

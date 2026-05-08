@@ -44,7 +44,9 @@ def _dispatch_one(*, subscription_id: int, event_type: str, payload: dict) -> No
         )
 
 
-def _dispatch_many_background(*, app_obj, subscription_ids: list[int], event_type: str, payload: dict) -> None:
+def _dispatch_many_background(
+    *, app_obj, subscription_ids: list[int], event_type: str, payload: dict
+) -> None:
     with app_obj.app_context():
         for subscription_id in subscription_ids:
             _dispatch_one(subscription_id=subscription_id, event_type=event_type, payload=payload)

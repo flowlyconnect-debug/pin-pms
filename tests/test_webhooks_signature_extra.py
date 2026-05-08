@@ -8,7 +8,11 @@ def test_signature_helper_accepts_plain_and_v1_headers():
     secret = "sig-secret"
     sig = hmac_sha256_hex_digest(secret=secret, payload_bytes=body)
     assert verify_hmac_sha256_hex(secret=secret, payload_bytes=body, signature_header=sig) is True
-    assert verify_hmac_sha256_hex(secret=secret, payload_bytes=body, signature_header=f"t=1,v1={sig}") is True
-    assert verify_hmac_sha256_hex(secret=secret, payload_bytes=body, signature_header="bad") is False
+    assert (
+        verify_hmac_sha256_hex(secret=secret, payload_bytes=body, signature_header=f"t=1,v1={sig}")
+        is True
+    )
+    assert (
+        verify_hmac_sha256_hex(secret=secret, payload_bytes=body, signature_header="bad") is False
+    )
     assert verify_hmac_sha256_hex(secret="", payload_bytes=body, signature_header=sig) is False
-

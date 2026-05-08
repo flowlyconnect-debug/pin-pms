@@ -36,7 +36,9 @@ def _parse_amount(raw: Any, field_name: str) -> Decimal:
     try:
         value = Decimal(text).quantize(Decimal("0.01"))
     except (InvalidOperation, ValueError):
-        raise ExpenseServiceError("validation_error", f"{field_name} must be decimal.", 400) from None
+        raise ExpenseServiceError(
+            "validation_error", f"{field_name} must be decimal.", 400
+        ) from None
     if value < Decimal("0.00"):
         raise ExpenseServiceError("validation_error", f"{field_name} must be >= 0.", 400)
     return value

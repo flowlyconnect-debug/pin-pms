@@ -43,7 +43,9 @@ class LeaseTemplate(db.Model):
     body_markdown = db.Column(db.Text, nullable=False)
     is_default = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+    updated_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
+    )
 
     organization = db.relationship("Organization", lazy="select")
     leases = db.relationship("Lease", back_populates="template", lazy="select")

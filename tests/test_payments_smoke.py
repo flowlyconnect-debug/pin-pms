@@ -104,7 +104,9 @@ def test_paytrail_checkout_returns_redirect_url(app, organization, regular_user,
 
     class _FakeResponse:
         status_code = 201
-        content = b'{"transactionId":"pt-test-smoke-1","href":"https://pay.paytrail.com/test-smoke"}'
+        content = (
+            b'{"transactionId":"pt-test-smoke-1","href":"https://pay.paytrail.com/test-smoke"}'
+        )
 
         def json(self):
             return {"transactionId": "pt-test-smoke-1", "href": fake_url}
@@ -137,9 +139,7 @@ def test_paytrail_checkout_returns_redirect_url(app, organization, regular_user,
     assert isinstance(result.get("payment_id"), int)
 
 
-def test_stripe_webhook_marks_invoice_paid(
-    app, client, organization, regular_user, monkeypatch
-):
+def test_stripe_webhook_marks_invoice_paid(app, client, organization, regular_user, monkeypatch):
     """Stripe ``checkout.session.completed`` webhook flips the invoice to paid + audits."""
 
     invoice = _create_smoke_invoice(
@@ -210,9 +210,7 @@ def test_stripe_webhook_marks_invoice_paid(
         assert invoice_audit is not None
 
 
-def test_paytrail_callback_marks_invoice_paid(
-    app, client, organization, regular_user, monkeypatch
-):
+def test_paytrail_callback_marks_invoice_paid(app, client, organization, regular_user, monkeypatch):
     """Paytrail success callback flips the invoice to paid + audits."""
 
     invoice = _create_smoke_invoice(

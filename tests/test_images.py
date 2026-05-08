@@ -5,7 +5,9 @@ from io import BytesIO
 from PIL import Image
 
 
-def _image_bytes(*, fmt: str = "JPEG", size: tuple[int, int] = (1600, 1200), with_exif: bool = False) -> bytes:
+def _image_bytes(
+    *, fmt: str = "JPEG", size: tuple[int, int] = (1600, 1200), with_exif: bool = False
+) -> bytes:
     img = Image.new("RGB", size, color=(120, 60, 200))
     buf = BytesIO()
     kwargs = {}
@@ -17,7 +19,15 @@ def _image_bytes(*, fmt: str = "JPEG", size: tuple[int, int] = (1600, 1200), wit
     return buf.getvalue()
 
 
-def _upload(client, api_key_raw: str, property_id: int, raw: bytes, filename: str, mimetype: str, alt_text: str):
+def _upload(
+    client,
+    api_key_raw: str,
+    property_id: int,
+    raw: bytes,
+    filename: str,
+    mimetype: str,
+    alt_text: str,
+):
     return client.post(
         f"/api/v1/properties/{property_id}/images",
         headers={"X-API-Key": api_key_raw},
@@ -33,7 +43,9 @@ def test_image_upload_strips_exif(client, app, api_key, regular_user):
 
     app.config["STORAGE_BACKEND"] = "local"
     app.config["STORAGE_LOCAL_ROOT"] = str(app.instance_path) + "/test_property_images"
-    prop = Property(organization_id=regular_user.organization_id, name="Exif Property", address=None)
+    prop = Property(
+        organization_id=regular_user.organization_id, name="Exif Property", address=None
+    )
     db.session.add(prop)
     db.session.commit()
 
@@ -62,7 +74,9 @@ def test_image_resize_max_dimensions(client, app, api_key, regular_user):
 
     app.config["STORAGE_BACKEND"] = "local"
     app.config["STORAGE_LOCAL_ROOT"] = str(app.instance_path) + "/test_property_images_resize"
-    prop = Property(organization_id=regular_user.organization_id, name="Resize Property", address=None)
+    prop = Property(
+        organization_id=regular_user.organization_id, name="Resize Property", address=None
+    )
     db.session.add(prop)
     db.session.commit()
 
@@ -119,9 +133,7 @@ def test_image_only_org_can_upload(client, app, regular_user, api_key):
     db.session.commit()
     _ = api_key
 
-    response = _upload(
-        client, raw, prop.id, _image_bytes(), "a.jpg", "image/jpeg", "Ei oikeuksia"
-    )
+    response = _upload(client, raw, prop.id, _image_bytes(), "a.jpg", "image/jpeg", "Ei oikeuksia")
     assert response.status_code == 404
 
 
@@ -132,7 +144,9 @@ def test_image_delete_removes_from_storage(client, app, api_key, regular_user):
 
     app.config["STORAGE_BACKEND"] = "local"
     app.config["STORAGE_LOCAL_ROOT"] = str(app.instance_path) + "/test_property_images_delete"
-    prop = Property(organization_id=regular_user.organization_id, name="Delete Property", address=None)
+    prop = Property(
+        organization_id=regular_user.organization_id, name="Delete Property", address=None
+    )
     db.session.add(prop)
     db.session.commit()
 

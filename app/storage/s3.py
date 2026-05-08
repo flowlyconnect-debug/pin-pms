@@ -15,13 +15,16 @@ class S3Storage:
             "s3",
             endpoint_url=endpoint,
             aws_access_key_id=(current_app.config.get("S3_ACCESS_KEY_ID") or "").strip() or None,
-            aws_secret_access_key=(current_app.config.get("S3_SECRET_ACCESS_KEY") or "").strip() or None,
+            aws_secret_access_key=(current_app.config.get("S3_SECRET_ACCESS_KEY") or "").strip()
+            or None,
             region_name=self.region,
             config=Config(signature_version="s3v4"),
         )
 
     def upload(self, *, file_bytes: bytes, key: str, content_type: str) -> str:
-        self.client.put_object(Bucket=self.bucket, Key=key, Body=file_bytes, ContentType=content_type)
+        self.client.put_object(
+            Bucket=self.bucket, Key=key, Body=file_bytes, ContentType=content_type
+        )
         return key
 
     def delete(self, *, key: str) -> None:

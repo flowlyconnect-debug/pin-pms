@@ -12,30 +12,30 @@ from io import BytesIO
 
 from flask import Response, current_app, g, request, send_file
 
-from app.audit import record as audit_record
-from app.audit.models import AuditStatus
 from app.api import api_bp
 from app.api.auth import require_api_key, scope_required
 from app.api.schemas import json_error, json_ok
+from app.api.services import get_unit_for_org_calendar_export
+from app.audit import record as audit_record
+from app.audit.models import AuditStatus
 from app.billing import services as billing_service
 from app.billing.models import Invoice
 from app.billing.pdf import generate_invoice_pdf
-from app.guests.models import Guest
-from app.integrations.ical.service import IcalService, IcalServiceError
-from app.maintenance import services as maintenance_service
-from app.properties import images as property_image_service
-from app.properties.models import Property, PropertyImage, Unit
-from app.properties import services as property_service
-from app.api.services import get_unit_for_org_calendar_export
-from app.reservations.models import Reservation
-from app.reservations import services as reservation_service
-from app.status.service import readiness_status
-from app.tags.models import GuestTag, PropertyTag, ReservationTag, Tag
-from app.tags.services import TagService, TagServiceError
 from app.comments.models import Comment
 from app.comments.services import CommentService, CommentServiceError
 from app.core.decorators import require_api_tenant_entity
 from app.extensions import db
+from app.guests.models import Guest
+from app.integrations.ical.service import IcalService, IcalServiceError
+from app.maintenance import services as maintenance_service
+from app.properties import images as property_image_service
+from app.properties import services as property_service
+from app.properties.models import Property, PropertyImage, Unit
+from app.reservations import services as reservation_service
+from app.reservations.models import Reservation
+from app.status.service import readiness_status
+from app.tags.models import GuestTag, PropertyTag, ReservationTag, Tag
+from app.tags.services import TagService, TagServiceError
 
 
 @api_bp.get("/health")
@@ -169,7 +169,9 @@ def _serialize_property_image(row: PropertyImage) -> dict:
 
 
 def _resource_to_target_type(resource: str) -> str | None:
-    return {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    return {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(
+        resource
+    )
 
 
 @api_bp.get("/search")
@@ -186,7 +188,12 @@ def api_search():
     guests = (
         Guest.query.filter(
             Guest.organization_id == org_id,
-            (Guest.first_name.ilike(ilike) | Guest.last_name.ilike(ilike) | Guest.email.ilike(ilike) | Guest.phone.ilike(ilike)),
+            (
+                Guest.first_name.ilike(ilike)
+                | Guest.last_name.ilike(ilike)
+                | Guest.email.ilike(ilike)
+                | Guest.phone.ilike(ilike)
+            ),
         )
         .order_by(Guest.id.desc())
         .limit(20)
@@ -374,7 +381,10 @@ def create_tag():
 @scope_required("admin:*")
 def attach_tag(resource: str, resource_id: int):
     required_scope = f"{resource}:write"
-    if not any(s == required_scope or s == "admin:*" or s == resource.replace("s", "") + ":*" for s in g.api_key.scope_list):
+    if not any(
+        s == required_scope or s == "admin:*" or s == resource.replace("s", "") + ":*"
+        for s in g.api_key.scope_list
+    ):
         return json_error("forbidden", f"Missing required scope: {required_scope}", status=403)
     target_type = _resource_to_target_type(resource)
     if target_type is None:

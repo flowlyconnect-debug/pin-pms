@@ -73,5 +73,3 @@ def refund_payment(payment_id: int):
     except services.PaymentServiceError as err:
         return json_error(err.code, err.message, status=err.status)
     return json_ok(data)
-
-

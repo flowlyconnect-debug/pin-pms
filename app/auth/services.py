@@ -113,7 +113,8 @@ def _is_locked_out(email: str) -> bool:
 
 def _record_login_attempt(email: str, *, success: bool) -> None:
     try:
-        from flask import has_request_context, request as flask_request
+        from flask import has_request_context
+        from flask import request as flask_request
 
         if has_request_context():
             ip = flask_request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
@@ -267,7 +268,9 @@ def cleanup_expired_tokens(*, now: datetime | None = None) -> dict[str, int]:
 # --- Route-facing orchestration (keeps ``auth.routes`` thin) ----------------
 
 
-def authenticate_user_for_login(*, email: str, password: str) -> tuple[User | None, str | None, bool]:
+def authenticate_user_for_login(
+    *, email: str, password: str
+) -> tuple[User | None, str | None, bool]:
     """Run :func:`authenticate_user` and map SQLAlchemy failures to a safe page message.
 
     Returns ``(user, error_message, is_infrastructure_error)``.
@@ -278,7 +281,8 @@ def authenticate_user_for_login(*, email: str, password: str) -> tuple[User | No
         return user, None, False
     except SQLAlchemyError as exc:
         try:
-            from flask import has_request_context, request as flask_request
+            from flask import has_request_context
+            from flask import request as flask_request
 
             path = flask_request.path if has_request_context() else None
         except Exception:
@@ -321,9 +325,7 @@ def ensure_superadmin_totp_secret_initialized(user: User) -> None:
         db.session.commit()
 
 
-def complete_superadmin_two_factor_setup(
-    *, user: User, code: str
-) -> tuple[bool, list[str] | None]:
+def complete_superadmin_two_factor_setup(*, user: User, code: str) -> tuple[bool, list[str] | None]:
     """Verify TOTP and enable 2FA; returns ``(success, plaintext_backup_codes)``."""
 
     normalized = (code or "").replace(" ", "").strip()
@@ -415,7 +417,9 @@ def request_password_reset(*, email: str) -> None:
         if has_request_context():
             reset_url = url_for("auth.reset_password", token=raw_token, _external=True)
         else:
-            base_url = (current_app.config.get("APP_BASE_URL") or "http://127.0.0.1:5000").rstrip("/")
+            base_url = (current_app.config.get("APP_BASE_URL") or "http://127.0.0.1:5000").rstrip(
+                "/"
+            )
             reset_url = f"{base_url}/reset-password/{raw_token}"
         try:
             send_template_sync(

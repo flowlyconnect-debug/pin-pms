@@ -1,7 +1,7 @@
-from app.payments.providers.paytrail import calculate_signature
-from app.payments.providers.paytrail import PaytrailProvider
-from types import SimpleNamespace
 from decimal import Decimal
+from types import SimpleNamespace
+
+from app.payments.providers.paytrail import PaytrailProvider, calculate_signature
 
 
 def test_signature_calculation_matches_paytrail_spec_style():
@@ -20,7 +20,9 @@ def test_signature_calculation_matches_paytrail_spec_style():
 
 def test_amount_in_cents_correctly_converted():
     provider = PaytrailProvider()
-    event = provider.parse_webhook_event(payload={"checkout-status": "ok", "checkout-transaction-id": "tx"})
+    event = provider.parse_webhook_event(
+        payload={"checkout-status": "ok", "checkout-transaction-id": "tx"}
+    )
     assert event["type"] == "payment.succeeded"
 
 
@@ -66,7 +68,12 @@ def test_create_checkout_contains_finnish_provider_list(app, monkeypatch):
         app.config["PAYTRAIL_MERCHANT_ID"] = "375917"
         app.config["PAYTRAIL_API_BASE"] = "https://services.paytrail.com"
         app.config["PAYMENT_CALLBACK_URL"] = "https://app/callback"
-        invoice = SimpleNamespace(id=1, invoice_number="INV-1", vat_rate=Decimal("24.00"), guest=SimpleNamespace(email="x@test"))
+        invoice = SimpleNamespace(
+            id=1,
+            invoice_number="INV-1",
+            vat_rate=Decimal("24.00"),
+            guest=SimpleNamespace(email="x@test"),
+        )
         result = provider.create_checkout(
             amount=Decimal("10.00"),
             currency="EUR",
@@ -79,4 +86,3 @@ def test_create_checkout_contains_finnish_provider_list(app, monkeypatch):
     assert "nordea" in body and "op" in body and "danske" in body and "handelsbanken" in body
     assert '"amount":1000' in body
     assert result["provider_payment_id"] == "tx1"
-

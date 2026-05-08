@@ -1,11 +1,12 @@
 from decimal import Decimal
 
+from werkzeug.security import generate_password_hash
+
 from app.billing.models import Invoice
 from app.extensions import db
-from app.payments.models import PaymentRefund, Payment
 from app.organizations.models import Organization
+from app.payments.models import Payment, PaymentRefund
 from app.users.models import User, UserRole
-from werkzeug.security import generate_password_hash
 
 
 def _invoice_for_routes(organization, regular_user):
@@ -35,7 +36,12 @@ def test_checkout_requires_scope(client, api_key):
     resp = client.post(
         "/api/v1/payments/checkout",
         headers={"Authorization": f"Bearer {api_key.raw}"},
-        json={"invoice_id": 1, "provider": "stripe", "return_url": "http://a", "cancel_url": "http://b"},
+        json={
+            "invoice_id": 1,
+            "provider": "stripe",
+            "return_url": "http://a",
+            "cancel_url": "http://b",
+        },
     )
     assert resp.status_code in {400, 403, 404}
 
@@ -45,7 +51,12 @@ def test_checkout_with_invalid_provider_returns_400(client, api_key):
     resp = client.post(
         "/api/v1/payments/checkout",
         headers={"Authorization": f"Bearer {api_key.raw}", "Idempotency-Key": "c-invalid-1"},
-        json={"invoice_id": 1, "provider": "notreal", "return_url": "http://a", "cancel_url": "http://b"},
+        json={
+            "invoice_id": 1,
+            "provider": "notreal",
+            "return_url": "http://a",
+            "cancel_url": "http://b",
+        },
     )
     assert resp.status_code == 400
 
@@ -59,14 +70,21 @@ def test_refund_requires_admin_role_not_user(client, api_key):
     assert resp.status_code in {403, 404}
 
 
-def test_checkout_returns_503_when_provider_disabled(app, client, api_key, organization, regular_user):
+def test_checkout_returns_503_when_provider_disabled(
+    app, client, api_key, organization, regular_user
+):
     inv = _invoice_for_routes(organization, regular_user)
     with app.app_context():
         app.config["STRIPE_ENABLED"] = False
     resp = client.post(
         "/api/v1/payments/checkout",
         headers={"Authorization": f"Bearer {api_key.raw}", "Idempotency-Key": "c-disabled-1"},
-        json={"invoice_id": inv.id, "provider": "stripe", "return_url": "http://a", "cancel_url": "http://b"},
+        json={
+            "invoice_id": inv.id,
+            "provider": "stripe",
+            "return_url": "http://a",
+            "cancel_url": "http://b",
+        },
     )
     assert resp.status_code == 503
 
@@ -144,4 +162,3 @@ def test_admin_payment_csv_export_includes_only_own_org(app, client, organizatio
     body = resp.data.decode("utf-8")
     assert ",stripe,10.00,EUR,pending" in body
     assert ",paytrail,20.00,EUR,pending" not in body
-

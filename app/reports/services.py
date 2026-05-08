@@ -161,7 +161,9 @@ def cash_flow_report(
         row["net"] = (row["income"] - row["expenses"]).quantize(Decimal("0.01"))
 
     groups = [bucket_map[key] for key in sorted(bucket_map.keys())]
-    totals_income = sum((row["income"] for row in groups), Decimal("0.00")).quantize(Decimal("0.01"))
+    totals_income = sum((row["income"] for row in groups), Decimal("0.00")).quantize(
+        Decimal("0.01")
+    )
     totals_expenses = sum((row["expenses"] for row in groups), Decimal("0.00")).quantize(
         Decimal("0.01")
     )
@@ -222,7 +224,10 @@ def expenses_breakdown_report(
     for row in rows:
         cat = (row.category or "other").strip().lower() or "other"
         totals[cat] = totals.get(cat, Decimal("0.00")) + Decimal(row.amount or 0)
-    groups = [{"label": key, "amount": value.quantize(Decimal("0.01"))} for key, value in sorted(totals.items())]
+    groups = [
+        {"label": key, "amount": value.quantize(Decimal("0.01"))}
+        for key, value in sorted(totals.items())
+    ]
     total_amount = sum((row["amount"] for row in groups), Decimal("0.00")).quantize(Decimal("0.01"))
     return {"groups": groups, "total": total_amount}
 
@@ -316,14 +321,11 @@ def _lease_forecast_amount(*, lease: Lease, window_start: date, window_end: date
 def compute_forecasted_cash_flow(*, organization_id: int, days_ahead: int) -> Decimal:
     today = date.today()
     horizon = today + timedelta(days=max(0, int(days_ahead)))
-    active_leases = (
-        Lease.query.filter(
-            Lease.organization_id == organization_id,
-            Lease.status == "active",
-            Lease.start_date <= horizon,
-        )
-        .all()
-    )
+    active_leases = Lease.query.filter(
+        Lease.organization_id == organization_id,
+        Lease.status == "active",
+        Lease.start_date <= horizon,
+    ).all()
     lease_total = sum(
         (
             _lease_forecast_amount(lease=lease, window_start=today, window_end=horizon)
@@ -359,7 +361,9 @@ def compute_cash_flow_breakdown(*, start: date, end: date, organization_id: int)
         db.session.query(
             Invoice.id.label("invoice_id"),
             func.coalesce(lease_property.id, res_property.id).label("property_id"),
-            func.coalesce(lease_property.name, res_property.name, "Tuntematon").label("property_name"),
+            func.coalesce(lease_property.name, res_property.name, "Tuntematon").label(
+                "property_name"
+            ),
             func.coalesce(lease_unit.id, res_unit.id).label("unit_id"),
             func.coalesce(lease_unit.name, res_unit.name, "-").label("unit_name"),
             Invoice.total_incl_vat.label("amount"),
@@ -409,7 +413,9 @@ def compute_cash_flow_breakdown(*, start: date, end: date, organization_id: int)
         amount = Decimal(row.amount or 0)
         property_key = (row.property_id, row.property_name)
         unit_key = (row.unit_id, row.property_id, row.property_name, row.unit_name)
-        income_by_property[property_key] = income_by_property.get(property_key, Decimal("0.00")) + amount
+        income_by_property[property_key] = (
+            income_by_property.get(property_key, Decimal("0.00")) + amount
+        )
         income_by_unit[unit_key] = income_by_unit.get(unit_key, Decimal("0.00")) + amount
         provider = providers_by_invoice.get(row.invoice_id)
         if provider == "stripe":
@@ -426,7 +432,9 @@ def compute_cash_flow_breakdown(*, start: date, end: date, organization_id: int)
     return {
         "income_by_property": [
             {"property_id": key[0], "property": key[1], "amount": _q(value)}
-            for key, value in sorted(income_by_property.items(), key=lambda item: item[0][1].lower())
+            for key, value in sorted(
+                income_by_property.items(), key=lambda item: item[0][1].lower()
+            )
         ],
         "income_by_unit": [
             {
@@ -454,7 +462,9 @@ def compute_cash_flow_breakdown(*, start: date, end: date, organization_id: int)
     }
 
 
-def compute_profitability_by_property(*, start: date, end: date, organization_id: int) -> list[dict]:
+def compute_profitability_by_property(
+    *, start: date, end: date, organization_id: int
+) -> list[dict]:
     lease_unit = aliased(Unit)
     lease_property = aliased(Property)
     res_unit = aliased(Unit)
@@ -462,7 +472,9 @@ def compute_profitability_by_property(*, start: date, end: date, organization_id
     income_rows = (
         db.session.query(
             func.coalesce(lease_property.id, res_property.id, 0).label("property_id"),
-            func.coalesce(lease_property.name, res_property.name, "Tuntematon").label("property_name"),
+            func.coalesce(lease_property.name, res_property.name, "Tuntematon").label(
+                "property_name"
+            ),
             func.coalesce(func.sum(Invoice.total_incl_vat), 0).label("income"),
         )
         .select_from(Invoice)
@@ -525,8 +537,12 @@ def compute_profitability_by_property(*, start: date, end: date, organization_id
             Property.organization_id == organization_id
         )
     }
-    income_map = {int(row.property_id): Decimal(row.income or 0) for row in income_rows if row.property_id}
-    expense_map = {int(row.property_id): Decimal(row.expense or 0) for row in expense_rows if row.property_id}
+    income_map = {
+        int(row.property_id): Decimal(row.income or 0) for row in income_rows if row.property_id
+    }
+    expense_map = {
+        int(row.property_id): Decimal(row.expense or 0) for row in expense_rows if row.property_id
+    }
     total_units_map = {int(prop_id): int(cnt or 0) for prop_id, cnt in total_units_rows}
     reserved_units_map = {int(prop_id): int(cnt or 0) for prop_id, cnt in reserved_units_rows}
     property_ids = sorted(set(income_map) | set(expense_map))

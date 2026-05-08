@@ -14,7 +14,9 @@ def test_search_returns_only_own_org_results(app, client, organization, regular_
     org_b = Organization(name="Org B")
     db.session.add(org_b)
     db.session.flush()
-    guest_a = Guest(organization_id=organization.id, first_name="Matti", last_name="Meika", email="a@test")
+    guest_a = Guest(
+        organization_id=organization.id, first_name="Matti", last_name="Meika", email="a@test"
+    )
     guest_b = Guest(organization_id=org_b.id, first_name="Matti", last_name="Other", email="b@test")
     db.session.add_all([guest_a, guest_b])
     key, raw = ApiKey.issue(
@@ -42,7 +44,9 @@ def test_search_includes_all_resource_types(app, client, organization, regular_u
     from app.properties.models import Property, Unit
     from app.reservations.models import Reservation
 
-    guest = Guest(organization_id=organization.id, first_name="Matti", last_name="Meika", email="matti@test")
+    guest = Guest(
+        organization_id=organization.id, first_name="Matti", last_name="Meika", email="matti@test"
+    )
     prop = Property(organization_id=organization.id, name="Matti House")
     db.session.add_all([guest, prop])
     db.session.flush()
@@ -113,4 +117,3 @@ def test_search_handles_empty_query(client, api_key):
     payload = rv.get_json()
     assert payload["success"] is True
     assert payload["data"] == []
-

@@ -208,10 +208,17 @@ def test_audit_log_created_on_download(client, organization, admin_user):
     r = client.get(f"/admin/invoices/{inv['id']}/pdf")
     assert r.status_code == 200
 
-    row = AuditLog.query.filter_by(
-        action="invoice.pdf_downloaded",
-        target_type="invoice",
-        target_id=inv["id"],
-    ).order_by(AuditLog.id.desc()).first()
+    row = (
+        AuditLog.query.filter_by(
+            action="invoice.pdf_downloaded",
+            target_type="invoice",
+            target_id=inv["id"],
+        )
+        .order_by(AuditLog.id.desc())
+        .first()
+    )
     assert row is not None
-    assert AuditLog.query.filter_by(action="invoice.pdf_downloaded", target_id=inv["id"]).count() > before
+    assert (
+        AuditLog.query.filter_by(action="invoice.pdf_downloaded", target_id=inv["id"]).count()
+        > before
+    )

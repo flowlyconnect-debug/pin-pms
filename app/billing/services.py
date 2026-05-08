@@ -108,7 +108,9 @@ def _quantize_money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _compute_vat_lines(subtotal_excl_vat: Decimal, vat_rate: Decimal) -> tuple[Decimal, Decimal, Decimal]:
+def _compute_vat_lines(
+    subtotal_excl_vat: Decimal, vat_rate: Decimal
+) -> tuple[Decimal, Decimal, Decimal]:
     """Return (subtotal, vat_amount, total_incl_vat), each rounded to cents."""
 
     sub = _quantize_money(subtotal_excl_vat)
@@ -309,7 +311,9 @@ def create_lease_template(
 ) -> dict:
     nm = (name or "").strip()
     if not nm:
-        raise LeaseServiceError(code="validation_error", message="Template name is required.", status=400)
+        raise LeaseServiceError(
+            code="validation_error", message="Template name is required.", status=400
+        )
     body = (body_markdown or "").strip()
     if not body:
         raise LeaseServiceError(
@@ -364,7 +368,9 @@ def update_lease_template(
         raise LeaseServiceError(code="not_found", message="Lease template not found.", status=404)
     nm = (name or "").strip()
     if not nm:
-        raise LeaseServiceError(code="validation_error", message="Template name is required.", status=400)
+        raise LeaseServiceError(
+            code="validation_error", message="Template name is required.", status=400
+        )
     body = (body_markdown or "").strip()
     if not body:
         raise LeaseServiceError(
@@ -1327,7 +1333,9 @@ def send_lease_for_signing(
         raise LeaseServiceError(code="not_found", message="Lease not found.", status=404)
     if not recipient_email.strip():
         raise LeaseServiceError(
-            code="validation_error", message="Lease guest email is required for signing.", status=400
+            code="validation_error",
+            message="Lease guest email is required for signing.",
+            status=400,
         )
     if lease.status in {"ended", "cancelled"}:
         raise LeaseServiceError(
@@ -1479,7 +1487,10 @@ def generate_due_lease_invoices(*, run_date: date | None = None) -> dict[str, An
                 reservation_id=lease.reservation_id,
                 guest_id=lease.guest_id,
                 status="open",
-                metadata_json={"lease_billing_period": period_key, "generated_by": "lease-cycle-billing"},
+                metadata_json={
+                    "lease_billing_period": period_key,
+                    "generated_by": "lease-cycle-billing",
+                },
                 actor_user_id=lease.created_by_id,
                 vat_rate_raw=None,
             )
@@ -1491,7 +1502,11 @@ def generate_due_lease_invoices(*, run_date: date | None = None) -> dict[str, An
                 organization_id=lease.organization_id,
                 target_type="lease",
                 target_id=lease.id,
-                metadata={"lease_id": lease.id, "billing_period": period_key, "billing_cycle": cycle},
+                metadata={
+                    "lease_id": lease.id,
+                    "billing_period": period_key,
+                    "billing_cycle": cycle,
+                },
                 commit=True,
             )
             summary["created"] += 1

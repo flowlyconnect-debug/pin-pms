@@ -18,4 +18,3 @@ def test_webhook_crypto_uses_configured_key(app):
         app.config["CHECKIN_FERNET_KEY"] = Fernet.generate_key().decode("utf-8")
         token = encrypt_signing_secret("another-secret")
         assert decrypt_signing_secret(token) == "another-secret"
-

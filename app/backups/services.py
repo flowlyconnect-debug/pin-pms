@@ -19,6 +19,7 @@ Security
 * The dump is *not* placed inside the application working directory (which is
   bind-mounted to the host); ``BACKUP_DIR`` is its own volume.
 """
+
 from __future__ import annotations
 
 import gzip
@@ -310,9 +311,7 @@ def restore_json_exports_for_backup(
 
     summary: dict[str, dict[str, int]] = {}
     if email_templates_filename:
-        summary["email_templates"] = restore_email_templates_from_json(
-            email_templates_filename
-        )
+        summary["email_templates"] = restore_email_templates_from_json(email_templates_filename)
     else:
         summary["email_templates"] = {"created": 0, "updated": 0}
     if settings_filename:
@@ -484,7 +483,9 @@ def _upload_offsite_to_s3(
     if not bucket:
         raise BackupError("BACKUP_S3_BUCKET is required when BACKUP_S3_ENABLED=1")
     if not access_key or not secret_key:
-        raise BackupError("BACKUP_S3_ACCESS_KEY and BACKUP_S3_SECRET_KEY are required when BACKUP_S3_ENABLED=1")
+        raise BackupError(
+            "BACKUP_S3_ACCESS_KEY and BACKUP_S3_SECRET_KEY are required when BACKUP_S3_ENABLED=1"
+        )
 
     prefix = _s3_prefix(cfg.get("BACKUP_S3_PREFIX", "pindora-pms/"))
     sql_key = f"{prefix}{backup.filename}"
@@ -571,12 +572,15 @@ def create_backup(
     logger.info(f"Starting pg_dump -> {location}")
 
     try:
-        with gzip.open(location, "wb") as gz, subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-        ) as proc:
+        with (
+            gzip.open(location, "wb") as gz,
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            ) as proc,
+        ):
             assert proc.stdout is not None  # for type-checkers
             shutil.copyfileobj(proc.stdout, gz)
             _, stderr = proc.communicate(timeout=cfg.get("BACKUP_TIMEOUT_SEC", 1800))
@@ -852,9 +856,7 @@ def prune_old_backups() -> int:
             try:
                 uploads_sibling.unlink()
             except OSError:
-                logger.exception(
-                    "Failed to remove old uploads archive %s", uploads_sibling
-                )
+                logger.exception("Failed to remove old uploads archive %s", uploads_sibling)
 
         # Init template §8: also drop the JSON sibling exports so retention
         # cleanup does not leave behind orphan template/settings files.
@@ -864,9 +866,7 @@ def prune_old_backups() -> int:
                 try:
                     json_sibling.unlink()
                 except OSError:
-                    logger.exception(
-                        "Failed to remove old JSON export %s", json_sibling
-                    )
+                    logger.exception("Failed to remove old JSON export %s", json_sibling)
 
         if row is not None:
             db.session.delete(row)
@@ -1043,14 +1043,17 @@ def restore_backup(
     logger.info(f"Loading {target_file} into the database via psql")
 
     try:
-        with gzip.open(target_file, "rt", encoding="utf-8", errors="replace") as gz, subprocess.Popen(
-            psql_cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            text=True,
-        ) as proc:
+        with (
+            gzip.open(target_file, "rt", encoding="utf-8", errors="replace") as gz,
+            subprocess.Popen(
+                psql_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                text=True,
+            ) as proc,
+        ):
             assert proc.stdin is not None  # for type-checkers
             try:
                 for line in gz:
@@ -1078,9 +1081,9 @@ def restore_backup(
         logger.exception("Unexpected error during psql restore")
         _record_restore_failure(
             actor_user_id=actor_user_id,
-                target_row_id=target_row_id,
+            target_row_id=target_row_id,
             filename=filename,
-                safe_copy_filename=safe_copy_filename,
+            safe_copy_filename=safe_copy_filename,
             error=str(err),
         )
         raise BackupError(str(err)) from err
@@ -1118,9 +1121,7 @@ def restore_backup(
                     tar.extractall(path=uploads_dir.parent)
             uploads_restored = True
         except Exception:  # noqa: BLE001 — uploads restore is best-effort
-            logger.exception(
-                "Failed to restore uploads archive %s", uploads_sibling
-            )
+            logger.exception("Failed to restore uploads archive %s", uploads_sibling)
 
     # 5) Audit + notify. The audit row is written into the *restored* DB so
     #    that an observer of the restored database sees that a restore was
@@ -1154,9 +1155,13 @@ def restore_backup(
         # Re-resolve the row inside the just-restored database — its id may
         # have changed if the dump came from a different environment.
         restored_target_row = Backup.query.filter_by(filename=filename).first()
-        target_row_for_audit = restored_target_row.id if restored_target_row is not None else target_row_id
+        target_row_for_audit = (
+            restored_target_row.id if restored_target_row is not None else target_row_id
+        )
         email_templates_filename = (
-            restored_target_row.email_templates_filename if restored_target_row is not None else None
+            restored_target_row.email_templates_filename
+            if restored_target_row is not None
+            else None
         )
         settings_filename_value = (
             restored_target_row.settings_filename if restored_target_row is not None else None
@@ -1235,9 +1240,7 @@ def _notify_superadmins_of_restore(
 
     from app.users.models import User, UserRole  # local to avoid cycles
 
-    superadmins = (
-        User.query.filter_by(role=UserRole.SUPERADMIN.value, is_active=True).all()
-    )
+    superadmins = User.query.filter_by(role=UserRole.SUPERADMIN.value, is_active=True).all()
     if not superadmins:
         return
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 STATUS_LABELS_FI = {
     "draft": "Luonnos",
     "active": "Aktiivinen",

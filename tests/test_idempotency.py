@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import pytest
 import json
 import re
 from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from app.api.schemas import json_error, json_ok
 
@@ -157,13 +158,17 @@ def test_idempotency_audit_log_created(app, client, idem_path):
     client.post(idem_path, data=body, headers=headers)
     client.post(idem_path, data=body, headers=headers)
 
-    replay = AuditLog.query.filter_by(action="idempotency.replay").order_by(AuditLog.id.desc()).first()
+    replay = (
+        AuditLog.query.filter_by(action="idempotency.replay").order_by(AuditLog.id.desc()).first()
+    )
     assert replay is not None
     assert replay.target_type == "idempotency_key"
     assert replay.context.get("endpoint") == f"POST {idem_path}"
 
     client.post(idem_path, data=json.dumps({"z": 2}), headers=headers)
-    conflict = AuditLog.query.filter_by(action="idempotency.conflict").order_by(AuditLog.id.desc()).first()
+    conflict = (
+        AuditLog.query.filter_by(action="idempotency.conflict").order_by(AuditLog.id.desc()).first()
+    )
     assert conflict is not None
     assert conflict.target_type == "idempotency_key"
     assert conflict.context.get("status") == "failure"

@@ -48,4 +48,3 @@ class PaymentProvider(ABC):
             "status": "pending" | "succeeded" | "failed"
         }
         """
-

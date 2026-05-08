@@ -38,12 +38,17 @@ def test_create_comment(organization, regular_user):
     db.session.add(guest)
     db.session.flush()
     reservation = _seed_reservation(organization.id, guest.id)
-    row = CommentService.create(organization.id, "reservation", reservation.id, regular_user.id, "Moi")
+    row = CommentService.create(
+        organization.id, "reservation", reservation.id, regular_user.id, "Moi"
+    )
     db.session.commit()
     assert row.body == "Moi"
     assert row.author_user_id == regular_user.id
     assert row.target_id == reservation.id
-    assert AuditLog.query.filter_by(action="comment.created", target_id=reservation.id).first() is not None
+    assert (
+        AuditLog.query.filter_by(action="comment.created", target_id=reservation.id).first()
+        is not None
+    )
 
 
 def test_edit_comment_by_author_only(organization, regular_user, admin_user):
@@ -51,14 +56,16 @@ def test_edit_comment_by_author_only(organization, regular_user, admin_user):
     db.session.add(guest)
     db.session.flush()
     reservation = _seed_reservation(organization.id, guest.id)
-    row = CommentService.create(organization.id, "reservation", reservation.id, regular_user.id, "Vanha")
+    row = CommentService.create(
+        organization.id, "reservation", reservation.id, regular_user.id, "Vanha"
+    )
     db.session.commit()
     row = CommentService.edit(row.id, regular_user.id, "Uusi")
     db.session.commit()
     assert row.body == "Uusi"
     try:
         CommentService.edit(row.id, admin_user.id, "Ei saa")
-        assert False
+        raise AssertionError("Expected CommentServiceError")
     except CommentServiceError as err:
         assert err.status == 403
 
@@ -68,12 +75,14 @@ def test_edit_comment_after_15_min_rejected(organization, regular_user):
     db.session.add(guest)
     db.session.flush()
     reservation = _seed_reservation(organization.id, guest.id)
-    row = CommentService.create(organization.id, "reservation", reservation.id, regular_user.id, "Old")
+    row = CommentService.create(
+        organization.id, "reservation", reservation.id, regular_user.id, "Old"
+    )
     row.created_at = datetime.utcnow() - timedelta(minutes=16)
     db.session.commit()
     try:
         CommentService.edit(row.id, regular_user.id, "new")
-        assert False
+        raise AssertionError("Expected CommentServiceError")
     except CommentServiceError as err:
         assert err.status == 403
 
@@ -83,7 +92,9 @@ def test_delete_comment_by_author_or_admin(organization, regular_user, admin_use
     db.session.add(guest)
     db.session.flush()
     reservation = _seed_reservation(organization.id, guest.id)
-    row = CommentService.create(organization.id, "reservation", reservation.id, regular_user.id, "Del")
+    row = CommentService.create(
+        organization.id, "reservation", reservation.id, regular_user.id, "Del"
+    )
     db.session.commit()
     CommentService.delete(row.id, admin_user.id)
     db.session.commit()
@@ -132,7 +143,9 @@ def test_comment_tenant_isolation(regular_user):
     CommentService.create(org_b.id, "reservation", reservation.id, regular_user.id, "x")
     db.session.commit()
     try:
-        CommentService.list_for_target(org_a.id, "reservation", reservation.id, include_internal=True)
-        assert False
+        CommentService.list_for_target(
+            org_a.id, "reservation", reservation.id, include_internal=True
+        )
+        raise AssertionError("Expected CommentServiceError")
     except CommentServiceError as err:
         assert err.status in (403, 404)

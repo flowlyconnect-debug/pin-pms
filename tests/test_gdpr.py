@@ -303,7 +303,9 @@ def test_cli_gdpr_commands_work(app, organization, regular_user):
     assert r_del.exit_code == 0
     assert db.session.get(User, vid) is None
 
-    r_del_missing = runner.invoke(args=["gdpr-delete-user", "--email", "gone@missing.invalid", "--yes"])
+    r_del_missing = runner.invoke(
+        args=["gdpr-delete-user", "--email", "gone@missing.invalid", "--yes"]
+    )
     assert r_del_missing.exit_code != 0
 
 
@@ -328,7 +330,10 @@ def test_delete_audit_action_recorded(app, organization, regular_user):
     db.session.add(other)
     db.session.commit()
     delete_user_data(regular_user.id, from_cli=True)
-    assert AuditLog.query.filter_by(action="gdpr.delete", target_id=regular_user.id).first() is not None
+    assert (
+        AuditLog.query.filter_by(action="gdpr.delete", target_id=regular_user.id).first()
+        is not None
+    )
 
 
 def test_delete_user_not_found_raises(app, organization):

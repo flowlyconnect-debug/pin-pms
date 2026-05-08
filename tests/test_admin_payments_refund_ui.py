@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from app.audit.models import AuditLog
 from app.billing.models import Invoice
 from app.extensions import db
-from app.payments.models import Payment, PaymentRefund
 from app.payments import services as payment_services
+from app.payments.models import Payment, PaymentRefund
 
 
 def _invoice(organization, regular_user) -> Invoice:
@@ -33,7 +33,9 @@ def _invoice(organization, regular_user) -> Invoice:
     return row
 
 
-def test_admin_partial_refund_posts_update_payment_status(app, client, organization, regular_user, admin_user, monkeypatch):
+def test_admin_partial_refund_posts_update_payment_status(
+    app, client, organization, regular_user, admin_user, monkeypatch
+):
     inv = _invoice(organization, regular_user)
     payment = Payment(
         organization_id=organization.id,
@@ -53,7 +55,9 @@ def test_admin_partial_refund_posts_update_payment_status(app, client, organizat
         counter["n"] += 1
         return {"provider_refund_id": f"re_{counter['n']}", "status": "pending"}
 
-    monkeypatch.setattr(payment_services, "get_provider", lambda _name: SimpleNamespace(refund=fake_refund))
+    monkeypatch.setattr(
+        payment_services, "get_provider", lambda _name: SimpleNamespace(refund=fake_refund)
+    )
 
     login = client.post(
         "/login",
@@ -107,7 +111,9 @@ def test_admin_partial_refund_posts_update_payment_status(app, client, organizat
         assert pay2.status == "partially_refunded"
 
 
-def test_retry_failed_refund_creates_new_row(app, organization, regular_user, admin_user, monkeypatch):
+def test_retry_failed_refund_creates_new_row(
+    app, organization, regular_user, admin_user, monkeypatch
+):
     inv = _invoice(organization, regular_user)
     payment = Payment(
         organization_id=organization.id,

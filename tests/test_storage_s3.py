@@ -38,7 +38,9 @@ def test_s3_storage_upload_delete_and_public_url(app, monkeypatch):
 
     with app.app_context():
         storage = S3Storage()
-        uploaded_key = storage.upload(file_bytes=b"avatar", key="/avatars/1.png", content_type="image/png")
+        uploaded_key = storage.upload(
+            file_bytes=b"avatar", key="/avatars/1.png", content_type="image/png"
+        )
         storage.delete(key="/avatars/1.png")
         url = storage.get_url(key="/avatars/1.png")
 

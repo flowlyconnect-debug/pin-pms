@@ -674,7 +674,11 @@ def auto_revoke_expired_access_codes(*, now: datetime | None = None) -> int:
         )
     db.session.commit()
     for row in rows:
-        if row.reservation is None or row.reservation.unit is None or row.reservation.unit.property is None:
+        if (
+            row.reservation is None
+            or row.reservation.unit is None
+            or row.reservation.unit.property is None
+        ):
             continue
         publish_webhook_event(
             GUEST_CHECKED_OUT,

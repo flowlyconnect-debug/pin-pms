@@ -36,10 +36,10 @@ from sqlalchemy import or_
 from app.admin import admin_bp
 from app.admin import services as admin_service
 from app.admin.forms import (
-    LeaseTemplateForm,
     ApiKeyForm,
     EmailTemplateForm,
     EmailTemplateTestSendForm,
+    LeaseTemplateForm,
     OrganizationForm,
     PropertyForm,
     SettingForm,
@@ -266,14 +266,18 @@ def admin_home():
     selected_org_id = current_user.organization_id
     org_options: list[Organization] = []
     if current_user.is_superadmin:
-        org_options = Organization.query.order_by(Organization.name.asc(), Organization.id.asc()).all()
+        org_options = Organization.query.order_by(
+            Organization.name.asc(), Organization.id.asc()
+        ).all()
         requested_org_id_raw = (request.args.get("organization_id") or "").strip()
         if requested_org_id_raw:
             try:
                 requested_org_id = int(requested_org_id_raw)
             except ValueError:
                 requested_org_id = None
-            if requested_org_id is not None and any(org.id == requested_org_id for org in org_options):
+            if requested_org_id is not None and any(
+                org.id == requested_org_id for org in org_options
+            ):
                 selected_org_id = requested_org_id
     selected_range = admin_service.normalize_dashboard_range(request.args.get("range"))
     summary = admin_service.get_dashboard_stats(
@@ -329,7 +333,9 @@ def api_dashboard_stats():
     occupancy_sparkline = [float(item.get("pct", 0) or 0) for item in occupancy_trend]
     revenue_sparkline = [float(item.get("value", 0) or 0) for item in revenue_trend]
     expenses_this_month = float((summary.get("cash_flow") or {}).get("expenses_this_month") or 0)
-    net_cash_flow_this_month = float((summary.get("cash_flow") or {}).get("net_cash_flow_this_month") or 0)
+    net_cash_flow_this_month = float(
+        (summary.get("cash_flow") or {}).get("net_cash_flow_this_month") or 0
+    )
     revenue_this_month = float(kpi.get("revenue_this_month") or 0)
     revenue_last_month = float(kpi.get("revenue_last_month") or 0)
     occupancy_today = float(kpi.get("occupancy_today_pct") or 0)
@@ -429,7 +435,9 @@ def notifications_list():
 @require_admin_pms_access
 def notifications_mark_read(notification_id: int):
     try:
-        row = notification_service.mark_read(notification_id=notification_id, user_id=current_user.id)
+        row = notification_service.mark_read(
+            notification_id=notification_id, user_id=current_user.id
+        )
     except notification_service.NotificationServiceError as err:
         if err.status == 404:
             abort(404)
@@ -522,7 +530,14 @@ def _parse_availability_days() -> int:
     return max(1, min(days, 31))
 
 
-def _availability_cache_key(*, organization_id: int, start_date: date, end_date: date, property_id: int | None, include_cancelled: bool) -> tuple:
+def _availability_cache_key(
+    *,
+    organization_id: int,
+    start_date: date,
+    end_date: date,
+    property_id: int | None,
+    include_cancelled: bool,
+) -> tuple:
     return (
         current_user.id,
         organization_id,
@@ -759,7 +774,9 @@ def guests_detail(guest_id: int):
         abort(404)
     tags = TagService.list_for_target(_pms_org_id(), "guest", guest_id)
     all_tags = TagService.list_for_org(_pms_org_id())
-    comments = CommentService.list_for_target(_pms_org_id(), "guest", guest_id, include_internal=True)
+    comments = CommentService.list_for_target(
+        _pms_org_id(), "guest", guest_id, include_internal=True
+    )
     return render_template(
         "admin/guests/detail.html",
         row=row,
@@ -801,7 +818,12 @@ def admin_tags_list():
     rows = TagService.list_for_org(_pms_org_id())
     return json_ok(
         [
-            {"id": row.id, "name": row.name, "color": row.color, "organization_id": row.organization_id}
+            {
+                "id": row.id,
+                "name": row.name,
+                "color": row.color,
+                "organization_id": row.organization_id,
+            }
             for row in rows
         ]
     )
@@ -828,7 +850,9 @@ def admin_tags_create():
 @admin_bp.post("/api/<string:resource>/<int:resource_id>/tags")
 @require_admin_pms_access
 def admin_tags_attach(resource: str, resource_id: int):
-    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(
+        resource
+    )
     if target_type is None:
         return json_error("not_found", "Resource not supported.", status=404)
     body = request.get_json(silent=True) or {}
@@ -852,7 +876,9 @@ def admin_tags_attach(resource: str, resource_id: int):
 @admin_bp.delete("/api/<string:resource>/<int:resource_id>/tags/<int:tag_id>")
 @require_admin_pms_access
 def admin_tags_detach(resource: str, resource_id: int, tag_id: int):
-    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(
+        resource
+    )
     if target_type is None:
         return json_error("not_found", "Resource not supported.", status=404)
     try:
@@ -873,11 +899,15 @@ def admin_tags_detach(resource: str, resource_id: int, tag_id: int):
 @admin_bp.get("/api/<string:resource>/<int:resource_id>/comments")
 @require_admin_pms_access
 def admin_comments_list(resource: str, resource_id: int):
-    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(
+        resource
+    )
     if target_type is None:
         return json_error("not_found", "Resource not supported.", status=404)
     try:
-        rows = CommentService.list_for_target(_pms_org_id(), target_type, resource_id, include_internal=True)
+        rows = CommentService.list_for_target(
+            _pms_org_id(), target_type, resource_id, include_internal=True
+        )
     except CommentServiceError as err:
         return json_error(err.code, err.message, status=err.status)
     return json_ok(
@@ -900,7 +930,9 @@ def admin_comments_list(resource: str, resource_id: int):
 @admin_bp.post("/api/<string:resource>/<int:resource_id>/comments")
 @require_admin_pms_access
 def admin_comments_create(resource: str, resource_id: int):
-    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(resource)
+    target_type = {"guests": "guest", "reservations": "reservation", "properties": "property"}.get(
+        resource
+    )
     if target_type is None:
         return json_error("not_found", "Resource not supported.", status=404)
     body = request.get_json(silent=True) or {}
@@ -925,12 +957,16 @@ def admin_comments_create(resource: str, resource_id: int):
 def admin_comments_edit(comment_id: int):
     body = request.get_json(silent=True) or {}
     try:
-        row = CommentService.edit(comment_id=comment_id, actor_user_id=current_user.id, body=str(body.get("body", "")))
+        row = CommentService.edit(
+            comment_id=comment_id, actor_user_id=current_user.id, body=str(body.get("body", ""))
+        )
         db.session.commit()
     except CommentServiceError as err:
         db.session.rollback()
         return json_error(err.code, err.message, status=err.status)
-    return json_ok({"id": row.id, "edited_at": row.edited_at.isoformat() if row.edited_at else None})
+    return json_ok(
+        {"id": row.id, "edited_at": row.edited_at.isoformat() if row.edited_at else None}
+    )
 
 
 @admin_bp.delete("/api/comments/<int:comment_id>")
@@ -984,6 +1020,7 @@ def saved_filter_delete(saved_filter_id: int):
         abort(404)
     flash("Tallennettu suodatin poistettu.")
     return redirect(request.referrer or url_for("admin.admin_home"))
+
 
 @admin_bp.route("/guests/<int:guest_id>/edit", methods=["GET", "POST"])
 @require_admin_pms_access
@@ -1374,7 +1411,9 @@ def units_calendar_sync(unit_id: int):
     ics_url: str | None = None
     try:
         token = service.sign_unit_token(unit_id=unit_id)
-        ics_url = url_for("api.export_unit_calendar_ics", unit_id=unit_id, token=token, _external=True)
+        ics_url = url_for(
+            "api.export_unit_calendar_ics", unit_id=unit_id, token=token, _external=True
+        )
     except IcalServiceError as err:
         current_app.logger.exception(
             "Kalenterin vienti-URL:n luonti epäonnistui unit_id=%s code=%s",
@@ -2416,6 +2455,7 @@ def leases_send_for_signing(lease_id: int):
         template_name = None
     pdf_bytes = generate_lease_pdf(lease_id=lease_id, content=content, template_name=template_name)
     import os
+
     uploads_dir = (current_app.config.get("UPLOADS_DIR") or "").strip() or os.path.join(
         current_app.instance_path, "uploads"
     )
@@ -2642,7 +2682,9 @@ def invoices_list():
         per_page=per_page,
         total=total,
         filters=f,
-        saved_filters=admin_service.list_saved_filters(user_id=current_user.id, view_type="invoices"),
+        saved_filters=admin_service.list_saved_filters(
+            user_id=current_user.id, view_type="invoices"
+        ),
     )
 
 
@@ -2720,7 +2762,9 @@ def invoices_new():
                         vat_rate_raw=form["vat_rate"] or None,
                     )
                 except (TypeError, ValueError):
-                    error = "Asiakkaan ja varauksen tunnisteiden tulee olla numeroita, jos ne annetaan."
+                    error = (
+                        "Asiakkaan ja varauksen tunnisteiden tulee olla numeroita, jos ne annetaan."
+                    )
                 except billing_service.InvoiceServiceError as err:
                     error = err.message
                     flash("Tallennus epäonnistui", "error")
@@ -2889,7 +2933,17 @@ def payments_export():
     sio = StringIO()
     writer = csv.writer(sio)
     writer.writerow(
-        ["id", "created_at", "provider", "amount", "currency", "status", "method", "invoice_number", "customer_email"]
+        [
+            "id",
+            "created_at",
+            "provider",
+            "amount",
+            "currency",
+            "status",
+            "method",
+            "invoice_number",
+            "customer_email",
+        ]
     )
     for row in rows:
         inv = Invoice.query.get(row.invoice_id) if row.invoice_id else None
@@ -3012,12 +3066,16 @@ def _parse_bulk_ids() -> list[int]:
 def reservations_bulk():
     ids = _parse_bulk_ids()
     action = (request.form.get("action") or "").strip()
-    idem_key = (request.headers.get("Idempotency-Key") or request.form.get("idempotency_key") or "").strip()
+    idem_key = (
+        request.headers.get("Idempotency-Key") or request.form.get("idempotency_key") or ""
+    ).strip()
     if not idem_key:
         return json_error("idempotency_key_required", "Idempotency key required.", status=400)
     if len(ids) > 1000:
         return json_error("too_many_ids", "Too many ids for synchronous processing.", status=422)
-    req_hash = hashlib.sha256(json.dumps({"action": action, "ids": ids}, sort_keys=True).encode("utf-8")).hexdigest()
+    req_hash = hashlib.sha256(
+        json.dumps({"action": action, "ids": ids}, sort_keys=True).encode("utf-8")
+    ).hexdigest()
     try:
         idem_row, created = admin_service._apply_idempotency_key(
             key=idem_key,
@@ -3028,7 +3086,9 @@ def reservations_bulk():
     except Exception:
         return json_error("idempotency_key_conflict", "Conflicting idempotency key.", status=409)
     if not created and idem_row.response_body:
-        return Response(idem_row.response_body, status=idem_row.response_status, mimetype="application/json")
+        return Response(
+            idem_row.response_body, status=idem_row.response_status, mimetype="application/json"
+        )
     if action == "cancel":
         for rid in ids:
             try:
@@ -3037,7 +3097,9 @@ def reservations_bulk():
                 )
             except reservation_service.ReservationServiceError as err:
                 if err.status in {403, 404}:
-                    return json_error("forbidden", "One or more ids are outside tenant scope.", status=403)
+                    return json_error(
+                        "forbidden", "One or more ids are outside tenant scope.", status=403
+                    )
                 raise
             audit_record(
                 "reservation.bulk_cancelled",
@@ -3536,7 +3598,9 @@ def audit_events_api():
             return json_error("invalid_from", "Virheellinen from-parametri.", status=400)
     if to_raw:
         try:
-            end = datetime.strptime(to_raw, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+            end = datetime.strptime(to_raw, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(
+                days=1
+            )
             query = query.filter(AuditLog.created_at < end)
         except ValueError:
             return json_error("invalid_to", "Virheellinen to-parametri.", status=400)
@@ -3560,7 +3624,9 @@ def audit_events_api():
     for row in rows:
         action_type = _normalize_action_type(row.action or "")
         entity_key, entity_label = _label_from_entity(row.target_type)
-        actor_name = (row.actor_email or "Jarjestelma").split("@")[0].replace(".", " ").strip().title() or "Jarjestelma"
+        actor_name = (row.actor_email or "Jarjestelma").split("@")[0].replace(
+            ".", " "
+        ).strip().title() or "Jarjestelma"
         entity_ref = f"{entity_key[:3].upper()}-{row.target_id}" if row.target_id else None
         action_label = _label_from_action_type(action_type)
         summary = f"{actor_name} {action_label.lower()} {entity_label.lower()}"
@@ -3591,7 +3657,9 @@ def audit_events_api():
     if request.args.get("format") == "csv":
         buffer = StringIO()
         writer = csv.writer(buffer)
-        writer.writerow(["id", "created_at", "action", "actor_email", "target_type", "target_id", "status"])
+        writer.writerow(
+            ["id", "created_at", "action", "actor_email", "target_type", "target_id", "status"]
+        )
         for row in rows:
             writer.writerow(
                 [
@@ -3682,7 +3750,12 @@ def _email_queue_query_for_current_user():
 @admin_bp.get("/email-queue")
 @require_admin_pms_access
 def email_queue_list():
-    rows = _email_queue_query_for_current_user().order_by(EmailQueueItem.created_at.desc()).limit(200).all()
+    rows = (
+        _email_queue_query_for_current_user()
+        .order_by(EmailQueueItem.created_at.desc())
+        .limit(200)
+        .all()
+    )
     return render_template("admin_email_queue.html", rows=rows)
 
 
@@ -3706,7 +3779,11 @@ def email_queue_retry(item_id: int):
         organization_id=row.organization_id,
         target_type="email_queue",
         target_id=row.id,
-        metadata={"template_key": row.template_key, "status": row.status, "attempt_count": row.effective_attempt_count},
+        metadata={
+            "template_key": row.template_key,
+            "status": row.status,
+            "attempt_count": row.effective_attempt_count,
+        },
         commit=True,
     )
     flash("Sähköposti asetettu uudelleen jonoon.")
@@ -4417,7 +4494,9 @@ def api_keys_new():
     users = User.query.filter_by(is_active=True).order_by(User.email.asc()).all()
     form = ApiKeyForm()
     form.organization_id.choices = [(o.id, o.name) for o in organizations]
-    form.user_id.choices = [(0, "-- ei käyttäjää (organisaatiotaso) --")] + [(u.id, u.email) for u in users]
+    form.user_id.choices = [(0, "-- ei käyttäjää (organisaatiotaso) --")] + [
+        (u.id, u.email) for u in users
+    ]
     error: str | None = None
 
     if form.validate_on_submit():
@@ -4440,7 +4519,9 @@ def api_keys_new():
         except ApiKeyAdminError as err:
             error = err.message
         else:
-            flash("API-avain luotu. Selväkielinen avain näytetään alla vain kerran — kopioi se heti.")
+            flash(
+                "API-avain luotu. Selväkielinen avain näytetään alla vain kerran — kopioi se heti."
+            )
             return redirect(url_for("admin.api_keys_list", show_raw=raw_key))
     elif request.method == "POST":
         error = "Korjaa korostetut kentät."
@@ -4502,9 +4583,7 @@ def webhooks_list():
 
     org_id = _pms_org_id()
     subs = list_subscriptions_for_org(organization_id=org_id)
-    deliveries_by_sub = {
-        s.id: list_recent_deliveries(subscription_id=s.id, limit=10) for s in subs
-    }
+    deliveries_by_sub = {s.id: list_recent_deliveries(subscription_id=s.id, limit=10) for s in subs}
     raw_secret = (request.args.get("show_webhook_secret") or "").strip() or None
     return render_template(
         "admin_webhooks.html",

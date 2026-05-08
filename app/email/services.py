@@ -26,8 +26,8 @@ Design choices
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
@@ -198,7 +198,12 @@ def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = N
                 "email.failed",
                 status=AuditStatus.FAILURE,
                 target_type="email_template",
-                context={"key": key, "to": _mask_email(to), "stage": "render", "error": _safe_error_text(err)},
+                context={
+                    "key": key,
+                    "to": _mask_email(to),
+                    "stage": "render",
+                    "error": _safe_error_text(err),
+                },
                 commit=True,
             )
             return False
@@ -214,7 +219,12 @@ def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = N
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": _mask_email(to), "stage": "render", "error": _safe_error_text(err)},
+            context={
+                "key": key,
+                "to": _mask_email(to),
+                "stage": "render",
+                "error": _safe_error_text(err),
+            },
             commit=True,
         )
         return False
@@ -241,7 +251,11 @@ def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = N
             organization_id=queued.organization_id,
             target_type="email_queue",
             target_id=queued.id,
-            metadata={"template_key": key, "recipient_email": _mask_email(to), "status": queued.status},
+            metadata={
+                "template_key": key,
+                "recipient_email": _mask_email(to),
+                "status": queued.status,
+            },
             commit=True,
         )
         return True
@@ -252,7 +266,12 @@ def send_template(key: str, *, to: str, context: Optional[Mapping[str, Any]] = N
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": _mask_email(to), "stage": "queue", "error": _safe_error_text(err)},
+            context={
+                "key": key,
+                "to": _mask_email(to),
+                "stage": "queue",
+                "error": _safe_error_text(err),
+            },
             commit=True,
         )
         return False
@@ -276,7 +295,12 @@ def send_template_now(
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": _mask_email(to), "stage": "render", "error": _safe_error_text(err)},
+            context={
+                "key": key,
+                "to": _mask_email(to),
+                "stage": "render",
+                "error": _safe_error_text(err),
+            },
             commit=True,
         )
         return False
@@ -302,7 +326,12 @@ def send_template_sync(
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": _mask_email(to), "stage": "service", "error": err.public_message},
+            context={
+                "key": key,
+                "to": _mask_email(to),
+                "stage": "service",
+                "error": err.public_message,
+            },
             commit=True,
         )
         return False
@@ -327,7 +356,12 @@ def send_template_with_attachments_now(
             "email.failed",
             status=AuditStatus.FAILURE,
             target_type="email_template",
-            context={"key": key, "to": _mask_email(to), "stage": "render", "error": _safe_error_text(err)},
+            context={
+                "key": key,
+                "to": _mask_email(to),
+                "stage": "render",
+                "error": _safe_error_text(err),
+            },
             commit=True,
         )
         return False

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from app.audit.models import AuditLog
 from app.api.models import ApiKey
+from app.audit.models import AuditLog
 from app.extensions import db
 from app.webhooks.models import WebhookDelivery, WebhookSubscription
 from app.webhooks.services import dispatch, retry_pending_deliveries
@@ -73,7 +73,11 @@ def test_outbound_retry_after_failure(app, organization, regular_user):
         dispatch(sub.id, "a.b", {"x": 1}, http_post=fail_post)
         sub = WebhookSubscription.query.get(sub.id)
         assert sub.failure_count >= 1
-        d = WebhookDelivery.query.filter_by(subscription_id=sub.id).order_by(WebhookDelivery.id.desc()).first()
+        d = (
+            WebhookDelivery.query.filter_by(subscription_id=sub.id)
+            .order_by(WebhookDelivery.id.desc())
+            .first()
+        )
         assert d is not None
         assert d.next_retry_at is not None
 
@@ -134,9 +138,10 @@ def test_api_webhook_subscription_requires_scope(app, client, organization, regu
 
 
 def test_outbound_subscription_tenant_isolation(app, client, organization, regular_user):
+    from werkzeug.security import generate_password_hash
+
     from app.organizations.models import Organization
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     with app.app_context():
         org_b = Organization(name="Other Org B")
@@ -218,16 +223,24 @@ def test_retry_pending_deliveries_marks_next(app, organization, regular_user):
 
 def test_webhook_services_metadata_helpers(app):
     with app.app_context():
-        from app.webhooks.services import extract_event_metadata, provider_is_known, verify_signature
+        from app.webhooks.services import (
+            extract_event_metadata,
+            provider_is_known,
+            verify_signature,
+        )
 
         assert provider_is_known("stripe") is True
         assert provider_is_known("paytrail") is True
         assert provider_is_known("nope") is False
-        et, eid, org = extract_event_metadata("stripe", {"type": "checkout", "id": "evt_1", "organization_id": "1"})
+        et, eid, org = extract_event_metadata(
+            "stripe", {"type": "checkout", "id": "evt_1", "organization_id": "1"}
+        )
         assert et == "checkout"
         assert eid == "evt_1"
         assert org == 1
-        et2, eid2, org2 = extract_event_metadata("vismapay", {"event_type": "x", "order_number": "ord"})
+        et2, eid2, org2 = extract_event_metadata(
+            "vismapay", {"event_type": "x", "order_number": "ord"}
+        )
         assert et2 == "x"
         assert eid2 == "ord"
         assert org2 is None

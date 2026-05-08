@@ -259,7 +259,9 @@ def test_portal_guest_can_open_unit_detail(client, regular_user):
     from app.reservations.models import Reservation
 
     _portal_login(client, email=regular_user.email, password=regular_user.password_plain)
-    prop = Property(organization_id=regular_user.organization_id, name="Portal Unit Prop", city="Helsinki")
+    prop = Property(
+        organization_id=regular_user.organization_id, name="Portal Unit Prop", city="Helsinki"
+    )
     db.session.add(prop)
     db.session.flush()
     unit = Unit(

@@ -89,4 +89,3 @@ def test_export_audit_log_created(app, client, organization, admin_user):
     rv = client.get("/admin/invoices/export?format=csv")
     assert rv.status_code == 200
     assert AuditLog.query.filter_by(action="invoices.exported").first() is not None
-

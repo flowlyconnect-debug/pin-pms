@@ -33,8 +33,9 @@ def test_payment_expiry_job_calls_service(app, monkeypatch):
 
 
 def test_payments_scheduler_starts_when_enabled(app, monkeypatch):
-    from app.payments import scheduler as ps
     from types import SimpleNamespace
+
+    from app.payments import scheduler as ps
 
     calls = {"jobs": 0, "started": False}
 
@@ -62,4 +63,3 @@ def test_payments_scheduler_starts_when_enabled(app, monkeypatch):
         assert calls["jobs"] == 1
         assert calls["started"] is True
         ps._shutdown_scheduler(sched)
-

@@ -355,8 +355,7 @@ def test_profitability_export_csv_and_xlsx(client, app, organization, admin_user
     )
     if xlsx_rv.status_code == 200:
         assert (
-            xlsx_rv.mimetype
-            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            xlsx_rv.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
         assert xlsx_rv.status_code == 400

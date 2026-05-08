@@ -2,7 +2,12 @@
 
 from app.idempotency.decorators import idempotent_post
 from app.idempotency.models import IdempotencyKey
-from app.idempotency.services import IdempotencyKeyConflict, get_or_create, prune_expired, record_response
+from app.idempotency.services import (
+    IdempotencyKeyConflict,
+    get_or_create,
+    prune_expired,
+    record_response,
+)
 
 __all__ = [
     "IdempotencyKey",

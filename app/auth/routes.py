@@ -16,9 +16,6 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required, login_user, logout_user
-import pyotp
-import qrcode
-import qrcode.image.svg
 
 from app.auth.forms import ResetPasswordForm
 from app.auth.models import PasswordResetToken

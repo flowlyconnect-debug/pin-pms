@@ -203,7 +203,7 @@ def test_maintenance_priority_dropdown_in_finnish(client, admin_user):
     assert '<option value="normal"' in html and ">Normaali</option>" in html
     assert '<option value="high"' in html and ">Korkea</option>" in html
     assert '<option value="urgent"' in html and ">Kiireellinen</option>" in html
-    assert "value=\"Matala\"" not in html
+    assert 'value="Matala"' not in html
 
 
 def test_calendar_sync_page_does_not_500(client, admin_user):
@@ -223,7 +223,14 @@ def test_list_views_do_not_render_raw_enum_labels(client, admin_user):
         "/admin/maintenance-requests",
         "/admin/payments",
     ]
-    expected_finnish = {"Aktiivinen", "Luonnos", "Erääntynyt", "Työn alla", "Kiireellinen", "Maksettu"}
+    expected_finnish = {
+        "Aktiivinen",
+        "Luonnos",
+        "Erääntynyt",
+        "Työn alla",
+        "Kiireellinen",
+        "Maksettu",
+    }
     raw_values = {"active", "draft", "overdue", "in_progress", "urgent", "paid"}
 
     for route in routes:

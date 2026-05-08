@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import pytest
-
 from werkzeug.security import generate_password_hash
 
 from app.extensions import db
-from app.owners.models import OwnerUser, PropertyOwner
 from app.owner_portal import services as owner_portal_service
+from app.owners.models import OwnerUser, PropertyOwner
 from app.properties.models import Property
 
 

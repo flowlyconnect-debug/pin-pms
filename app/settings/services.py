@@ -73,9 +73,13 @@ def _decode(stored: Optional[str], type_: str) -> Any:
 
     if stored is None:
         # NULL means "unset". Match the natural empty for each type.
-        return {"string": "", "int": 0, "bool": False, "json": None, "decimal": Decimal("0.00")}.get(
-            type_, ""
-        )
+        return {
+            "string": "",
+            "int": 0,
+            "bool": False,
+            "json": None,
+            "decimal": Decimal("0.00"),
+        }.get(type_, "")
 
     if type_ == SettingType.STRING:
         return stored

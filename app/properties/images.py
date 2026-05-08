@@ -4,8 +4,8 @@ import secrets
 from dataclasses import dataclass
 from io import BytesIO
 
-from PIL import Image
 from flask import current_app
+from PIL import Image
 
 from app.extensions import db
 from app.properties.models import Property, PropertyImage
@@ -58,7 +58,11 @@ def _process_image(raw: bytes, content_type: str) -> tuple[bytes, bytes, str]:
     thumb = img.copy()
     thumb.thumbnail((THUMB_WIDTH, THUMB_HEIGHT))
 
-    ext = "webp" if content_type == "image/webp" else ("png" if content_type == "image/png" else "jpg")
+    ext = (
+        "webp"
+        if content_type == "image/webp"
+        else ("png" if content_type == "image/png" else "jpg")
+    )
     save_format = "WEBP" if ext == "webp" else ("PNG" if ext == "png" else "JPEG")
 
     base_bytes = BytesIO()

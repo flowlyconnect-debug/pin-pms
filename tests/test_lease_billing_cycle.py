@@ -8,7 +8,9 @@ def _make_active_lease(admin_user, *, billing_cycle: str, status: str = "active"
     from app.extensions import db
     from app.properties.models import Property, Unit
 
-    prop = Property(organization_id=admin_user.organization_id, name=f"Cycle {billing_cycle}", address="x")
+    prop = Property(
+        organization_id=admin_user.organization_id, name=f"Cycle {billing_cycle}", address="x"
+    )
     db.session.add(prop)
     db.session.flush()
     unit = Unit(property_id=prop.id, name="U1", unit_type="double")

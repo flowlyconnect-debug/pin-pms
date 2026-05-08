@@ -4,6 +4,7 @@ import re
 from datetime import date
 
 import pyotp
+
 from app.extensions import db
 from app.guests.models import Guest
 from app.properties.models import Property, Unit
@@ -15,7 +16,9 @@ def _login(client, *, email: str, password: str):
 
 
 def _seed_reservation(admin_user) -> Reservation:
-    prop = Property(organization_id=admin_user.organization_id, name="UI Test Property", address=None)
+    prop = Property(
+        organization_id=admin_user.organization_id, name="UI Test Property", address=None
+    )
     db.session.add(prop)
     db.session.flush()
 

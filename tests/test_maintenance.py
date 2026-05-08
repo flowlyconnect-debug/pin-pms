@@ -450,7 +450,9 @@ def test_portal_maintenance_renders_only_own_requests_and_priority_in_finnish(cl
 
     _portal_login(client, email=regular_user.email, password=regular_user.password_plain)
 
-    prop = Property(organization_id=regular_user.organization_id, name="Portal Maint Prop", address=None)
+    prop = Property(
+        organization_id=regular_user.organization_id, name="Portal Maint Prop", address=None
+    )
     db.session.add(prop)
     db.session.flush()
 

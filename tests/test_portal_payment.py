@@ -11,4 +11,3 @@ def test_payment_return_renders_receipt_link(client):
 def test_payment_cancel_renders_retry_link(client):
     resp = client.get("/portal/payments/cancel/1")
     assert resp.status_code in {200, 302}
-

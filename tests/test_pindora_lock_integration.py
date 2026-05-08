@@ -23,7 +23,7 @@ def test_client_create_access_code_blocks_until_vendor_finalized():
             valid_from_iso="2026-04-28T10:00:00+00:00",
             valid_until_iso="2026-04-29T10:00:00+00:00",
         )
-        assert False, "expected RuntimeError"
+        raise AssertionError("expected RuntimeError")
     except RuntimeError as exc:
         assert "not yet finalized" in str(exc).lower()
 

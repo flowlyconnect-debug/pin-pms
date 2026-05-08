@@ -88,7 +88,9 @@ def create(
 def _get_visible_notification_for_user(*, notification_id: int, user: User) -> Notification:
     row = Notification.query.get(notification_id)
     if row is None:
-        raise NotificationServiceError(code="not_found", message="Notification not found.", status=404)
+        raise NotificationServiceError(
+            code="not_found", message="Notification not found.", status=404
+        )
     is_owner = row.user_id == user.id
     is_org_broadcast = row.user_id is None and row.organization_id == user.organization_id
     if not (is_owner or is_org_broadcast):
@@ -163,20 +165,18 @@ def list_all_for_user(
 
 
 def unread_count(*, user_id: int, organization_id: int) -> int:
-    return (
-        Notification.query.filter(
-            Notification.organization_id == organization_id,
-            Notification.is_read.is_(False),
-            or_(Notification.user_id == user_id, Notification.user_id.is_(None)),
-        )
-        .count()
-    )
+    return Notification.query.filter(
+        Notification.organization_id == organization_id,
+        Notification.is_read.is_(False),
+        or_(Notification.user_id == user_id, Notification.user_id.is_(None)),
+    ).count()
 
 
 def prune_old(retention_days: int = 90) -> int:
     days = max(1, int(retention_days or 90))
     cutoff = datetime.utcnow() - timedelta(days=days)
-    deleted = Notification.query.filter(Notification.created_at < cutoff).delete(synchronize_session=False)
+    deleted = Notification.query.filter(Notification.created_at < cutoff).delete(
+        synchronize_session=False
+    )
     db.session.flush()
     return int(deleted or 0)
-

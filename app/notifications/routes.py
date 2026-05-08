@@ -22,7 +22,6 @@ def to_payload(row: Notification) -> dict:
 def group_by_day(rows: list[Notification]) -> list[dict]:
     grouped: OrderedDict[str, list[dict]] = OrderedDict()
     for row in rows:
-        day_key = (row.created_at.date().isoformat() if row.created_at else "unknown")
+        day_key = row.created_at.date().isoformat() if row.created_at else "unknown"
         grouped.setdefault(day_key, []).append(to_payload(row))
     return [{"day": day, "items": items} for day, items in grouped.items()]
-

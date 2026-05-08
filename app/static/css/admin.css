@@ -3065,6 +3065,29 @@ a.admin-kpi-card:hover,
   opacity: 0.55;
 }
 
+.fc .fc-button-primary,
+.fc .fc-button-primary:disabled {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast, #fff);
+}
+
+.fc .fc-button-primary:hover {
+  background-color: var(--color-primary-hover, var(--color-primary));
+  border-color: var(--color-primary-hover, var(--color-primary));
+  color: var(--color-primary-contrast, #fff);
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+  background-color: var(--color-primary-active, var(--color-primary));
+  border-color: var(--color-primary-active, var(--color-primary));
+  color: var(--color-primary-contrast, #fff);
+}
+
+.fc .fc-button-primary:focus {
+  box-shadow: 0 0 0 0.2rem var(--color-focus-ring, rgba(37, 99, 235, 0.25));
+}
+
 .availability-toolbar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

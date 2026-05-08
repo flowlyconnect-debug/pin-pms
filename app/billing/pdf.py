@@ -202,8 +202,12 @@ def generate_invoice_pdf(invoice_id: int) -> bytes:
     story.append(Paragraph(_p(title), title_style))
 
     story.append(Paragraph(f"<b>Laskun numero:</b> {_p(doc_label)}", styles["Normal"]))
-    story.append(Paragraph(f"<b>Laskun päiväys:</b> {_p(invoice_date.isoformat())}", styles["Normal"]))
-    story.append(Paragraph(f"<b>Eräpäivä:</b> {_p(invoice.due_date.isoformat())}", styles["Normal"]))
+    story.append(
+        Paragraph(f"<b>Laskun päiväys:</b> {_p(invoice_date.isoformat())}", styles["Normal"])
+    )
+    story.append(
+        Paragraph(f"<b>Eräpäivä:</b> {_p(invoice.due_date.isoformat())}", styles["Normal"])
+    )
     story.append(Spacer(1, 0.3 * cm))
 
     story.append(Paragraph("<b>Asiakas</b>", styles["Heading4"]))
@@ -307,9 +311,24 @@ def generate_lease_pdf(*, lease_id: int, content: str, template_name: str | None
         heading = f"{heading} - {template_name}"
     story.append(Paragraph(_p(heading), styles["Title"]))
     story.append(Spacer(1, 0.4 * cm))
-    story.append(Paragraph(f"<b>Vuokralainen:</b> {_p(lease.guest.full_name if lease.guest else '')}", styles["Normal"]))
-    story.append(Paragraph(f"<b>Alku:</b> {_p(lease.start_date.isoformat() if lease.start_date else '')}", styles["Normal"]))
-    story.append(Paragraph(f"<b>Loppu:</b> {_p(lease.end_date.isoformat() if lease.end_date else '-')}", styles["Normal"]))
+    story.append(
+        Paragraph(
+            f"<b>Vuokralainen:</b> {_p(lease.guest.full_name if lease.guest else '')}",
+            styles["Normal"],
+        )
+    )
+    story.append(
+        Paragraph(
+            f"<b>Alku:</b> {_p(lease.start_date.isoformat() if lease.start_date else '')}",
+            styles["Normal"],
+        )
+    )
+    story.append(
+        Paragraph(
+            f"<b>Loppu:</b> {_p(lease.end_date.isoformat() if lease.end_date else '-')}",
+            styles["Normal"],
+        )
+    )
     story.append(Spacer(1, 0.4 * cm))
     for line in (content or "").splitlines():
         if line.strip():

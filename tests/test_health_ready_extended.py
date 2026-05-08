@@ -31,7 +31,9 @@ def test_health_includes_mailgun_check_when_configured(app, client, api_key, mon
 
     from app.status import service as status_service
 
-    status_service._mailgun_cache.update({"checked_at": 0.0, "ok": False, "detail": "uninitialized"})
+    status_service._mailgun_cache.update(
+        {"checked_at": 0.0, "ok": False, "detail": "uninitialized"}
+    )
     monkeypatch.setattr(status_service.requests, "get", lambda *args, **kwargs: _Response())
     response = _health_ready(client, api_key)
     checks = response.get_json()["data"]["checks"]
@@ -73,7 +75,11 @@ def test_health_warns_when_backup_overdue(app, client, api_key, monkeypatch):
     monkeypatch.setitem(
         __import__("sys").modules,
         "sentry_sdk",
-        type("FakeSentry", (), {"capture_message": staticmethod(lambda msg, level=None: sentry_messages.append(msg))}),
+        type(
+            "FakeSentry",
+            (),
+            {"capture_message": staticmethod(lambda msg, level=None: sentry_messages.append(msg))},
+        ),
     )
     response = _health_ready(client, api_key)
     checks = response.get_json()["data"]["checks"]
@@ -82,7 +88,9 @@ def test_health_warns_when_backup_overdue(app, client, api_key, monkeypatch):
     assert "backup_overdue" in sentry_messages
     audit = AuditLog.query.filter_by(action="monitoring.backup_overdue").first()
     assert audit is not None
-    status_service._mailgun_cache.update({"checked_at": 0.0, "ok": False, "detail": "uninitialized"})
+    status_service._mailgun_cache.update(
+        {"checked_at": 0.0, "ok": False, "detail": "uninitialized"}
+    )
 
 
 def test_health_audits_mailgun_unreachable(app, client, api_key, monkeypatch):
@@ -90,7 +98,9 @@ def test_health_audits_mailgun_unreachable(app, client, api_key, monkeypatch):
 
     app.config["MAILGUN_API_KEY"] = "mg-key"
     app.config["MAILGUN_DOMAIN"] = "mg.example.com"
-    status_service._mailgun_cache.update({"checked_at": 0.0, "ok": False, "detail": "uninitialized"})
+    status_service._mailgun_cache.update(
+        {"checked_at": 0.0, "ok": False, "detail": "uninitialized"}
+    )
 
     def _boom(*args, **kwargs):
         raise RuntimeError("mailgun down")

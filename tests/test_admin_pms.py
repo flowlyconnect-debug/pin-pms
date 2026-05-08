@@ -1750,7 +1750,10 @@ def test_occupancy_invalid_date_range_is_rejected(client, admin_user):
 
     response = client.get("/admin/reports/occupancy?start_date=2026-08-05&end_date=2026-08-01")
     assert response.status_code == 200
-    assert b"Alkup\xc3\xa4iv\xc3\xa4n tulee olla ennen loppup\xc3\xa4iv\xc3\xa4\xc3\xa4." in response.data
+    assert (
+        b"Alkup\xc3\xa4iv\xc3\xa4n tulee olla ennen loppup\xc3\xa4iv\xc3\xa4\xc3\xa4."
+        in response.data
+    )
 
 
 def test_admin_can_access_calendar(client, admin_user):
@@ -4007,9 +4010,9 @@ def test_admin_list_pages_do_not_500_as_superadmin(client, superadmin, path):
 
     response = client.get(path, follow_redirects=False)
 
-    assert response.status_code != 500, (
-        f"GET {path} returned 500: {response.get_data(as_text=True)[:500]}"
-    )
+    assert (
+        response.status_code != 500
+    ), f"GET {path} returned 500: {response.get_data(as_text=True)[:500]}"
     assert response.status_code in {200, 302, 303, 403, 404}
 
 
@@ -4025,7 +4028,7 @@ def test_admin_list_pages_do_not_500_as_admin(client, admin_user, path):
 
     response = client.get(path, follow_redirects=False)
 
-    assert response.status_code != 500, (
-        f"GET {path} returned 500: {response.get_data(as_text=True)[:500]}"
-    )
+    assert (
+        response.status_code != 500
+    ), f"GET {path} returned 500: {response.get_data(as_text=True)[:500]}"
     assert response.status_code in {200, 302, 303, 403, 404}

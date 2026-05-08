@@ -32,12 +32,13 @@ def test_expense_create_audits(app, organization, admin_user):
 
 
 def test_reports_tenant_isolation(app, client, organization, admin_user):
+    from werkzeug.security import generate_password_hash
+
     from app.expenses import services as expense_service
     from app.extensions import db
     from app.organizations.models import Organization
     from app.properties.models import Property
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     other_org = Organization(name="Other org")
     db.session.add(other_org)
@@ -69,4 +70,3 @@ def test_reports_tenant_isolation(app, client, organization, admin_user):
     rv = client.get("/admin/reports/expenses-breakdown?start_date=2026-04-01&end_date=2026-04-30")
     assert rv.status_code == 200
     assert "55.00" not in rv.data.decode("utf-8")
-

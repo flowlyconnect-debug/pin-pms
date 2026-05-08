@@ -171,7 +171,11 @@ def test_audit_log_for_webhook_published(app, organization, monkeypatch):
         _mk_subscription(organization_id=organization.id, event_types=[RESERVATION_CREATED])
         monkeypatch.setattr("app.webhooks.publisher.dispatch", lambda *_args, **_kwargs: None)
         publish(RESERVATION_CREATED, organization.id, {"event": RESERVATION_CREATED, "data": {}})
-        row = AuditLog.query.filter_by(action="webhook.published").order_by(AuditLog.id.desc()).first()
+        row = (
+            AuditLog.query.filter_by(action="webhook.published")
+            .order_by(AuditLog.id.desc())
+            .first()
+        )
         assert row is not None
         assert row.context["event_type"] == RESERVATION_CREATED
         assert row.context["subscriber_count"] == 1

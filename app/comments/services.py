@@ -42,11 +42,19 @@ class CommentService:
         else:
             raise CommentServiceError("validation_error", "Invalid target_type.", 400)
         if row is None:
-            raise CommentServiceError("not_found", "Target resource not found in organization.", 404)
+            raise CommentServiceError(
+                "not_found", "Target resource not found in organization.", 404
+            )
 
     @staticmethod
-    def _handle_mentions(*, organization_id: int, actor_user_id: int, body: str, target_type: str, target_id: int) -> None:
-        usernames = {m.group(1).strip().lower() for m in MENTION_RE.finditer(body or "") if m.group(1).strip()}
+    def _handle_mentions(
+        *, organization_id: int, actor_user_id: int, body: str, target_type: str, target_id: int
+    ) -> None:
+        usernames = {
+            m.group(1).strip().lower()
+            for m in MENTION_RE.finditer(body or "")
+            if m.group(1).strip()
+        }
         if not usernames:
             return
         actor = User.query.filter_by(id=actor_user_id, organization_id=organization_id).first()

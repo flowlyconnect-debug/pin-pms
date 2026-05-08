@@ -23,6 +23,7 @@ is gone in modern Flask, so we use ``app.before_request`` with a one-shot
 flag). Stopping cleanly relies on the OS sending the worker a signal — ``atexit``
 handles that for us.
 """
+
 from __future__ import annotations
 
 import atexit
@@ -33,8 +34,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from flask import Flask
 
-from app.backups.services import BackupError, create_backup
 from app.backups.models import BackupTrigger
+from app.backups.services import BackupError, create_backup
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,7 @@ def _build_trigger(cron_expr: str) -> CronTrigger:
     parts = cron_expr.split()
     if len(parts) != 5:
         raise ValueError(
-            "BACKUP_SCHEDULE_CRON must have five space-separated fields, got "
-            f"{cron_expr!r}"
+            "BACKUP_SCHEDULE_CRON must have five space-separated fields, got " f"{cron_expr!r}"
         )
     minute, hour, day, month, day_of_week = parts
     return CronTrigger(
@@ -96,9 +96,7 @@ def _scheduled_backup_job(app: Flask) -> None:
             {"key": _ADVISORY_LOCK_KEY},
         ).scalar()
         if not result:
-            logger.info(
-                "Backup tick skipped — another worker holds the advisory lock."
-            )
+            logger.info("Backup tick skipped — another worker holds the advisory lock.")
             return
 
         try:

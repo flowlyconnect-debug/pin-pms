@@ -50,7 +50,9 @@ def test_bulk_cancel_reservations_audits_each(app, client, organization, admin_u
     for row in rows:
         refreshed = Reservation.query.get(row.id)
         assert refreshed.status == "cancelled"
-        assert AuditLog.query.filter_by(action="reservation.bulk_cancelled", target_id=row.id).first()
+        assert AuditLog.query.filter_by(
+            action="reservation.bulk_cancelled", target_id=row.id
+        ).first()
 
 
 def test_bulk_action_rejects_other_org_ids(app, client, organization, admin_user):
@@ -80,7 +82,9 @@ def test_bulk_action_idempotent_with_key(app, client, organization, admin_user):
     payload = {"action": "cancel", "ids": [rows[0].id], "idempotency_key": "bulk-3"}
     assert client.post("/admin/reservations/bulk", data=payload).status_code == 200
     assert client.post("/admin/reservations/bulk", data=payload).status_code == 200
-    count = AuditLog.query.filter_by(action="reservation.bulk_cancelled", target_id=rows[0].id).count()
+    count = AuditLog.query.filter_by(
+        action="reservation.bulk_cancelled", target_id=rows[0].id
+    ).count()
     assert count == 1
 
 
@@ -100,4 +104,3 @@ def test_bulk_action_rejects_more_than_1000_sync(app, client, organization, admi
         data={"action": "cancel", "ids": list(range(1, 1002)), "idempotency_key": "bulk-4"},
     )
     assert rv.status_code == 422
-

@@ -17,8 +17,9 @@ def test_create_organization_superadmin_rejects_duplicate_name(app, organization
 
 
 def test_verify_fresh_2fa_code_accepts_totp(app, superadmin):
-    from app.admin.services import verify_fresh_2fa_code
     import pyotp
+
+    from app.admin.services import verify_fresh_2fa_code
 
     with app.app_context():
         code = pyotp.TOTP(superadmin.totp_secret).now()

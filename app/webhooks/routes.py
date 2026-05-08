@@ -16,7 +16,6 @@ from app.idempotency.services import IdempotencyKeyConflict
 from app.payments import services as payment_services
 from app.payments.providers.paytrail import PaytrailProvider
 from app.payments.providers.stripe import StripeProvider
-from . import webhooks_bp
 from app.webhooks.services import (
     apply_idempotency_for_inbound,
     dispatch_handler,
@@ -27,6 +26,8 @@ from app.webhooks.services import (
     record_inbound_event,
     verify_signature,
 )
+
+from . import webhooks_bp
 
 _ALLOWED = frozenset({"stripe", "vismapay", "pindora_lock", "paytrail"})
 _MAX_WEBHOOK_BYTES = 1024 * 1024
@@ -42,7 +43,7 @@ _SIGNATURE_HEADER = {
 @webhooks_bp.get("/paytrail")
 def inbound_paytrail_webhook():
     provider = PaytrailProvider()
-    query = {k: v for k, v in request.args.items()}
+    query = dict(request.args.items())
     if not provider.verify_query_signature(query):
         audit_record(
             "webhook.invalid_signature",
@@ -100,9 +101,7 @@ def inbound_webhook(provider: str) -> Any:
 
     if provider == "stripe":
         stripe_provider = StripeProvider()
-        if not stripe_provider.verify_webhook(
-            payload_bytes=raw, signature_header=signature_header
-        ):
+        if not stripe_provider.verify_webhook(payload_bytes=raw, signature_header=signature_header):
             audit_record(
                 "webhook.invalid_signature",
                 status=AuditStatus.FAILURE,

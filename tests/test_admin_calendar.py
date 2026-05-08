@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from html.parser import HTMLParser
+from pathlib import Path
 
 from app.extensions import db
 from app.properties.models import Property, Unit
@@ -38,7 +39,9 @@ def test_admin_calendar_get_returns_200_and_nonce_scripts(client, admin_user):
     parser.feed(html)
 
     # Local admin calendar logic must come from a static JS file.
-    assert any(script.get("src", "").endswith("/static/js/admin-calendar.js") for script in parser.scripts)
+    assert any(
+        script.get("src", "").endswith("/static/js/admin-calendar.js") for script in parser.scripts
+    )
     # Inline event handlers are forbidden under strict CSP.
     assert re.search(r"\son[a-zA-Z]+\s*=", html) is None
 
@@ -77,3 +80,35 @@ def test_calendar_sync_view_renders_when_scheduler_disabled(client, admin_user, 
     response = client.get("/admin/calendar-sync/conflicts")
     assert response.status_code == 200
     assert "Kalenteriristiriitojen lataus epäonnistui." in response.get_data(as_text=True)
+
+
+def test_calendar_template_loads_finnish_locale(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    response = client.get("/admin/calendar")
+    assert response.status_code == 200
+
+    html = response.get_data(as_text=True)
+    assert "locales/fi.global.min.js" in html
+    fi_index = html.index("locales/fi.global.min.js")
+    admin_js_index = html.index("admin-calendar.js")
+    assert fi_index < admin_js_index
+
+
+def test_calendar_template_uses_fi_locale_string():
+    js = Path("app/static/js/admin-calendar.js").read_text(encoding="utf-8")
+
+    assert 'locale: "fi"' in js or "locale: 'fi'" in js
+    assert "Tänään" in js
+    assert "Kuukausi" in js
+    assert "Viikko" in js
+    assert "Lista" in js
+
+
+def test_calendar_css_uses_consistent_fullcalendar_button_styles():
+    css = Path("app/static/css/admin.css").read_text(encoding="utf-8")
+
+    assert ".fc .fc-button-primary" in css
+    assert "background-color: var(--color-primary)" in css
+    assert ".fc-button-active" in css
+    assert ".fc .fc-button-primary:hover" in css

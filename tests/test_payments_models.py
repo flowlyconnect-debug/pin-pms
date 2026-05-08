@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.payments.models import Payment, PaymentRefund
@@ -49,6 +50,5 @@ def test_provider_payment_id_unique_per_provider(organization):
             status="pending",
         )
     )
-    with pytest.raises(Exception):
+    with pytest.raises((ValueError, IntegrityError)):
         db.session.commit()
-

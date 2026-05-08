@@ -10,7 +10,9 @@ class Tag(db.Model):
     __table_args__ = (db.UniqueConstraint("organization_id", "name", name="uq_tags_org_name"),)
 
     id = db.Column(db.Integer, primary_key=True)
-    organization_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False, index=True)
+    organization_id = db.Column(
+        db.Integer, db.ForeignKey("organizations.id"), nullable=False, index=True
+    )
     name = db.Column(db.String(64), nullable=False)
     color = db.Column(db.String(16), nullable=False)
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)

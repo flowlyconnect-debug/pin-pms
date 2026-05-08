@@ -69,4 +69,3 @@ class PaymentRefund(db.Model):
     actor_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
-

@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 from functools import wraps
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
+
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from flask_login import current_user
 
 from app.auth.routes import require_superadmin_2fa
@@ -23,6 +34,7 @@ def check_impersonation_blocked(view_func):
     @wraps(view_func)
     def wrapped(*args, **kwargs):
         from flask import session
+
         if session.get("impersonator_user_id"):
             abort(403)
         return view_func(*args, **kwargs)

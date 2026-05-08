@@ -32,7 +32,9 @@ class TagService:
         if cleaned_color not in ALLOWED_TAG_COLORS:
             raise TagServiceError("validation_error", "Invalid tag color.", 400)
         if Tag.query.filter_by(organization_id=organization_id).count() >= 100:
-            raise TagServiceError("validation_error", "Tag limit (100) reached for organization.", 400)
+            raise TagServiceError(
+                "validation_error", "Tag limit (100) reached for organization.", 400
+            )
         existing = Tag.query.filter_by(organization_id=organization_id, name=cleaned_name).first()
         if existing is not None:
             raise TagServiceError("conflict", "Tag name already exists in organization.", 409)
@@ -83,7 +85,9 @@ class TagService:
         raise TagServiceError("validation_error", "Invalid target_type.", 400)
 
     @staticmethod
-    def attach(organization_id: int, target_type: str, target_id: int, tag_id: int, actor_user_id: int) -> None:
+    def attach(
+        organization_id: int, target_type: str, target_id: int, tag_id: int, actor_user_id: int
+    ) -> None:
         if target_type not in TARGET_TYPES:
             raise TagServiceError("validation_error", "Invalid target_type.", 400)
         tag = Tag.query.filter_by(id=tag_id, organization_id=organization_id).first()
@@ -106,7 +110,9 @@ class TagService:
         )
 
     @staticmethod
-    def detach(organization_id: int, target_type: str, target_id: int, tag_id: int, actor_user_id: int) -> None:
+    def detach(
+        organization_id: int, target_type: str, target_id: int, tag_id: int, actor_user_id: int
+    ) -> None:
         if target_type not in TARGET_TYPES:
             raise TagServiceError("validation_error", "Invalid target_type.", 400)
         tag = Tag.query.filter_by(id=tag_id, organization_id=organization_id).first()
@@ -114,7 +120,9 @@ class TagService:
             raise TagServiceError("not_found", "Tag not found.", 404)
         TagService._resolve_target(organization_id, target_type, target_id)
         model, target_key = TagService._association_model(target_type)
-        model.query.filter_by(**{target_key: target_id, "tag_id": tag_id}).delete(synchronize_session=False)
+        model.query.filter_by(**{target_key: target_id, "tag_id": tag_id}).delete(
+            synchronize_session=False
+        )
         db.session.flush()
         audit_record(
             "tag.detached",
@@ -130,7 +138,9 @@ class TagService:
     def list_for_target(organization_id: int, target_type: str, target_id: int) -> list[Tag]:
         TagService._resolve_target(organization_id, target_type, target_id)
         if target_type == "guest":
-            query = Tag.query.join(GuestTag, GuestTag.tag_id == Tag.id).filter(GuestTag.guest_id == target_id)
+            query = Tag.query.join(GuestTag, GuestTag.tag_id == Tag.id).filter(
+                GuestTag.guest_id == target_id
+            )
         elif target_type == "reservation":
             query = Tag.query.join(ReservationTag, ReservationTag.tag_id == Tag.id).filter(
                 ReservationTag.reservation_id == target_id
@@ -149,4 +159,8 @@ class TagService:
 
     @staticmethod
     def list_for_org(organization_id: int) -> list[Tag]:
-        return Tag.query.filter_by(organization_id=organization_id).order_by(Tag.name.asc(), Tag.id.asc()).all()
+        return (
+            Tag.query.filter_by(organization_id=organization_id)
+            .order_by(Tag.name.asc(), Tag.id.asc())
+            .all()
+        )

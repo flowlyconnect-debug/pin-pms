@@ -43,7 +43,7 @@ def test_form_inputs_have_labels():
         for match in input_pattern.finditer(content):
             attrs = match.group(1)
             input_type_match = type_pattern.search(attrs)
-            input_type = (input_type_match.group(1).strip().lower() if input_type_match else "text")
+            input_type = input_type_match.group(1).strip().lower() if input_type_match else "text"
             if input_type in {"hidden", "submit", "button"}:
                 continue
             if aria_label_pattern.search(attrs):
@@ -56,7 +56,9 @@ def test_form_inputs_have_labels():
                 rf'<label[^>]*for\s*=\s*"{re.escape(input_id)}"[^>]*>',
                 re.IGNORECASE | re.MULTILINE,
             )
-            assert label_for_pattern.search(content), f"Missing label for input #{input_id} in {path}"
+            assert label_for_pattern.search(
+                content
+            ), f"Missing label for input #{input_id} in {path}"
 
 
 def test_lang_attribute_set(client, admin_user):

@@ -148,9 +148,7 @@ def normalize_response_body(body: Any) -> str:
     if body is None:
         return ""
     if isinstance(body, (dict, list)):
-        return json.dumps(
-            _redact_for_cache(body), ensure_ascii=False, separators=(",", ":")
-        )
+        return json.dumps(_redact_for_cache(body), ensure_ascii=False, separators=(",", ":"))
     if isinstance(body, str):
         return body
     if hasattr(body, "get_json"):
@@ -191,8 +189,8 @@ def record_response(row: IdempotencyKey, status: int, body: Any) -> None:
 
 def prune_expired() -> int:
     now = _now()
-    deleted = (
-        IdempotencyKey.query.filter(IdempotencyKey.expires_at < now).delete(synchronize_session=False)
+    deleted = IdempotencyKey.query.filter(IdempotencyKey.expires_at < now).delete(
+        synchronize_session=False
     )
     db.session.commit()
     return int(deleted or 0)

@@ -95,6 +95,14 @@
 
     var calendar = new FullCalendar.Calendar(el, {
       initialView: "dayGridMonth",
+      locale: "fi",
+      buttonText: {
+        today: "Tänään",
+        month: "Kuukausi",
+        week: "Viikko",
+        day: "Päivä",
+        list: "Lista",
+      },
       headerToolbar: {
         left: "prev,next today",
         center: "title",

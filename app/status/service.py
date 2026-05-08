@@ -136,7 +136,11 @@ def readiness_status(app) -> dict[str, object]:
     backup_check = _check_backup_recency()
     email_queue_check = _check_email_queue_ready()
     checks = [db_check, mailgun_check, scheduler_check, backup_check, email_queue_check]
-    ok = bool(db_check.get("ok")) and bool(scheduler_check.get("ok")) and bool(email_queue_check.get("ok"))
+    ok = (
+        bool(db_check.get("ok"))
+        and bool(scheduler_check.get("ok"))
+        and bool(email_queue_check.get("ok"))
+    )
     if not ok:
         audit_record(
             "monitoring.health_check_failed",
@@ -150,8 +154,12 @@ def readiness_status(app) -> dict[str, object]:
 
 def _check_email_queue_ready() -> dict[str, object]:
     now = datetime.now(timezone.utc)
-    pending = EmailQueueItem.query.filter(EmailQueueItem.status == OutgoingEmailStatus.PENDING).count()
-    failed = EmailQueueItem.query.filter(EmailQueueItem.status == OutgoingEmailStatus.FAILED).count()
+    pending = EmailQueueItem.query.filter(
+        EmailQueueItem.status == OutgoingEmailStatus.PENDING
+    ).count()
+    failed = EmailQueueItem.query.filter(
+        EmailQueueItem.status == OutgoingEmailStatus.FAILED
+    ).count()
     oldest_pending = (
         EmailQueueItem.query.filter(EmailQueueItem.status == OutgoingEmailStatus.PENDING)
         .order_by(EmailQueueItem.created_at.asc())
@@ -185,7 +193,12 @@ def _check_db_ready() -> dict[str, object]:
         db.session.execute(text("SELECT 1"))
         latency_ms = int((time.perf_counter() - started) * 1000)
         if latency_ms > 500:
-            return {"name": "db", "ok": False, "latency_ms": latency_ms, "error": "DB latency too high"}
+            return {
+                "name": "db",
+                "ok": False,
+                "latency_ms": latency_ms,
+                "error": "DB latency too high",
+            }
         return {"name": "db", "ok": True, "latency_ms": latency_ms}
     except Exception as exc:  # noqa: BLE001
         latency_ms = int((time.perf_counter() - started) * 1000)
@@ -293,7 +306,11 @@ def _check_scheduler_running(app) -> dict[str, object]:
     if not running and not scheduler_enabled:
         return {"name": "scheduler", "ok": True, "disabled": True}
     if jobs_issues:
-        return {"name": "scheduler", "ok": False, "error": f"jobs without next_run_time: {jobs_issues}"}
+        return {
+            "name": "scheduler",
+            "ok": False,
+            "error": f"jobs without next_run_time: {jobs_issues}",
+        }
     return {"name": "scheduler", "ok": False, "error": "No running APScheduler instance detected"}
 
 

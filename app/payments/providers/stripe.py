@@ -34,7 +34,9 @@ def _build_line_items(invoice, currency: str) -> list[dict]:
             {
                 "price_data": {
                     "currency": str(currency).lower(),
-                    "product_data": {"name": f"Lasku {invoice.invoice_number or invoice.id} - veroton osuus"},
+                    "product_data": {
+                        "name": f"Lasku {invoice.invoice_number or invoice.id} - veroton osuus"
+                    },
                     "unit_amount": _to_cents(subtotal),
                 },
                 "quantity": 1,
@@ -57,7 +59,9 @@ def _build_line_items(invoice, currency: str) -> list[dict]:
                 "price_data": {
                     "currency": str(currency).lower(),
                     "product_data": {"name": f"Lasku {invoice.invoice_number or invoice.id}"},
-                    "unit_amount": _to_cents(Decimal(str(getattr(invoice, "total_incl_vat", 0) or 0))),
+                    "unit_amount": _to_cents(
+                        Decimal(str(getattr(invoice, "total_incl_vat", 0) or 0))
+                    ),
                 },
                 "quantity": 1,
             }
@@ -133,7 +137,9 @@ class StripeProvider(PaymentProvider):
                 "provider_session_id": None,
                 "amount": Decimal("0.00"),
                 "currency": str(obj.get("currency") or "eur").upper(),
-                "error": (((obj.get("last_payment_error") or {}).get("message")) or "payment_failed"),
+                "error": (
+                    ((obj.get("last_payment_error") or {}).get("message")) or "payment_failed"
+                ),
             }
         if event_type == "charge.refunded":
             amount_refunded = Decimal(str((obj.get("amount_refunded") or 0) / 100)).quantize(
@@ -167,4 +173,3 @@ class StripeProvider(PaymentProvider):
         if str(refund.status) == "failed":
             status = "failed"
         return {"provider_refund_id": refund.id, "status": status}
-

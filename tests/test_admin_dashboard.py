@@ -243,7 +243,9 @@ def test_superadmin_can_select_organization(client, app, superadmin):
 def test_dashboard_free_units_now_heading_contains_count(client, app, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     with app.app_context():
-        prop = Property(organization_id=admin_user.organization_id, name="Count Property", address=None)
+        prop = Property(
+            organization_id=admin_user.organization_id, name="Count Property", address=None
+        )
         db.session.add(prop)
         db.session.flush()
         for idx in range(1, 13):
@@ -267,7 +269,9 @@ def test_dashboard_free_units_now_heading_contains_count(client, app, admin_user
 def test_dashboard_free_units_now_limits_to_10_rows(client, app, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     with app.app_context():
-        prop = Property(organization_id=admin_user.organization_id, name="Limit Property", address=None)
+        prop = Property(
+            organization_id=admin_user.organization_id, name="Limit Property", address=None
+        )
         db.session.add(prop)
         db.session.flush()
         for idx in range(1, 13):

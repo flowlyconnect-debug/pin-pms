@@ -35,11 +35,15 @@ def _seed_template() -> None:
 
 
 def _login_admin(client, admin_user):
-    return client.post("/login", data={"email": admin_user.email, "password": admin_user.password_plain})
+    return client.post(
+        "/login", data={"email": admin_user.email, "password": admin_user.password_plain}
+    )
 
 
 def _login_superadmin_2fa(client, superadmin):
-    _ = client.post("/login", data={"email": superadmin.email, "password": superadmin.password_plain})
+    _ = client.post(
+        "/login", data={"email": superadmin.email, "password": superadmin.password_plain}
+    )
     code = pyotp.TOTP(superadmin.totp_secret).now()
     return client.post("/two-factor/verify", data={"code": code})
 
@@ -324,7 +328,9 @@ def test_mail_dev_log_only_does_not_enqueue(app, monkeypatch):
         raise AssertionError("Mailgun post must not run in dev log mode")
 
     monkeypatch.setattr("app.email.services.requests.post", _fake_post)
-    assert send_template(TemplateKey.ADMIN_NOTIFICATION, to="dev@test.local", context=_ctx()) is True
+    assert (
+        send_template(TemplateKey.ADMIN_NOTIFICATION, to="dev@test.local", context=_ctx()) is True
+    )
     assert EmailQueueItem.query.count() == 0
     assert called["post"] == 0
 

@@ -73,7 +73,9 @@ class Unit(TimestampMixin, db.Model):
     )
 
     property = db.relationship("Property", back_populates="units", lazy="joined")
-    floor_plan_image = db.relationship("PropertyImage", foreign_keys=[floor_plan_image_id], lazy="joined")
+    floor_plan_image = db.relationship(
+        "PropertyImage", foreign_keys=[floor_plan_image_id], lazy="joined"
+    )
     reservations = db.relationship(
         "Reservation",
         back_populates="unit",
@@ -106,6 +108,8 @@ class PropertyImage(TimestampMixin, db.Model):
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     file_size = db.Column(db.Integer, nullable=False)
     content_type = db.Column(db.String(100), nullable=False)
-    uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    uploaded_by = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     property = db.relationship("Property", back_populates="images", lazy="joined")

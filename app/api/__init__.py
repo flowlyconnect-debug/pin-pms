@@ -8,7 +8,6 @@ from app.api import (  # noqa: E402
     payments,  # noqa: E402,F401
     routes,  # noqa: E402,F401
 )
-
 from app.api.auth import is_unit_calendar_ics_request_path  # noqa: E402
 from app.api.schemas import json_error  # noqa: E402
 

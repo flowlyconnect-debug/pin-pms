@@ -58,7 +58,7 @@ def test_superadmin_can_crud_lease_templates(client, superadmin):
 def test_default_template_only_one_per_org(app, superadmin):
     from app.billing import services as billing_service
 
-    t1 = billing_service.create_lease_template(
+    billing_service.create_lease_template(
         organization_id=superadmin.organization_id,
         name="A",
         description=None,
@@ -74,7 +74,9 @@ def test_default_template_only_one_per_org(app, superadmin):
         is_default=True,
         actor_user_id=superadmin.id,
     )
-    rows = billing_service.list_lease_templates_for_organization(organization_id=superadmin.organization_id)
+    rows = billing_service.list_lease_templates_for_organization(
+        organization_id=superadmin.organization_id
+    )
     defaults = [r for r in rows if r["is_default"]]
     assert len(defaults) == 1
     assert defaults[0]["id"] == t2["id"]

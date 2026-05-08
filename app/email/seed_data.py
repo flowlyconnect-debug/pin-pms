@@ -244,12 +244,12 @@ SEED_TEMPLATES: list[TemplateSeed] = [
             "<p>Hello,</p>"
             "<p>Invoice <strong>{{ invoice_number }}</strong> — due "
             "<strong>{{ due_date }}</strong></p>"
-            "<table style=\"border-collapse:collapse;margin:.5rem 0\">"
-            "<tr><td style=\"padding:.25rem .75rem .25rem 0\">Subtotal (excl. VAT)</td>"
+            '<table style="border-collapse:collapse;margin:.5rem 0">'
+            '<tr><td style="padding:.25rem .75rem .25rem 0">Subtotal (excl. VAT)</td>'
             "<td><strong>{{ subtotal_excl_vat }} {{ currency }}</strong></td></tr>"
-            "<tr><td style=\"padding:.25rem .75rem .25rem 0\">VAT ({{ vat_rate }}%)</td>"
+            '<tr><td style="padding:.25rem .75rem .25rem 0">VAT ({{ vat_rate }}%)</td>'
             "<td><strong>{{ vat_amount }} {{ currency }}</strong></td></tr>"
-            "<tr><td style=\"padding:.25rem .75rem .25rem 0\">Total (incl. VAT)</td>"
+            '<tr><td style="padding:.25rem .75rem .25rem 0">Total (incl. VAT)</td>'
             "<td><strong>{{ total_incl_vat }} {{ currency }}</strong></td></tr>"
             "</table>"
             "<p>{{ description }}</p>"

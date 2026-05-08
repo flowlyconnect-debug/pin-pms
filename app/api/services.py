@@ -171,9 +171,7 @@ def create_api_key_admin(
     return api_key, raw_key
 
 
-def toggle_api_key_active_admin(
-    *, key_id: int, actor_id: int, actor_email: str | None
-) -> ApiKey:
+def toggle_api_key_active_admin(*, key_id: int, actor_id: int, actor_email: str | None) -> ApiKey:
     api_key = ApiKey.query.get_or_404(key_id)
     api_key.is_active = not api_key.is_active
     audit_admin_api_key_toggle(api_key=api_key, actor_id=actor_id, actor_email=actor_email)

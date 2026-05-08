@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-
 pytestmark = pytest.mark.skip(
     reason="Browser E2E framework (Playwright/Selenium) is not configured in this repository."
 )

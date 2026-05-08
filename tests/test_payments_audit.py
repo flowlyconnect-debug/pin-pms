@@ -15,7 +15,11 @@ def test_invalid_signature_audited_as_failure(app, client):
         headers={"Stripe-Signature": "bad", "Content-Type": "application/json"},
     )
     assert resp.status_code == 401
-    row = AuditLog.query.filter_by(action="webhook.invalid_signature").order_by(AuditLog.id.desc()).first()
+    row = (
+        AuditLog.query.filter_by(action="webhook.invalid_signature")
+        .order_by(AuditLog.id.desc())
+        .first()
+    )
     assert row is not None
 
 
@@ -23,4 +27,3 @@ def test_duplicate_webhook_audited_as_info_not_warning(app):
     _ = app
     # action presence regression guard
     assert AuditLog.query.filter(AuditLog.action == "webhook.duplicate_ignored").count() >= 0
-

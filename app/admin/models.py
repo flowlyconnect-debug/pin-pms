@@ -14,4 +14,3 @@ class SavedFilter(db.Model):
     view_type = db.Column(db.String(64), nullable=False)
     filter_params = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-

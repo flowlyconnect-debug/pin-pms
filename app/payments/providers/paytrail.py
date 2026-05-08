@@ -42,7 +42,15 @@ class PaytrailProvider(PaymentProvider):
             "amount": _to_cents(Decimal(str(amount))),
             "currency": str(currency).upper(),
             "language": "FI",
-            "providers": ["nordea", "op", "danske", "handelsbanken", "mobilepay", "visa", "mastercard"],
+            "providers": [
+                "nordea",
+                "op",
+                "danske",
+                "handelsbanken",
+                "mobilepay",
+                "visa",
+                "mastercard",
+            ],
             "items": [
                 {
                     "unitPrice": _to_cents(Decimal(str(amount))),
@@ -149,4 +157,3 @@ class PaytrailProvider(PaymentProvider):
             "provider_refund_id": data.get("refundId") or idempotency_key,
             "status": "pending",
         }
-

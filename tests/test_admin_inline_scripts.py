@@ -36,7 +36,9 @@ def _assert_scripts_are_csp_safe(html: str) -> None:
 
 
 def _seed_edit_entities(admin_user):
-    prop = Property(organization_id=admin_user.organization_id, name="Inline Test Property", address=None)
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Inline Test Property", address=None
+    )
     db.session.add(prop)
     db.session.flush()
 

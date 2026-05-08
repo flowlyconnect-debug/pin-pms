@@ -39,7 +39,9 @@ def test_webhook_scheduler_runs_job_and_shutdown(app, monkeypatch):
             calls["shutdown"] = True
 
     monkeypatch.setattr(webhook_scheduler, "BackgroundScheduler", lambda **kwargs: FakeScheduler())
-    monkeypatch.setattr(webhook_scheduler, "IntervalTrigger", lambda **kwargs: SimpleNamespace(**kwargs))
+    monkeypatch.setattr(
+        webhook_scheduler, "IntervalTrigger", lambda **kwargs: SimpleNamespace(**kwargs)
+    )
     monkeypatch.setattr(webhook_scheduler, "retry_pending_deliveries", lambda: 1, raising=False)
     monkeypatch.setattr(webhook_scheduler.db.session, "remove", lambda: None)
     with app.app_context():
@@ -89,8 +91,9 @@ def test_webhook_inbound_handler_job_runs_processor(app, monkeypatch):
 
 
 def test_webhook_scheduler_registers_both_jobs_when_enabled(app, monkeypatch):
-    from app.webhooks import scheduler as webhook_scheduler
     from types import SimpleNamespace
+
+    from app.webhooks import scheduler as webhook_scheduler
 
     calls = {"jobs": 0}
 
@@ -106,7 +109,9 @@ def test_webhook_scheduler_registers_both_jobs_when_enabled(app, monkeypatch):
             _ = wait
 
     monkeypatch.setattr(webhook_scheduler, "BackgroundScheduler", lambda **kwargs: FakeScheduler())
-    monkeypatch.setattr(webhook_scheduler, "IntervalTrigger", lambda **kwargs: SimpleNamespace(**kwargs))
+    monkeypatch.setattr(
+        webhook_scheduler, "IntervalTrigger", lambda **kwargs: SimpleNamespace(**kwargs)
+    )
     monkeypatch.setattr(webhook_scheduler.db.session, "remove", lambda: None)
     with app.app_context():
         app.config["TESTING"] = False
@@ -118,4 +123,3 @@ def test_webhook_scheduler_registers_both_jobs_when_enabled(app, monkeypatch):
         assert sched is not None
         assert calls["jobs"] == 2
         webhook_scheduler._shutdown_scheduler(sched)
-

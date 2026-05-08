@@ -17,6 +17,7 @@ A row is inserted with ``status="pending"`` the moment the dump starts so a
 crash mid-run is still observable. The row is then updated in place with the
 final status, byte count, and (on failure) ``error_message``.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

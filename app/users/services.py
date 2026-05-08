@@ -204,8 +204,10 @@ def deactivate_user(
     is_self_actor = actor_id is not None and actor_id == user_id
     # Allow service/admin calls that pass a different actor identity even if ids
     # happen to match in tests seeded with low integer IDs.
-    if forbid_self and is_self_actor and (
-        not actor_email_norm or actor_email_norm == user_email_norm
+    if (
+        forbid_self
+        and is_self_actor
+        and (not actor_email_norm or actor_email_norm == user_email_norm)
     ):
         raise UserServiceError("You cannot deactivate yourself.")
     if not user.is_active:

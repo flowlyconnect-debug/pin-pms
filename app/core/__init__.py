@@ -123,7 +123,12 @@ def lease_sign_get(signed_token: str):
     try:
         row = billing_service.get_lease_by_signed_token(signed_token=signed_token)
     except billing_service.LeaseServiceError:
-        return render_template("lease/sign.html", error="Allekirjoituslinkki ei ole kelvollinen.", row=None), 404
+        return (
+            render_template(
+                "lease/sign.html", error="Allekirjoituslinkki ei ole kelvollinen.", row=None
+            ),
+            404,
+        )
     return render_template("lease/sign.html", row=row, token=signed_token, error=None)
 
 
@@ -138,7 +143,12 @@ def lease_sign_post(signed_token: str):
             signed_user_agent=request.headers.get("User-Agent"),
         )
     except billing_service.LeaseServiceError:
-        return render_template("lease/sign.html", error="Allekirjoituslinkki ei ole kelvollinen.", row=None), 404
+        return (
+            render_template(
+                "lease/sign.html", error="Allekirjoituslinkki ei ole kelvollinen.", row=None
+            ),
+            404,
+        )
     return render_template("lease/sign.html", row=row, token=signed_token, signed=True, error=None)
 
 

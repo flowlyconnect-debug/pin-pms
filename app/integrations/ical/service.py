@@ -221,7 +221,9 @@ class IcalService:
             message = "Kalenterilähteen haku epäonnistui. Tarkista URL ja yritä uudelleen."
             current_app.logger.exception("iCal sync request error for feed_id=%s", feed.id)
         except ValueError:
-            message = "Kalenteridatan luku epäonnistui. Tarkista, että lähde on kelvollinen iCal-syöte."
+            message = (
+                "Kalenteridatan luku epäonnistui. Tarkista, että lähde on kelvollinen iCal-syöte."
+            )
             current_app.logger.exception("iCal sync parse error for feed_id=%s", feed.id)
         except Exception:
             message = "Kalenterin synkronointi epäonnistui odottamattomasta syystä."

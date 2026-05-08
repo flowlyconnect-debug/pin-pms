@@ -22,7 +22,9 @@ def test_admin_calendar_renders_calendar_container(client, admin_user):
 def test_admin_calendar_events_json_returns_reservations(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
-    prop = Property(organization_id=admin_user.organization_id, name="Calendar Test Property", address=None)
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Calendar Test Property", address=None
+    )
     db.session.add(prop)
     db.session.flush()
     unit = Unit(property_id=prop.id, name="Calendar Unit 1", unit_type="std")
@@ -62,7 +64,9 @@ def test_admin_calendar_css_contains_clickable_event_rules():
 def test_availability_cell_links_are_block_level(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
-    prop = Property(organization_id=admin_user.organization_id, name="Availability Property", address=None)
+    prop = Property(
+        organization_id=admin_user.organization_id, name="Availability Property", address=None
+    )
     db.session.add(prop)
     db.session.flush()
     unit = Unit(property_id=prop.id, name="Availability Unit", unit_type="std")

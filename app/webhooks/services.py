@@ -376,7 +376,9 @@ def retry_pending_deliveries(*, http_post: Any | None = None) -> int:
             continue
 
         secret = _subscription_signing_secret(sub)
-        body_bytes = _canonical_body_bytes(delivery.payload if isinstance(delivery.payload, dict) else {})
+        body_bytes = _canonical_body_bytes(
+            delivery.payload if isinstance(delivery.payload, dict) else {}
+        )
         signature_hex = hmac_sha256_hex_digest(secret=secret, payload_bytes=body_bytes)
         delivery.attempt_number = int(delivery.attempt_number or 0) + 1
         timeout_s = min(4.0, float(current_app.config.get("WEBHOOK_HTTP_TIMEOUT_SECONDS", 4.0)))

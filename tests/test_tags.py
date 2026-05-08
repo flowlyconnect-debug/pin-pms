@@ -10,7 +10,9 @@ from app.users.models import Organization
 
 
 def _seed_guest(org_id: int) -> Guest:
-    guest = Guest(organization_id=org_id, first_name="Vip", last_name="Guest", email="vip@test.local")
+    guest = Guest(
+        organization_id=org_id, first_name="Vip", last_name="Guest", email="vip@test.local"
+    )
     db.session.add(guest)
     db.session.flush()
     return guest
@@ -51,7 +53,7 @@ def test_tag_limit_100_per_org(organization, regular_user):
     db.session.commit()
     try:
         TagService.create(organization.id, "tag-101", "blue", regular_user.id)
-        assert False
+        raise AssertionError("Expected TagServiceError")
     except TagServiceError as err:
         assert err.code == "validation_error"
 
@@ -81,7 +83,7 @@ def test_tag_tenant_isolation(regular_user):
     db.session.commit()
     try:
         TagService.attach(org_b.id, "guest", guest_b.id, tag_a.id, regular_user.id)
-        assert False
+        raise AssertionError("Expected TagServiceError")
     except TagServiceError as err:
         assert err.status in (404, 403)
 

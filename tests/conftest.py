@@ -177,9 +177,7 @@ def _conn_params() -> dict[str, object]:
 
     host = os.getenv("POSTGRES_HOST", _default_postgres_host())
     user = os.environ["POSTGRES_USER"] if "POSTGRES_USER" in os.environ else "postgres"
-    password = (
-        os.environ["POSTGRES_PASSWORD"] if "POSTGRES_PASSWORD" in os.environ else "postgres"
-    )
+    password = os.environ["POSTGRES_PASSWORD"] if "POSTGRES_PASSWORD" in os.environ else "postgres"
 
     port_resolved = False
     if "POSTGRES_PORT" in os.environ:

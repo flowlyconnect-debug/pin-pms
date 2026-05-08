@@ -169,7 +169,9 @@ def test_audit_api_key_create_delete_rotate(client, superadmin, regular_user):
         args=["rotate-api-key", "--key-id", str(key_row.id), "--reason", "section11"],
     )
     assert rot.exit_code == 0
-    rotated = AuditLog.query.filter_by(action="api_key.rotated").order_by(AuditLog.id.desc()).first()
+    rotated = (
+        AuditLog.query.filter_by(action="api_key.rotated").order_by(AuditLog.id.desc()).first()
+    )
     assert rotated is not None
     assert "hash" not in str(rotated.context).lower()
 
@@ -223,8 +225,7 @@ def test_audit_settings_update_non_secret_and_secret(superadmin):
 
 
 def test_audit_user_created_deleted_role_changed(app, organization):
-    from app.audit.models import AuditLog
-    from app.audit.models import ActorType
+    from app.audit.models import ActorType, AuditLog
     from app.users import services as user_service
     from app.users.models import UserRole
 
@@ -283,7 +284,11 @@ def test_audit_email_template_update(client, superadmin):
         follow_redirects=False,
     )
     assert resp.status_code == 302
-    row = AuditLog.query.filter_by(action="email_template.update").order_by(AuditLog.id.desc()).first()
+    row = (
+        AuditLog.query.filter_by(action="email_template.update")
+        .order_by(AuditLog.id.desc())
+        .first()
+    )
     assert row is not None
     _assert_request_audit_fields(row)
     assert row.context.get("template_key") == "welcome_email"
@@ -356,6 +361,8 @@ def test_audit_backup_created_and_restored(app, monkeypatch, tmp_path):
 
     with app.test_request_context("/", environ_overrides=_ENV):
         _ = restore_backup(filename=restore_file.name, actor_user_id=None)
-    restored = AuditLog.query.filter_by(action="backup.restored").order_by(AuditLog.id.desc()).first()
+    restored = (
+        AuditLog.query.filter_by(action="backup.restored").order_by(AuditLog.id.desc()).first()
+    )
     assert restored is not None
     _assert_request_audit_fields(restored)

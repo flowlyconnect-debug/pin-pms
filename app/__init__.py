@@ -111,7 +111,15 @@ def _is_sensitive_key(key: Any) -> bool:
     key_lower = str(key).strip().lower()
     if key_lower in SENSITIVE_KEYS:
         return True
-    sensitive_fragments = ("password", "token", "api_key", "api-key", "secret", "authorization", "cookie")
+    sensitive_fragments = (
+        "password",
+        "token",
+        "api_key",
+        "api-key",
+        "secret",
+        "authorization",
+        "cookie",
+    )
     return any(fragment in key_lower for fragment in sensitive_fragments)
 
 
@@ -344,7 +352,9 @@ def register_slow_query_logging(app):
                     "sql_parameters": str(parameters)[:300],
                 },
             )
-            record_slow_query_observation(app=app, duration_ms=elapsed_ms, threshold_ms=threshold_ms)
+            record_slow_query_observation(
+                app=app, duration_ms=elapsed_ms, threshold_ms=threshold_ms
+            )
 
 
 def register_models():
@@ -353,6 +363,7 @@ def register_models():
     from app.audit.models import AuditLog
     from app.auth.models import PasswordResetToken, TwoFactorEmailCode
     from app.backups.models import Backup
+    from app.comments.models import Comment
     from app.email.models import EmailTemplate, OutgoingEmail
     from app.guests.models import Guest
     from app.idempotency.models import IdempotencyKey
@@ -363,9 +374,8 @@ def register_models():
     from app.reservations.models import Reservation
     from app.settings.models import Setting
     from app.subscriptions.models import SubscriptionPlan
-    from app.users.models import User
     from app.tags.models import GuestTag, PropertyTag, ReservationTag, Tag
-    from app.comments.models import Comment
+    from app.users.models import User
 
     try:
         from app.billing.models import Invoice, Lease  # noqa: F401

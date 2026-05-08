@@ -96,7 +96,9 @@ def test_export_unit_calendar_requires_signed_token(client, admin_user):
     assert b"reservation-" in ok.data
 
 
-def test_export_unit_calendar_accepts_api_key_with_properties_read(client, organization, regular_user):
+def test_export_unit_calendar_accepts_api_key_with_properties_read(
+    client, organization, regular_user
+):
     from app.api.models import ApiKey
     from app.extensions import db
     from app.properties.models import Property, Unit

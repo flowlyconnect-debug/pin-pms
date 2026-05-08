@@ -142,7 +142,11 @@ def create_checkout(
         raise PaymentServiceError("not_found", "Invoice not found.", 404)
 
     actor = User.query.get(actor_user_id) if actor_user_id else None
-    if actor is not None and not actor.is_superadmin and actor.organization_id != invoice.organization_id:
+    if (
+        actor is not None
+        and not actor.is_superadmin
+        and actor.organization_id != invoice.organization_id
+    ):
         raise PaymentServiceError("forbidden", "Invoice not found.", 403)
 
     idem = _effective_idempotency_key(invoice.id, idempotency_key)
@@ -154,7 +158,9 @@ def create_checkout(
 
     amount = _money(invoice.total_incl_vat)
     if amount <= Decimal("0.00"):
-        raise PaymentServiceError("validation_error", "Invoice amount must be greater than zero.", 400)
+        raise PaymentServiceError(
+            "validation_error", "Invoice amount must be greater than zero.", 400
+        )
     payment = Payment(
         status="pending",
         provider=provider_name,
@@ -240,7 +246,11 @@ def handle_webhook_event(provider_name, normalized_event) -> None:
             target_id=payment.id,
             commit=True,
         )
-        publish_webhook_event(INVOICE_PAID, payment.organization_id, {"invoice_id": payment.invoice_id, "payment_id": payment.id})
+        publish_webhook_event(
+            INVOICE_PAID,
+            payment.organization_id,
+            {"invoice_id": payment.invoice_id, "payment_id": payment.id},
+        )
         try:
             invoice = Invoice.query.get(payment.invoice_id)
             if invoice and invoice.guest and invoice.guest.email:
@@ -294,7 +304,9 @@ def handle_webhook_event(provider_name, normalized_event) -> None:
             refund.completed_at = datetime.now(timezone.utc)
             refund.last_error = None
         succeeded_total, _pending_total = _refund_totals(payment.id)
-        payment.status = _payment_status_for_refunds(payment_amount=_money(payment.amount), refunded_total=succeeded_total)
+        payment.status = _payment_status_for_refunds(
+            payment_amount=_money(payment.amount), refunded_total=succeeded_total
+        )
         db.session.commit()
         audit_record(
             "payment.refund_completed",
@@ -304,7 +316,11 @@ def handle_webhook_event(provider_name, normalized_event) -> None:
             target_id=payment.id,
             commit=True,
         )
-        publish_webhook_event(INVOICE_REFUNDED, payment.organization_id, {"invoice_id": payment.invoice_id, "payment_id": payment.id})
+        publish_webhook_event(
+            INVOICE_REFUNDED,
+            payment.organization_id,
+            {"invoice_id": payment.invoice_id, "payment_id": payment.id},
+        )
         return
 
     # Unknown provider event types are intentionally no-op.
@@ -321,11 +337,15 @@ def refund(payment_id, amount, reason, *, actor_user_id, idempotency_key=None) -
     if not actor.is_superadmin and actor.organization_id != payment.organization_id:
         raise PaymentServiceError("forbidden", "Payment not found.", 403)
     if payment.status not in {"succeeded", "partially_refunded"}:
-        raise PaymentServiceError("validation_error", "Only succeeded payments can be refunded.", 400)
+        raise PaymentServiceError(
+            "validation_error", "Only succeeded payments can be refunded.", 400
+        )
 
     refund_amount = _money(amount)
     if refund_amount <= Decimal("0.00"):
-        raise PaymentServiceError("validation_error", "Refund amount must be greater than zero.", 400)
+        raise PaymentServiceError(
+            "validation_error", "Refund amount must be greater than zero.", 400
+        )
     idem = (idempotency_key or f"refund-{payment.id}-{int(time.time())}")[:128]
     if idempotency_key:
         existing = PaymentRefund.query.filter_by(idempotency_key=idem).first()
@@ -343,7 +363,9 @@ def refund(payment_id, amount, reason, *, actor_user_id, idempotency_key=None) -
     succeeded_total, pending_total = _refund_totals(payment.id)
     outstanding = _money(payment.amount) - succeeded_total - pending_total
     if refund_amount > outstanding:
-        raise PaymentServiceError("validation_error", "Refund amount exceeds remaining payment amount.", 400)
+        raise PaymentServiceError(
+            "validation_error", "Refund amount exceeds remaining payment amount.", 400
+        )
 
     refund_row = PaymentRefund(
         payment_id=payment.id,
@@ -483,4 +505,3 @@ def retry_refund(refund_id: int, *, actor_user_id: int) -> dict:
         commit=True,
     )
     return {"refund_id": refund_row.id, "status": refund_row.status}
-

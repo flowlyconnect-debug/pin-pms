@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import app.api as api_package
 import pytest
+
+import app.api as api_package
 
 
 def _auth_headers(raw_key: str) -> dict[str, str]:
@@ -98,7 +99,9 @@ def test_api_key_without_scopes_gets_403_on_scoped_route(client, regular_user):
         ("reports:read", "/api/v1/openapi.json", 200),
     ],
 )
-def test_scope_matrix_get_routes(client, regular_user, scopes: str, path: str, expected_status: int):
+def test_scope_matrix_get_routes(
+    client, regular_user, scopes: str, path: str, expected_status: int
+):
     from app.api.models import ApiKey
     from app.extensions import db
 
@@ -165,7 +168,9 @@ def test_guard_returns_500_when_required_scope_attr_removed(app, client, api_key
         monkeypatch.delattr(func, "_required_scope", raising=False)
         func = getattr(func, "__wrapped__", None)
 
-    response = client.get("/api/v1/properties?page=1&per_page=5", headers=_auth_headers(api_key.raw))
+    response = client.get(
+        "/api/v1/properties?page=1&per_page=5", headers=_auth_headers(api_key.raw)
+    )
     assert response.status_code == 500
     body = response.get_json()
     assert body["success"] is False

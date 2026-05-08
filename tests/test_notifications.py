@@ -4,8 +4,8 @@ from werkzeug.security import generate_password_hash
 
 from app.audit.models import AuditLog
 from app.extensions import db
-from app.notifications.models import Notification
 from app.notifications import services as notification_service
+from app.notifications.models import Notification
 from app.organizations.models import Organization
 from app.users.models import User, UserRole
 
@@ -33,7 +33,9 @@ def _seed_org_and_admin(*, name: str, email: str, password: str) -> tuple[Organi
 
 def test_notification_only_visible_to_own_org(app):
     with app.app_context():
-        org_a, user_a = _seed_org_and_admin(name="Org A", email="orga@test.local", password="Pass123!")
+        org_a, user_a = _seed_org_and_admin(
+            name="Org A", email="orga@test.local", password="Pass123!"
+        )
         org_b, _ = _seed_org_and_admin(name="Org B", email="orgb@test.local", password="Pass123!")
         notification_service.create(org_a.id, "reservation.created", "A event")
         notification_service.create(org_b.id, "reservation.created", "B event")
@@ -49,15 +51,19 @@ def test_notification_only_visible_to_own_org(app):
 
 def test_notification_mark_read_requires_owner(app):
     with app.app_context():
-        org_a, user_a = _seed_org_and_admin(name="Org A", email="orga-owner@test.local", password="Pass123!")
-        org_b, _ = _seed_org_and_admin(name="Org B", email="orgb-owner@test.local", password="Pass123!")
+        org_a, user_a = _seed_org_and_admin(
+            name="Org A", email="orga-owner@test.local", password="Pass123!"
+        )
+        org_b, _ = _seed_org_and_admin(
+            name="Org B", email="orgb-owner@test.local", password="Pass123!"
+        )
         foreign = notification_service.create(org_b.id, "maintenance.requested", "B only")
         db.session.commit()
         assert foreign is not None
 
         try:
             notification_service.mark_read(notification_id=foreign.id, user_id=user_a.id)
-            assert False, "Expected forbidden error"
+            raise AssertionError("Expected forbidden error")
         except notification_service.NotificationServiceError as err:
             assert err.status == 403
 
@@ -114,8 +120,12 @@ def test_notification_bell_renders_in_admin(client, app):
 
 def test_mark_all_read_marks_only_own_org(app):
     with app.app_context():
-        org_a, user_a = _seed_org_and_admin(name="Org A", email="readall-a@test.local", password="Pass123!")
-        org_b, _ = _seed_org_and_admin(name="Org B", email="readall-b@test.local", password="Pass123!")
+        org_a, user_a = _seed_org_and_admin(
+            name="Org A", email="readall-a@test.local", password="Pass123!"
+        )
+        org_b, _ = _seed_org_and_admin(
+            name="Org B", email="readall-b@test.local", password="Pass123!"
+        )
 
         a_row = notification_service.create(org_a.id, "reservation.created", "A")
         b_row = notification_service.create(org_b.id, "reservation.created", "B")
@@ -216,6 +226,5 @@ def test_notifications_index_handles_null_optional_fields(client, app):
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "Vanha rivi ilman lisätietoja" in html
-    assert "None" not in html.split('<body')[1].split('</body>')[0]
+    assert "None" not in html.split("<body")[1].split("</body>")[0]
     assert "Internal Server Error" not in html
-

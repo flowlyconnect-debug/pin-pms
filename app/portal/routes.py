@@ -3,13 +3,23 @@ from __future__ import annotations
 from datetime import date
 from functools import wraps
 
-from flask import abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    abort,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from app.extensions import limiter
+from app.payments import services as payment_service
 from app.payments.models import Payment
 from app.portal import portal_bp
 from app.portal import services as portal_service
-from app.payments import services as payment_service
 
 
 def _login_rate_limit():
@@ -52,7 +62,9 @@ def login():
         password = request.form.get("password") or ""
         user = portal_service.portal_login_with_audit(email=email, password=password)
         if user is None:
-            return render_template("portal/login.html", error="Virheellinen sähköposti tai salasana.")
+            return render_template(
+                "portal/login.html", error="Virheellinen sähköposti tai salasana."
+            )
         session["portal_user_id"] = user.id
         return redirect(url_for("portal.dashboard"))
     return render_template("portal/login.html", error=None)
@@ -315,7 +327,9 @@ def check_in(token: str):
         dob = date.fromisoformat(dob_raw)
     except ValueError:
         return (
-            render_template("portal/checkin.html", error="Virheellinen syntymäaika.", access_code=None),
+            render_template(
+                "portal/checkin.html", error="Virheellinen syntymäaika.", access_code=None
+            ),
             400,
         )
     try:

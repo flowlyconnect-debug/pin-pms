@@ -6,7 +6,8 @@ import click
 from flask import Flask
 
 from app.api.models import ApiKey
-from app.api.services import ApiKeyRotateError, rotate_api_key as rotate_api_key_service
+from app.api.services import ApiKeyRotateError
+from app.api.services import rotate_api_key as rotate_api_key_service
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
 from app.audit.services import vacuum_audit_logs
@@ -27,8 +28,8 @@ from app.integrations.ical.service import IcalService
 from app.organizations.models import Organization
 from app.owners.models import OwnerPayout, OwnerPayoutStatus, PropertyOwner
 from app.owners.services import generate_monthly_payout, send_payout_email
-from app.payments.models import Payment
 from app.payments import services as payments_service
+from app.payments.models import Payment
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reservations import services as reservation_service
@@ -51,7 +52,9 @@ def register_cli_commands(app: Flask) -> None:
         except Exception as err:
             raise click.ClickException(f"Sentry SDK is not available: {err}") from err
         sentry_sdk.capture_message("Sentry test from Pin PMS CLI")
-        click.echo(f"Sent test event to Sentry. Check your project at {_safe_sentry_project_url(dsn)}.")
+        click.echo(
+            f"Sent test event to Sentry. Check your project at {_safe_sentry_project_url(dsn)}."
+        )
 
     @app.cli.command("create-superadmin")
     @click.option("--email", prompt=True, help="Superadmin email address")
@@ -268,13 +271,9 @@ def register_cli_commands(app: Flask) -> None:
         click.echo("Backup created:")
         click.echo(f"  SQL dump:            {backup.location}")
         if backup.email_templates_filename:
-            click.echo(
-                f"  Email templates JSON: {backup_dir / backup.email_templates_filename}"
-            )
+            click.echo(f"  Email templates JSON: {backup_dir / backup.email_templates_filename}")
         if backup.settings_filename:
-            click.echo(
-                f"  Settings JSON:        {backup_dir / backup.settings_filename}"
-            )
+            click.echo(f"  Settings JSON:        {backup_dir / backup.settings_filename}")
         click.echo(f"  Size:                {backup.size_human}")
 
     @app.cli.command("backup-restore")
@@ -400,7 +399,8 @@ def register_cli_commands(app: Flask) -> None:
         out = payments_service.create_checkout(
             invoice_id=invoice_id,
             provider_name="stripe",
-            return_url=app.config.get("PAYMENT_RETURN_URL") or "http://127.0.0.1:5000/portal/payments/return",
+            return_url=app.config.get("PAYMENT_RETURN_URL")
+            or "http://127.0.0.1:5000/portal/payments/return",
             cancel_url="http://127.0.0.1:5000/portal/invoices",
             actor_user_id=None,
             idempotency_key=None,
@@ -413,7 +413,8 @@ def register_cli_commands(app: Flask) -> None:
         out = payments_service.create_checkout(
             invoice_id=invoice_id,
             provider_name="paytrail",
-            return_url=app.config.get("PAYMENT_RETURN_URL") or "http://127.0.0.1:5000/portal/payments/return",
+            return_url=app.config.get("PAYMENT_RETURN_URL")
+            or "http://127.0.0.1:5000/portal/payments/return",
             cancel_url="http://127.0.0.1:5000/portal/invoices",
             actor_user_id=None,
             idempotency_key=None,

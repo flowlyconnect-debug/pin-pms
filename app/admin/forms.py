@@ -112,7 +112,10 @@ class PropertyForm(FlaskForm):
     longitude = DecimalField("Pituusaste", validators=[Optional()], places=7)
     year_built = IntegerField(
         "Rakennusvuosi",
-        validators=[Optional(), NumberRange(min=1800, max=2100, message="Anna arvo väliltä 1800–2100.")],
+        validators=[
+            Optional(),
+            NumberRange(min=1800, max=2100, message="Anna arvo väliltä 1800–2100."),
+        ],
     )
     has_elevator = BooleanField("Hissi")
     has_parking = BooleanField("Pysäköinti")
@@ -142,7 +145,10 @@ class UnitForm(FlaskForm):
     )
     area_sqm = DecimalField(
         "Pinta-ala (m²)",
-        validators=[Optional(), NumberRange(min=0, max=10000, message="Anna arvo väliltä 0–10000.")],
+        validators=[
+            Optional(),
+            NumberRange(min=0, max=10000, message="Anna arvo väliltä 0–10000."),
+        ],
         places=2,
     )
     bedrooms = IntegerField(
@@ -164,7 +170,9 @@ class UnitForm(FlaskForm):
         default=2,
     )
     description = TextAreaField("Kuvaus", validators=[Optional()])
-    floor_plan_image_id = IntegerField("Pohjapiirroskuvan ID", validators=[Optional(), NumberRange(min=1)])
+    floor_plan_image_id = IntegerField(
+        "Pohjapiirroskuvan ID", validators=[Optional(), NumberRange(min=1)]
+    )
 
 
 class LeaseTemplateForm(FlaskForm):

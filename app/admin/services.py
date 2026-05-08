@@ -8,11 +8,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from flask import current_app, url_for
-from sqlalchemy import case, func
-from sqlalchemy import or_
+from sqlalchemy import case, func, or_
 
-from app.audit.models import AuditLog
 from app.admin.models import SavedFilter
+from app.audit import record as audit_record
+from app.audit.models import AuditLog, AuditStatus
 from app.backups.models import Backup, BackupStatus
 from app.billing.models import Invoice, Lease
 from app.email.models import OutgoingEmail, OutgoingEmailStatus
@@ -21,6 +21,10 @@ from app.email.services import send_test_template_email
 from app.expenses.models import Expense
 from app.extensions import db
 from app.guests.models import Guest
+from app.idempotency.services import (  # noqa: F401 - re-exported via admin_service module
+    get_or_create,
+    record_response,
+)
 from app.integrations.ical.models import ImportedCalendarEvent, ImportedCalendarFeed
 from app.maintenance.models import MaintenanceRequest
 from app.organizations.models import Organization
@@ -31,7 +35,6 @@ from app.reservations.models import Reservation
 from app.status.models import StatusCheck, StatusComponent, StatusIncident
 from app.tags.models import GuestTag, Tag
 from app.users.models import User
-from app.idempotency.services import get_or_create, record_response  # noqa: F401 - re-exported via admin_service module
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
@@ -958,12 +961,10 @@ def dashboard_summary(*, organization_id: int, timezone: str = "Europe/Helsinki"
     non_cancelled_base = reservation_base.filter(Reservation.status != "cancelled")
     reservations_count = non_cancelled_base.count()
 
-    active_reservations = (
-        confirmed_base.filter(
-            Reservation.start_date <= today_local,
-            Reservation.end_date > today_local,
-        ).count()
-    )
+    active_reservations = confirmed_base.filter(
+        Reservation.start_date <= today_local,
+        Reservation.end_date > today_local,
+    ).count()
     checkins_today = confirmed_base.filter(Reservation.start_date == today_local).count()
     checkouts_today = confirmed_base.filter(Reservation.end_date == today_local).count()
 
@@ -1012,16 +1013,16 @@ def dashboard_summary(*, organization_id: int, timezone: str = "Europe/Helsinki"
     open_invoices = int(invoice_metrics.open_invoices or 0)
     overdue_invoices = int(invoice_metrics.overdue_invoices or 0)
 
-    open_maintenance = (
-        MaintenanceRequest.query.filter(
-            MaintenanceRequest.organization_id == organization_id,
-            MaintenanceRequest.status.in_(("new", "in_progress", "waiting")),
-        ).count()
-    )
+    open_maintenance = MaintenanceRequest.query.filter(
+        MaintenanceRequest.organization_id == organization_id,
+        MaintenanceRequest.status.in_(("new", "in_progress", "waiting")),
+    ).count()
 
     # SQL-aggregate sources for occupancy trend (arrivals/departures), then cumulative walk.
     arrivals_rows = (
-        db.session.query(Reservation.start_date.label("day"), func.count(Reservation.id).label("count"))
+        db.session.query(
+            Reservation.start_date.label("day"), func.count(Reservation.id).label("count")
+        )
         .select_from(Reservation)
         .join(Unit, Reservation.unit_id == Unit.id)
         .join(Property, Unit.property_id == Property.id)
@@ -1035,7 +1036,9 @@ def dashboard_summary(*, organization_id: int, timezone: str = "Europe/Helsinki"
         .all()
     )
     departures_rows = (
-        db.session.query(Reservation.end_date.label("day"), func.count(Reservation.id).label("count"))
+        db.session.query(
+            Reservation.end_date.label("day"), func.count(Reservation.id).label("count")
+        )
         .select_from(Reservation)
         .join(Unit, Reservation.unit_id == Unit.id)
         .join(Property, Unit.property_id == Property.id)
@@ -1048,12 +1051,10 @@ def dashboard_summary(*, organization_id: int, timezone: str = "Europe/Helsinki"
         .group_by(Reservation.end_date)
         .all()
     )
-    base_occupied = (
-        confirmed_base.filter(
-            Reservation.start_date < trend_start,
-            Reservation.end_date > trend_start,
-        ).count()
-    )
+    base_occupied = confirmed_base.filter(
+        Reservation.start_date < trend_start,
+        Reservation.end_date > trend_start,
+    ).count()
     arrivals_map = {row.day: int(row.count or 0) for row in arrivals_rows}
     departures_map = {row.day: int(row.count or 0) for row in departures_rows}
     running_occupied = base_occupied
@@ -1417,9 +1418,7 @@ def apply_superadmin_status_post(*, form) -> list[str]:
             body=(form.get("body") or "").strip(),
             severity=(form.get("severity") or "minor").strip(),
             component_keys=[
-                x.strip()
-                for x in (form.get("component_keys") or "").split(",")
-                if x.strip()
+                x.strip() for x in (form.get("component_keys") or "").split(",") if x.strip()
             ],
             status="open",
         )
@@ -1496,7 +1495,9 @@ def search_all_resources(*, organization_id: int, q: str, limit: int = 20) -> li
         .join(Property, Unit.property_id == Property.id)
         .filter(
             Property.organization_id == organization_id,
-            or_(Reservation.guest_name.ilike(ilike), db.cast(Reservation.id, db.String).ilike(ilike)),
+            or_(
+                Reservation.guest_name.ilike(ilike), db.cast(Reservation.id, db.String).ilike(ilike)
+            ),
         )
         .order_by(Reservation.id.desc())
         .limit(limit)
@@ -1514,7 +1515,9 @@ def search_all_resources(*, organization_id: int, q: str, limit: int = 20) -> li
         )
 
     properties = (
-        Property.query.filter(Property.organization_id == organization_id, Property.name.ilike(ilike))
+        Property.query.filter(
+            Property.organization_id == organization_id, Property.name.ilike(ilike)
+        )
         .order_by(Property.id.desc())
         .limit(limit)
         .all()
@@ -1552,7 +1555,9 @@ def search_all_resources(*, organization_id: int, q: str, limit: int = 20) -> li
     return out[:limit]
 
 
-def create_saved_filter(*, user_id: int, name: str, view_type: str, filter_params: dict[str, Any]) -> dict:
+def create_saved_filter(
+    *, user_id: int, name: str, view_type: str, filter_params: dict[str, Any]
+) -> dict:
     row = SavedFilter(
         user_id=user_id,
         name=(name or "").strip()[:128] or "Saved filter",
@@ -1639,8 +1644,16 @@ def list_admin_reservations(
         query = query.filter(Reservation.end_date <= date_to)
     if q:
         ilike = f"%{q.strip()}%"
-        query = query.filter(or_(Reservation.guest_name.ilike(ilike), db.cast(Reservation.id, db.String).ilike(ilike)))
-    sort_map = {"created_at": Reservation.created_at, "start_date": Reservation.start_date, "id": Reservation.id}
+        query = query.filter(
+            or_(
+                Reservation.guest_name.ilike(ilike), db.cast(Reservation.id, db.String).ilike(ilike)
+            )
+        )
+    sort_map = {
+        "created_at": Reservation.created_at,
+        "start_date": Reservation.start_date,
+        "id": Reservation.id,
+    }
     col = sort_map.get(sort, Reservation.created_at)
     query = query.order_by(col.asc() if direction == "asc" else col.desc(), Reservation.id.desc())
     total = query.count()

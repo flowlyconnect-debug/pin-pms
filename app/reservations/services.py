@@ -188,7 +188,9 @@ def availability_matrix(
     blocked_expr = (
         Unit.is_active.is_(False)
         if has_unit_active
-        else func.lower(func.coalesce(Unit.unit_type, "")).in_(("blocked", "out_of_service", "inactive"))
+        else func.lower(func.coalesce(Unit.unit_type, "")).in_(
+            ("blocked", "out_of_service", "inactive")
+        )
     )
 
     units_query = (
@@ -328,7 +330,9 @@ def availability_matrix(
                     "days": [unit["days"][d] for d in date_range_iso],
                 }
             )
-        properties_payload.append({"id": prop["id"], "name": prop["name"], "units": formatted_units})
+        properties_payload.append(
+            {"id": prop["id"], "name": prop["name"], "units": formatted_units}
+        )
 
     return {"properties": properties_payload, "date_range": date_range_iso}
 

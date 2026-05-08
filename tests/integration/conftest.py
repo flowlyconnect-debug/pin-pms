@@ -9,5 +9,5 @@ def pytest_configure(config) -> None:
 
     # Integration acceptance tests are executed as a separate CI job and should
     # not inherit unit-test coverage gates from the global addopts.
-    setattr(config.option, "no_cov", True)
-    setattr(config.option, "cov_fail_under", 0)
+    config.option.no_cov = True
+    config.option.cov_fail_under = 0
