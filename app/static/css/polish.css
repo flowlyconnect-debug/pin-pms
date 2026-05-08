@@ -79,6 +79,15 @@ html body .data-table tbody td a:hover {
   text-decoration: underline !important;
 }
 
+html body .availability-table tbody td a,
+html body .availability-table tbody td a:visited {
+  color: inherit !important;
+}
+
+html body .availability-table tbody td a:hover {
+  color: inherit !important;
+}
+
 /* ──────────────────────────────────────────────────────────────────
  * 3. KILL nav-link tooltips
  *    admin.js auto-attaches data-tooltip="<text>" to every nav link
@@ -301,7 +310,7 @@ html body .availability-status-checkout    { background: #FED7AA !important; }
 html body .availability-status-checkin     { background: #BBF7D0 !important; }
 html body .availability-status-maintenance { background: #FEF3C7 !important; }
 html body .availability-status-blocked     { background: #F5F5F4 !important; color: #78716C !important; }
-html body .availability-status-free        { background: #FFFFFF !important; }
+html body .availability-status-free        { background: #DCFCE7 !important; color: #166534 !important; }
 
 html body .availability-table th[data-today="true"],
 html body .availability-table th.is-today {

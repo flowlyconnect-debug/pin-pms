@@ -273,6 +273,7 @@ def availability_matrix(
                     "status": "reserved",
                     "guest": (row.guest_name or "").strip() or "Guest",
                     "reservation_id": row.reservation_id,
+                    "is_first_day": cur == row.start_date,
                 }
                 cur += timedelta(days=1)
             if start_date <= row.start_date <= end_date:

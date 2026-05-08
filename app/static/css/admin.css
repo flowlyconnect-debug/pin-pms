@@ -3119,13 +3119,18 @@ a.admin-kpi-card:hover,
 .availability-table {
   min-width: 980px;
   table-layout: fixed;
+  width: 100%;
 }
 
 .availability-table th,
 .availability-table td {
   min-width: 96px;
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
 }
 
 .availability-property-row th {
@@ -3143,25 +3148,33 @@ a.admin-kpi-card:hover,
 }
 
 .availability-status-free {
-  background: #ecfdf5;
+  background: #dcfce7;
+  color: #166534;
 }
 
 .availability-status-reserved {
-  background: #fef2f2;
+  background: #dbeafe;
+  color: #1e40af;
 }
 
-.availability-status-checkin,
 .availability-status-checkout {
-  background: #fffbeb;
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.availability-status-checkin {
+  background: #bbf7d0;
+  color: #065f46;
 }
 
 .availability-status-maintenance {
-  background: #f3f4f6;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .availability-status-blocked {
-  background: var(--bg-alt, #f5f5f4);
-  color: var(--text, #292524);
+  background: #f5f5f4;
+  color: #374151;
 }
 
 .availability-preview-table {
@@ -3172,6 +3185,15 @@ a.admin-kpi-card:hover,
   display: block;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit !important;
+  text-decoration: none;
+}
+
+.availability-cell-link:hover {
+  text-decoration: underline;
 }
 
 .availability-preview-free {

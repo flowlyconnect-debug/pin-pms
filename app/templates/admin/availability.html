@@ -80,9 +80,11 @@
                   {% set status = day.status %}
                   {% set cell_class = "availability-status-" ~ status %}
                   {% if status == "reserved" %}
-                    <td class="{{ cell_class }}" title="{{ day.guest }} · Varaus #{{ day.reservation_id }}">
+                    {% set guest_name = (day.guest or "Varaus") %}
+                    {% set reservation_label = ("Varaus #" ~ day.reservation_id) if day.reservation_id else "Varaus" %}
+                    <td class="{{ cell_class }}" title="{{ guest_name }} · {{ reservation_label }}">
                       <a class="availability-cell-link" href="{{ url_for('admin.reservations_edit', reservation_id=day.reservation_id) }}">
-                        {{ day.guest }}
+                        {% if day.is_first_day %}{{ guest_name }}{% endif %}
                       </a>
                     </td>
                   {% elif status == "maintenance" %}
