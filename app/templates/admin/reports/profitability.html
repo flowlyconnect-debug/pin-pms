@@ -1,0 +1,43 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Kannattavuus per kohde · Pin PMS{% endblock %}
+
+{% block content %}
+  <h1>Kannattavuus per kohde</h1>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="get" class="card">
+    <label for="start_date">Alkupäivä</label>
+    <input id="start_date" name="start_date" type="date" value="{{ start_date }}" required>
+    <label for="end_date">Loppupäivä</label>
+    <input id="end_date" name="end_date" type="date" value="{{ end_date }}" required>
+    <label for="property_id">Kohde</label>
+    <select id="property_id" name="property_id">
+      <option value="">Kaikki kohteet</option>
+      {% for prop in properties %}
+        <option value="{{ prop.id }}" {% if selected_property_id == prop.id %}selected{% endif %}>{{ prop.name }}</option>
+      {% endfor %}
+    </select>
+    <div class="actions">
+      <button type="submit">Aja raportti</button>
+      <button class="btn btn-secondary" type="submit" name="export" value="csv">CSV</button>
+      <button class="btn btn-secondary" type="submit" name="export" value="xlsx">XLSX</button>
+    </div>
+  </form>
+
+  <table>
+    <thead><tr><th>Kohde</th><th>Tulot</th><th>Kulut</th><th>Netto</th><th>Käyttöaste %</th></tr></thead>
+    <tbody>
+      {% for row in data %}
+        <tr>
+          <td>{{ row.property }}</td>
+          <td>{{ row.income }}</td>
+          <td>{{ row.expenses }}</td>
+          <td>{{ row.net }}</td>
+          <td>{{ row.occupancy_rate }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5"><em>Ei dataa valitulla aikavälillä.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

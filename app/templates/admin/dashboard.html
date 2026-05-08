@@ -51,6 +51,24 @@
     </article>
   </section>
 
+  {% set aging = summary.aging_receivables or {} %}
+  <section class="dashboard-columns">
+    <article class="card content-card">
+      <h2>Erääntyneet saatavat</h2>
+      <table>
+        <tbody>
+          <tr><td>0–30</td><td>{{ aging["0_30_fi"] or "0,00 €" }}</td></tr>
+          <tr><td>31–60</td><td>{{ aging["31_60_fi"] or "0,00 €" }}</td></tr>
+          <tr><td>60+</td><td>{{ aging["61_90_fi"] or "0,00 €" }} / {{ aging["90_plus_fi"] or "0,00 €" }}</td></tr>
+        </tbody>
+      </table>
+    </article>
+    <article class="card content-card">
+      <h2>Ennakoitu kassavirta seur. 30 pv</h2>
+      <p class="dashboard-stat-card__value">{{ cash_flow.forecast_next_30_days_fi or "0,00 €" }}</p>
+    </article>
+  </section>
+
   <section class="dashboard-columns">
     <article class="card content-card">
       <h2>Vaatii toimintaa</h2>

@@ -37,6 +37,61 @@
       <tr><td><strong>Yhteensä</strong></td><td><strong>{{ data.totals.income }}</strong></td><td><strong>{{ data.totals.expenses }}</strong></td><td><strong>{{ data.totals.net }}</strong></td></tr>
     </tbody>
   </table>
+
+  <h2>Tulot per kohde</h2>
+  <table>
+    <thead><tr><th>Kohde</th><th>Summa</th></tr></thead>
+    <tbody>
+      {% for row in breakdown.income_by_property %}
+        <tr><td>{{ row.property }}</td><td>{{ row.amount }}</td></tr>
+      {% else %}
+        <tr><td colspan="2"><em>Ei dataa valitulla aikavälillä.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Tulot per huone</h2>
+  <table>
+    <thead><tr><th>Kohde</th><th>Huone</th><th>Summa</th></tr></thead>
+    <tbody>
+      {% for row in breakdown.income_by_unit %}
+        <tr><td>{{ row.property }}</td><td>{{ row.unit }}</td><td>{{ row.amount }}</td></tr>
+      {% else %}
+        <tr><td colspan="3"><em>Ei dataa valitulla aikavälillä.</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Tulot per maksutapa</h2>
+  <table>
+    <thead><tr><th>Maksutapa</th><th>Summa</th></tr></thead>
+    <tbody>
+      {% for row in breakdown.income_by_payment_method %}
+        <tr><td>{{ row.payment_method }}</td><td>{{ row.amount }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Erääntyneet saatavat</h2>
+  <table>
+    <thead><tr><th>Ikäluokka</th><th>Summa</th></tr></thead>
+    <tbody>
+      <tr><td>0–30 pv</td><td>{{ breakdown.aging_receivables["0_30"] }}</td></tr>
+      <tr><td>31–60 pv</td><td>{{ breakdown.aging_receivables["31_60"] }}</td></tr>
+      <tr><td>61–90 pv</td><td>{{ breakdown.aging_receivables["61_90"] }}</td></tr>
+      <tr><td>90+ pv</td><td>{{ breakdown.aging_receivables["90_plus"] }}</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Ennakoitu kassavirta</h2>
+  <table>
+    <thead><tr><th>Jakso</th><th>Summa</th></tr></thead>
+    <tbody>
+      <tr><td>Seuraavat 30 päivää</td><td>{{ breakdown.forecast["30"] }}</td></tr>
+      <tr><td>Seuraavat 60 päivää</td><td>{{ breakdown.forecast["60"] }}</td></tr>
+      <tr><td>Seuraavat 90 päivää</td><td>{{ breakdown.forecast["90"] }}</td></tr>
+    </tbody>
+  </table>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       const canvas = document.getElementById("cash-flow-chart");

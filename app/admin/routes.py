@@ -1935,6 +1935,23 @@ def reports_cash_flow():
         end_date=end_date,
         property_id=property_id,
     )
+    breakdown = report_service.compute_cash_flow_breakdown(
+        start=start_date,
+        end=end_date,
+        organization_id=org_id,
+    )
+    if property_id is not None:
+        breakdown = {
+            **breakdown,
+            "income_by_property": [
+                row for row in breakdown["income_by_property"] if row["property_id"] == property_id
+            ],
+            "income_by_unit": [
+                row
+                for row in breakdown["income_by_unit"]
+                if row["property_id"] == property_id and row["unit_id"] is not None
+            ],
+        }
     if export_format in {"csv", "xlsx"}:
         export_rows = [
             [row["label"], str(row["income"]), str(row["expenses"]), str(row["net"])]
@@ -1963,6 +1980,7 @@ def reports_cash_flow():
     return render_template(
         "admin/reports/cash_flow.html",
         data=data,
+        breakdown=breakdown,
         error=error,
         properties=properties,
         selected_property_id=property_id,
@@ -2057,6 +2075,63 @@ def reports_expenses_breakdown():
     return render_template(
         "admin/reports/expenses_breakdown.html",
         data=data,
+        error=error,
+        properties=properties,
+        selected_property_id=property_id,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+    )
+
+
+@admin_bp.get("/reports/profitability")
+@require_admin_pms_access
+def reports_profitability():
+    org_id = _pms_org_id()
+    start_date, end_date, error = _parse_report_range()
+    property_raw = (request.args.get("property_id") or "").strip()
+    property_id = int(property_raw) if property_raw.isdigit() else None
+    export_format = (request.args.get("export") or "").strip().lower()
+    rows = report_service.compute_profitability_by_property(
+        start=start_date,
+        end=end_date,
+        organization_id=org_id,
+    )
+    if property_id is not None:
+        rows = [row for row in rows if row["property_id"] == property_id]
+    export_rows = [
+        [
+            row["property"],
+            str(row["income"]),
+            str(row["expenses"]),
+            str(row["net"]),
+            str(row["occupancy_rate"]),
+        ]
+        for row in rows
+    ]
+    if export_format == "csv":
+        sio = StringIO()
+        writer = csv.writer(sio)
+        writer.writerow(["property", "income", "expenses", "net", "occupancy_rate"])
+        writer.writerows(export_rows)
+        return Response(
+            sio.getvalue(),
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="profitability.csv"'},
+        )
+    if export_format == "xlsx":
+        return _report_xlsx_response(
+            filename="profitability.xlsx",
+            columns=["property", "income", "expenses", "net", "occupancy_rate"],
+            rows=export_rows,
+        )
+    properties = (
+        Property.query.filter_by(organization_id=org_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    return render_template(
+        "admin/reports/profitability.html",
+        data=rows,
         error=error,
         properties=properties,
         selected_property_id=property_id,

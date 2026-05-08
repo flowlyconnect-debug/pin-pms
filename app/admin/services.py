@@ -682,6 +682,14 @@ def get_dashboard_stats(
     )
     month_expenses_dec = Decimal(month_expenses or 0).quantize(Decimal("0.01"))
     month_net_cash_flow = (month_to_date_revenue - month_expenses_dec).quantize(Decimal("0.01"))
+    aging_receivables = report_service.compute_aging_receivables(
+        organization_id=organization_id,
+        as_of=today,
+    )
+    forecast_next_30 = report_service.compute_forecasted_cash_flow(
+        organization_id=organization_id,
+        days_ahead=30,
+    )
     compare_start = range_start_dt - timedelta(days=range_days)
     compare_end = range_start_dt
     range_compare_revenue = _sum_paid_between(
@@ -864,9 +872,18 @@ def get_dashboard_stats(
             "income_this_month": month_to_date_revenue,
             "expenses_this_month": month_expenses_dec,
             "net_cash_flow_this_month": month_net_cash_flow,
+            "forecast_next_30_days": forecast_next_30,
             "income_this_month_fi": _format_eur_fi(month_to_date_revenue),
             "expenses_this_month_fi": _format_eur_fi(month_expenses_dec),
             "net_cash_flow_this_month_fi": _format_eur_fi(month_net_cash_flow),
+            "forecast_next_30_days_fi": _format_eur_fi(forecast_next_30),
+        },
+        "aging_receivables": {
+            **aging_receivables,
+            "0_30_fi": _format_eur_fi(aging_receivables["0_30"]),
+            "31_60_fi": _format_eur_fi(aging_receivables["31_60"]),
+            "61_90_fi": _format_eur_fi(aging_receivables["61_90"]),
+            "90_plus_fi": _format_eur_fi(aging_receivables["90_plus"]),
         },
         "integrations": integrations,
         "backup_status": backup_status if viewer_is_superadmin else None,
