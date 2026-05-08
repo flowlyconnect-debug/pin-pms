@@ -171,7 +171,7 @@ def test_availability_matrix_marks_first_day_only(app, admin_user):
         db.session.add(
             Reservation(
                 unit_id=unit.id,
-                guest_id=admin_user.id,
+                guest_id=None,
                 guest_name="Ville Testaaja",
                 start_date=date(2026, 5, 6),
                 end_date=date(2026, 5, 9),
@@ -191,6 +191,39 @@ def test_availability_matrix_marks_first_day_only(app, admin_user):
         assert [cell["is_first_day"] for cell in reserved_cells] == [True, False, False]
 
 
+def test_availability_matrix_reserved_cells_include_guest_name(app, admin_user):
+    with app.app_context():
+        unit = _seed_unit(
+            organization_id=admin_user.organization_id,
+            property_name="Guest Name Property",
+            unit_name="GN1",
+        )
+        db.session.add(
+            Reservation(
+                unit_id=unit.id,
+                guest_id=None,
+                guest_name="Ville Testaaja",
+                start_date=date(2026, 5, 6),
+                end_date=date(2026, 5, 9),
+                status="confirmed",
+            )
+        )
+        db.session.commit()
+
+        matrix = reservation_service.compute_availability_matrix(
+            organization_id=admin_user.organization_id,
+            start_date=date(2026, 5, 6),
+            end_date=date(2026, 5, 8),
+        )
+        days = _unit_days_map(matrix, unit_id=unit.id)
+        reserved_cells = [days["2026-05-06"], days["2026-05-07"], days["2026-05-08"]]
+
+        assert all(cell["status"] == "reserved" for cell in reserved_cells)
+        assert all("guest_name" in cell for cell in reserved_cells)
+        assert reserved_cells[0]["is_first_day"] is True
+        assert reserved_cells[0]["guest_name"] == "Ville Testaaja"
+
+
 def test_availability_view_renders_guest_name_only_once(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     prop = Property(
@@ -206,7 +239,7 @@ def test_availability_view_renders_guest_name_only_once(client, admin_user):
     db.session.add(
         Reservation(
             unit_id=unit.id,
-            guest_id=admin_user.id,
+            guest_id=None,
             guest_name="Ville Testaaja",
             start_date=date(2026, 5, 10),
             end_date=date(2026, 5, 15),
@@ -228,6 +261,47 @@ def test_availability_view_renders_guest_name_only_once(client, admin_user):
 
     assert non_empty_texts.count("Ville Testaaja") == 1
     assert all(len(text) <= 24 for text in non_empty_texts)
+
+    title_values = [td.get("title", "") for td in soup.select(".availability-table td")]
+    assert any("Ville Testaaja" in title for title in title_values)
+
+
+def test_availability_reserved_first_day_shows_guest_name(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = Property(
+        organization_id=admin_user.organization_id,
+        name="Visible Guest Property",
+        address=None,
+    )
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="Visible Guest Unit", unit_type="std")
+    db.session.add(unit)
+    db.session.flush()
+    db.session.add(
+        Reservation(
+            unit_id=unit.id,
+            guest_id=None,
+            guest_name="Ville Testaaja",
+            start_date=date(2026, 5, 10),
+            end_date=date(2026, 5, 13),
+            status="confirmed",
+        )
+    )
+    db.session.commit()
+
+    response = client.get(
+        f"/admin/availability?from=2026-05-10&days=7&property_id={prop.id}",
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.get_data(as_text=True), "html.parser")
+
+    non_empty_texts = [
+        a.get_text(strip=True) for a in soup.select(".availability-table td a") if a.get_text(strip=True)
+    ]
+    assert "Ville Testaaja" in non_empty_texts
+    assert non_empty_texts.count("Ville Testaaja") == 1
 
     title_values = [td.get("title", "") for td in soup.select(".availability-table td")]
     assert any("Ville Testaaja" in title for title in title_values)

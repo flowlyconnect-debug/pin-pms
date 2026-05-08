@@ -236,14 +236,7 @@ def availability_matrix(
 
     if unit_map:
         reservation_query = (
-            db.session.query(
-                Reservation.id.label("reservation_id"),
-                Reservation.unit_id.label("unit_id"),
-                Reservation.guest_name.label("guest_name"),
-                Reservation.start_date.label("start_date"),
-                Reservation.end_date.label("end_date"),
-            )
-            .select_from(Reservation)
+            Reservation.query
             .join(Unit, Reservation.unit_id == Unit.id)
             .join(Property, Unit.property_id == Property.id)
             .filter(
@@ -263,6 +256,16 @@ def availability_matrix(
             unit_payload = unit_map.get(row.unit_id)
             if unit_payload is None or unit_payload["_blocked"]:
                 continue
+
+            guest_name = (
+                (getattr(getattr(row, "guest", None), "full_name", None) or "").strip()
+                or (getattr(getattr(row, "guest", None), "name", None) or "").strip()
+                or (getattr(row, "guest_name", None) or "").strip()
+                or (getattr(row, "customer_name", None) or "").strip()
+                or (getattr(row, "name", None) or "").strip()
+                or "Varaus"
+            )
+
             occupancy_start = max(row.start_date, start_date)
             occupancy_end = min(row.end_date - timedelta(days=1), end_date)
             cur = occupancy_start
@@ -271,8 +274,8 @@ def availability_matrix(
                 unit_payload["days"][day_iso] = {
                     "date": day_iso,
                     "status": "reserved",
-                    "guest": (row.guest_name or "").strip() or "Guest",
-                    "reservation_id": row.reservation_id,
+                    "reservation_id": row.id,
+                    "guest_name": guest_name,
                     "is_first_day": cur == row.start_date,
                 }
                 cur += timedelta(days=1)
