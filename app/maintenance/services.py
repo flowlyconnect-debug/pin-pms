@@ -29,7 +29,7 @@ class MaintenanceServiceError(Exception):
 
 _STATUSES = frozenset({"new", "in_progress", "waiting", "resolved", "cancelled"})
 _OPEN_STATUSES = frozenset({"new", "in_progress", "waiting"})
-_PRIORITIES = frozenset({"low", "normal", "high", "urgent"})
+_PRIORITIES = frozenset({"low", "normal", "medium", "high", "urgent"})
 
 
 def _parse_optional_date(raw: str | None, field_name: str) -> date | None:
@@ -239,7 +239,7 @@ def create_maintenance_request(
     if pr not in _PRIORITIES:
         raise MaintenanceServiceError(
             code="validation_error",
-            message="priority must be one of: low, normal, high, urgent.",
+            message="priority must be one of: low, normal, medium, high, urgent.",
             status=400,
         )
 
@@ -345,7 +345,7 @@ def update_maintenance_request(
         if pr not in _PRIORITIES:
             raise MaintenanceServiceError(
                 code="validation_error",
-                message="priority must be one of: low, normal, high, urgent.",
+                message="priority must be one of: low, normal, medium, high, urgent.",
                 status=400,
             )
         row.priority = pr

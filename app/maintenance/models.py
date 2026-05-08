@@ -78,12 +78,12 @@ class MaintenanceRequest(TimestampMixin, db.Model):
 
     @builtins.property
     def priority_label(self) -> str:
-        return self.PRIORITY_LABELS.get((self.priority or "").strip().lower(), self.priority or "-")
+        return self.PRIORITY_LABELS.get((self.priority or "").strip().lower(), "-")
 
     @classmethod
     def priority_label_for(cls, value: str | None) -> str:
         key = (value or "").strip().lower()
-        return cls.PRIORITY_LABELS.get(key, value or "-")
+        return cls.PRIORITY_LABELS.get(key, "-")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<MaintenanceRequest {self.id} org={self.organization_id} status={self.status!r}>"

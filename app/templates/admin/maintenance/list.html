@@ -25,6 +25,7 @@
       <option value="" {% if not priority_filter %}selected{% endif %}>Kaikki</option>
       <option value="low" {% if priority_filter == "low" %}selected{% endif %}>Matala</option>
       <option value="normal" {% if priority_filter == "normal" %}selected{% endif %}>Normaali</option>
+      <option value="medium" {% if priority_filter == "medium" %}selected{% endif %}>Keskitaso</option>
       <option value="high" {% if priority_filter == "high" %}selected{% endif %}>Korkea</option>
       <option value="urgent" {% if priority_filter == "urgent" %}selected{% endif %}>Kiireellinen</option>
     </select>

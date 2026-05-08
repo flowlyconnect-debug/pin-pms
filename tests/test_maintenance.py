@@ -10,6 +10,14 @@ def _auth_headers(raw_key: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {raw_key}"}
 
 
+def _login(client, *, email: str, password: str):
+    return client.post("/login", data={"email": email, "password": password})
+
+
+def _portal_login(client, *, email: str, password: str):
+    return client.post("/portal/login", data={"email": email, "password": password})
+
+
 @pytest.fixture
 def maintenance_api_key(regular_user):
     from app.api.models import ApiKey
@@ -303,3 +311,196 @@ def test_maintenance_api_unlinked_key_cannot_create(app, organization):
         headers=_auth_headers(raw),
     )
     assert r.status_code == 400
+
+
+def test_maintenance_list_renders_priority_in_finnish(client, admin_user):
+    from app.extensions import db
+    from app.maintenance.models import MaintenanceRequest
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop, unit = _property_and_unit(organization_id=admin_user.organization_id)
+
+    rows = [
+        ("Pyynto matala", "low"),
+        ("Pyynto normaali", "normal"),
+        ("Pyynto korkea", "high"),
+        ("Pyynto kiireellinen", "urgent"),
+    ]
+    for title, priority in rows:
+        db.session.add(
+            MaintenanceRequest(
+                organization_id=admin_user.organization_id,
+                property_id=prop.id,
+                unit_id=unit.id,
+                guest_id=None,
+                reservation_id=None,
+                title=title,
+                description=None,
+                status="new",
+                priority=priority,
+                assigned_to_id=None,
+                due_date=None,
+                resolved_at=None,
+                created_by_id=admin_user.id,
+            )
+        )
+    db.session.commit()
+
+    response = client.get("/admin/maintenance-requests")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Matala" in html
+    assert "Normaali" in html
+    assert "Korkea" in html
+    assert "Kiireellinen" in html
+    # Avoid false negatives from option value attributes in filters.
+    assert ">low<" not in html
+    assert ">normal<" not in html
+    assert ">high<" not in html
+    assert ">urgent<" not in html
+
+
+def test_maintenance_create_form_submits_with_finnish_label_value(client, admin_user):
+    from app.maintenance.models import MaintenanceRequest
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop, unit = _property_and_unit(organization_id=admin_user.organization_id)
+
+    ok_resp = client.post(
+        "/admin/maintenance-requests/new",
+        data={
+            "property_id": str(prop.id),
+            "unit_id": str(unit.id),
+            "guest_id": "",
+            "reservation_id": "",
+            "title": "Valid raw priority",
+            "description": "",
+            "priority": "high",
+            "status": "new",
+            "due_date": "",
+            "assigned_to_id": "",
+        },
+        follow_redirects=True,
+    )
+    assert ok_resp.status_code == 200
+    good_row = MaintenanceRequest.query.filter_by(
+        organization_id=admin_user.organization_id,
+        title="Valid raw priority",
+    ).first()
+    assert good_row is not None
+    assert good_row.priority == "high"
+    assert good_row.priority_label == "Korkea"
+    assert "Korkea" in ok_resp.get_data(as_text=True)
+
+    bad_resp = client.post(
+        "/admin/maintenance-requests/new",
+        data={
+            "property_id": str(prop.id),
+            "unit_id": str(unit.id),
+            "guest_id": "",
+            "reservation_id": "",
+            "title": "Invalid localized priority",
+            "description": "",
+            "priority": "Korkea",
+            "status": "new",
+            "due_date": "",
+            "assigned_to_id": "",
+        },
+        follow_redirects=False,
+    )
+    assert bad_resp.status_code == 200
+    assert b"priority must be one of" in bad_resp.data
+    bad_row = MaintenanceRequest.query.filter_by(
+        organization_id=admin_user.organization_id,
+        title="Invalid localized priority",
+    ).first()
+    assert bad_row is None
+
+
+def test_priority_label_for_unknown_value_returns_dash(app, organization, admin_user):
+    from app.extensions import db
+    from app.maintenance.models import MaintenanceRequest
+
+    prop, _ = _property_and_unit(organization_id=organization.id)
+    row = MaintenanceRequest(
+        organization_id=organization.id,
+        property_id=prop.id,
+        unit_id=None,
+        guest_id=None,
+        reservation_id=None,
+        title="Unknown priority label",
+        description=None,
+        status="new",
+        priority="weird",
+        assigned_to_id=None,
+        due_date=None,
+        resolved_at=None,
+        created_by_id=admin_user.id,
+    )
+    db.session.add(row)
+    db.session.commit()
+    assert row.priority_label == "-"
+
+
+def test_portal_maintenance_renders_only_own_requests_and_priority_in_finnish(client, regular_user):
+    from app.extensions import db
+    from app.maintenance.models import MaintenanceRequest
+    from app.properties.models import Property
+    from app.users.models import User, UserRole
+
+    _portal_login(client, email=regular_user.email, password=regular_user.password_plain)
+
+    prop = Property(organization_id=regular_user.organization_id, name="Portal Maint Prop", address=None)
+    db.session.add(prop)
+    db.session.flush()
+
+    other_user = User(
+        email="portal-maint-other@test.local",
+        password_hash=generate_password_hash("UserPass123!"),
+        organization_id=regular_user.organization_id,
+        role=UserRole.USER.value,
+        is_active=True,
+    )
+    db.session.add(other_user)
+    db.session.flush()
+
+    own_row = MaintenanceRequest(
+        organization_id=regular_user.organization_id,
+        property_id=prop.id,
+        unit_id=None,
+        guest_id=regular_user.id,
+        reservation_id=None,
+        title="Oma huolto",
+        description=None,
+        status="new",
+        priority="high",
+        assigned_to_id=None,
+        due_date=None,
+        resolved_at=None,
+        created_by_id=regular_user.id,
+    )
+    other_row = MaintenanceRequest(
+        organization_id=regular_user.organization_id,
+        property_id=prop.id,
+        unit_id=None,
+        guest_id=other_user.id,
+        reservation_id=None,
+        title="Toisen huolto",
+        description=None,
+        status="new",
+        priority="urgent",
+        assigned_to_id=None,
+        due_date=None,
+        resolved_at=None,
+        created_by_id=other_user.id,
+    )
+    db.session.add(own_row)
+    db.session.add(other_row)
+    db.session.commit()
+
+    page = client.get("/portal/maintenance")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "Oma huolto" in html
+    assert "Toisen huolto" not in html
+    assert "Korkea" in html
