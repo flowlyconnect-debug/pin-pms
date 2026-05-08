@@ -3167,6 +3167,20 @@ a.admin-kpi-card:hover,
   color: #065f46;
 }
 
+.availability-status-reserved,
+.availability-status-checkin,
+.availability-status-checkout {
+  color: inherit !important;
+}
+
+.availability-status-reserved a,
+.availability-status-checkin a,
+.availability-status-checkout a {
+  color: inherit !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
 .availability-status-maintenance {
   background: #fef3c7;
   color: #92400e;

@@ -510,7 +510,7 @@ def _parse_calendar_event_types() -> set[str]:
 
 
 def _parse_availability_from_date() -> date:
-    raw = (request.args.get("from") or "").strip()
+    raw = (request.args.get("from") or request.args.get("start") or "").strip()
     if not raw:
         return date.today()
     try:

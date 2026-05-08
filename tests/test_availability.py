@@ -307,6 +307,52 @@ def test_availability_view_shows_guest_name_when_reservation_in_range(client, ad
     assert any("Ville Testaaja" in title for title in title_values)
 
 
+def test_availability_matrix_finds_reservation_in_visible_range(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = Property(
+        organization_id=admin_user.organization_id,
+        name="Visible Range Property",
+        address=None,
+    )
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="Visible Range Unit", unit_type="std")
+    db.session.add(unit)
+    db.session.flush()
+    db.session.add(
+        Reservation(
+            unit_id=unit.id,
+            guest_id=None,
+            guest_name="Ville Testaaja",
+            start_date=date(2026, 5, 10),
+            end_date=date(2026, 5, 13),
+            status="confirmed",
+        )
+    )
+    db.session.commit()
+
+    response = client.get(
+        f"/admin/availability?start=2026-05-08&days=14&property_id={prop.id}",
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    soup = BeautifulSoup(html, "html.parser")
+
+    assert "Ville Testaaja" in html
+    status_classes = {
+        "availability-status-reserved",
+        "availability-status-checkin",
+        "availability-status-checkout",
+    }
+    assert any(
+        any(css in (cell.get("class") or []) for css in status_classes)
+        for cell in soup.select(".availability-table td")
+    )
+    free_cells = [cell for cell in soup.select(".availability-table td") if "Vapaa" in cell.get_text()]
+    assert len(free_cells) < len(soup.select(".availability-table td"))
+
+
 def test_availability_matrix_reservation_overlaps_visible_range(app, admin_user):
     with app.app_context():
         unit = _seed_unit(

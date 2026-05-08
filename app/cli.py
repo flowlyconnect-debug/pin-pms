@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -33,6 +34,7 @@ from app.payments.models import Payment
 from app.properties import services as property_service
 from app.properties.models import Property, Unit
 from app.reservations import services as reservation_service
+from app.reservations.models import Reservation
 from app.settings.services import ensure_seed_settings
 from app.users import services as user_services
 from app.users.models import User, UserRole
@@ -455,6 +457,86 @@ def register_cli_commands(app: Flask) -> None:
             )
         db.session.commit()
         click.echo(f"Expired {len(rows)} payment(s).")
+
+    @app.cli.command("debug-availability-range")
+    @click.option("--organization-id", type=int, required=True)
+    @click.option("--start", "start_raw", required=True, help="Range start date YYYY-MM-DD.")
+    @click.option("--days", type=int, default=14, show_default=True)
+    @click.option("--property-id", type=int, default=None)
+    @click.option("--unit-id", type=int, default=None)
+    @click.option("--include-cancelled", is_flag=True, default=False)
+    def debug_availability_range(
+        organization_id: int,
+        start_raw: str,
+        days: int,
+        property_id: int | None,
+        unit_id: int | None,
+        include_cancelled: bool,
+    ) -> None:
+        """Debug availability overlap resolution without persistent prints."""
+
+        start_date = reservation_service.parse_calendar_iso_bound(start_raw)
+        if start_date is None:
+            raise click.ClickException("Invalid --start date.")
+        safe_days = max(1, min(days, 31))
+        end_date = start_date + timedelta(days=safe_days - 1)
+        overlap_end_exclusive = end_date + timedelta(days=1)
+
+        query = (
+            Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
+            .join(Property, Unit.property_id == Property.id)
+            .filter(
+                Property.organization_id == organization_id,
+                Reservation.start_date < overlap_end_exclusive,
+                Reservation.end_date > start_date,
+            )
+            .order_by(Reservation.start_date.asc(), Reservation.id.asc())
+        )
+        if property_id is not None:
+            query = query.filter(Property.id == property_id)
+        if unit_id is not None:
+            query = query.filter(Reservation.unit_id == unit_id)
+        if not include_cancelled:
+            query = query.filter(Reservation.status.in_(("confirmed", "active")))
+        rows = query.all()
+
+        matrix = reservation_service.compute_availability_matrix(
+            organization_id=organization_id,
+            start_date=start_date,
+            end_date=end_date,
+            property_id=property_id,
+            include_cancelled=include_cancelled,
+        )
+
+        status_counts: dict[str, int] = {}
+        for prop in matrix.get("properties", []):
+            for unit in prop.get("units", []):
+                if unit_id is not None and unit.get("id") != unit_id:
+                    continue
+                for day in unit.get("days", []):
+                    status = str(day.get("status") or "unknown")
+                    status_counts[status] = status_counts.get(status, 0) + 1
+
+        click.echo(
+            "Visible range: "
+            f"{start_date.isoformat()} .. {end_date.isoformat()} "
+            f"(overlap end exclusive {overlap_end_exclusive.isoformat()})"
+        )
+        click.echo(
+            "Filters: "
+            f"organization_id={organization_id} "
+            f"property_id={property_id if property_id is not None else '-'} "
+            f"unit_id={unit_id if unit_id is not None else '-'} "
+            f"include_cancelled={include_cancelled}"
+        )
+        click.echo(f"Matching reservations: {len(rows)}")
+        for row in rows:
+            click.echo(
+                f"- id={row.id} unit_id={row.unit_id} status={row.status} "
+                f"{row.start_date.isoformat()}..{row.end_date.isoformat()} "
+                f"guest={row.guest_name}"
+            )
+        click.echo(f"Matrix status counts: {status_counts}")
 
     @app.cli.command("seed-settings")
     def seed_settings() -> None:

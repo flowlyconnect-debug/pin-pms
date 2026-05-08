@@ -241,15 +241,17 @@ def availability_matrix(
             .join(Property, Unit.property_id == Property.id)
             .filter(
                 Property.organization_id == organization_id,
-                Reservation.start_date <= end_date,
-                Reservation.end_date >= start_date,
+                Reservation.start_date < (end_date + timedelta(days=1)),
+                Reservation.end_date > start_date,
             )
             .order_by(Reservation.start_date.asc(), Reservation.id.asc())
         )
         if property_id is not None:
             reservation_query = reservation_query.filter(Property.id == property_id)
         if not include_cancelled:
-            reservation_query = reservation_query.filter(Reservation.status != "cancelled")
+            reservation_query = reservation_query.filter(
+                func.lower(func.coalesce(Reservation.status, "")).in_(("confirmed", "active"))
+            )
         reservation_rows = reservation_query.all()
 
         for row in reservation_rows:
