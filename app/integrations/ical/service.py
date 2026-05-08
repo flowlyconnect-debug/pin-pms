@@ -5,6 +5,7 @@ import hmac
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+import requests
 from flask import current_app
 from icalendar import Calendar, Event
 
@@ -24,6 +25,13 @@ class IcalServiceError(Exception):
     code: str
     message: str
     status: int
+
+
+@dataclass
+class IcalSyncResult:
+    success: bool
+    imported_count: int
+    error: str | None = None
 
 
 class IcalService:
@@ -139,52 +147,88 @@ class IcalService:
         feeds = query.order_by(ImportedCalendarFeed.id.asc()).all()
         imported_count = 0
         for feed in feeds:
-            try:
-                payload = self.client.fetch_calendar(source_url=feed.source_url)
-                parsed = adapter.parse_ical_events(payload)
-                ImportedCalendarEvent.query.filter_by(feed_id=feed.id).delete()
-                for item in parsed:
-                    db.session.add(
-                        ImportedCalendarEvent(
-                            organization_id=feed.organization_id,
-                            unit_id=feed.unit_id,
-                            feed_id=feed.id,
-                            external_uid=item["uid"],
-                            summary=item["summary"],
-                            start_date=item["start_date"],
-                            end_date=item["end_date"],
-                        )
+            result = self._sync_single_feed(feed=feed)
+            if result.success:
+                imported_count += result.imported_count
+        return imported_count
+
+    @traced("ical.sync_feed")
+    def sync_feed(self, *, organization_id: int, feed_id: int) -> IcalSyncResult:
+        feed = ImportedCalendarFeed.query.filter_by(
+            id=feed_id,
+            organization_id=organization_id,
+            is_active=True,
+        ).first()
+        if feed is None:
+            raise IcalServiceError("not_found", "Kalenterilähdettä ei löytynyt.", 404)
+        return self._sync_single_feed(feed=feed)
+
+    def _sync_single_feed(self, *, feed: ImportedCalendarFeed) -> IcalSyncResult:
+        try:
+            payload = self.client.fetch_calendar(source_url=feed.source_url)
+            parsed = adapter.parse_ical_events(payload)
+            ImportedCalendarEvent.query.filter_by(feed_id=feed.id).delete()
+            for item in parsed:
+                db.session.add(
+                    ImportedCalendarEvent(
+                        organization_id=feed.organization_id,
+                        unit_id=feed.unit_id,
+                        feed_id=feed.id,
+                        external_uid=item["uid"],
+                        summary=item["summary"],
+                        start_date=item["start_date"],
+                        end_date=item["end_date"],
                     )
-                feed.last_error = None
-                feed.last_synced_at = datetime.now(timezone.utc)
-                db.session.commit()
-                imported_count += len(parsed)
-                conflicts = self.detect_conflicts(
-                    organization_id=feed.organization_id,
-                    unit_id=feed.unit_id,
                 )
+            feed.last_error = None
+            feed.last_synced_at = datetime.now(timezone.utc)
+            db.session.commit()
+            conflicts = self.detect_conflicts(
+                organization_id=feed.organization_id,
+                unit_id=feed.unit_id,
+            )
+            audit_record(
+                "calendar.imported",
+                status=AuditStatus.SUCCESS,
+                organization_id=feed.organization_id,
+                target_type="unit",
+                target_id=feed.unit_id,
+                context={"feed_id": feed.id, "imported_count": len(parsed)},
+                commit=True,
+            )
+            if conflicts:
                 audit_record(
-                    "calendar.imported",
+                    "calendar.conflict_detected",
                     status=AuditStatus.SUCCESS,
                     organization_id=feed.organization_id,
                     target_type="unit",
                     target_id=feed.unit_id,
-                    context={"feed_id": feed.id, "imported_count": len(parsed)},
+                    context={"feed_id": feed.id, "conflict_count": len(conflicts)},
                     commit=True,
                 )
-                if conflicts:
-                    audit_record(
-                        "calendar.conflict_detected",
-                        status=AuditStatus.SUCCESS,
-                        organization_id=feed.organization_id,
-                        target_type="unit",
-                        target_id=feed.unit_id,
-                        context={"feed_id": feed.id, "conflict_count": len(conflicts)},
-                        commit=True,
-                    )
-            except Exception as exc:  # noqa: BLE001
-                db.session.rollback()
-                feed.last_error = str(exc)[:512]
-                feed.last_synced_at = datetime.now(timezone.utc)
-                db.session.commit()
-        return imported_count
+            return IcalSyncResult(success=True, imported_count=len(parsed))
+        except requests.exceptions.Timeout:
+            message = "Kalenterilähteen haku aikakatkaistiin. Yritä uudelleen hetken kuluttua."
+            current_app.logger.exception("iCal sync timeout for feed_id=%s", feed.id)
+        except requests.exceptions.ConnectionError:
+            message = "Kalenterilähteeseen ei saatu yhteyttä. Tarkista URL ja yritä uudelleen."
+            current_app.logger.exception("iCal sync connection error for feed_id=%s", feed.id)
+        except requests.exceptions.HTTPError as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", "unknown")
+            message = f"Kalenterilähteen haku epäonnistui (HTTP {status_code})."
+            current_app.logger.exception("iCal sync HTTP error for feed_id=%s", feed.id)
+        except requests.exceptions.RequestException:
+            message = "Kalenterilähteen haku epäonnistui. Tarkista URL ja yritä uudelleen."
+            current_app.logger.exception("iCal sync request error for feed_id=%s", feed.id)
+        except ValueError:
+            message = "Kalenteridatan luku epäonnistui. Tarkista, että lähde on kelvollinen iCal-syöte."
+            current_app.logger.exception("iCal sync parse error for feed_id=%s", feed.id)
+        except Exception:
+            message = "Kalenterin synkronointi epäonnistui odottamattomasta syystä."
+            current_app.logger.exception("iCal sync unexpected error for feed_id=%s", feed.id)
+
+        db.session.rollback()
+        feed.last_error = message[:512]
+        feed.last_synced_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return IcalSyncResult(success=False, imported_count=0, error=message)

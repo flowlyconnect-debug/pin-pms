@@ -8,7 +8,11 @@
 
   <section class="card">
     <h2>Vientiosoite</h2>
-    <p><code>{{ ics_url }}</code></p>
+    {% if ics_url %}
+      <p><code>{{ ics_url }}</code></p>
+    {% else %}
+      <div class="flash">Vientiosoitetta ei voitu muodostaa tällä hetkellä.</div>
+    {% endif %}
   </section>
 
   <section class="card" style="margin-top: 1rem;">
@@ -33,11 +37,20 @@
               <td>{{ feed.name or "-" }}</td>
               <td><code>{{ feed.source_url }}</code></td>
               <td>{{ feed.last_synced_at.isoformat() if feed.last_synced_at else "-" }}</td>
-              <td>{{ feed.last_error or "ok" }}</td>
+              <td>
+                {% if feed.last_error %}
+                  <div class="alert alert-error" role="alert">
+                    <strong>Synkronointi epäonnistui.</strong>
+                    <span>{{ feed.last_error[:240] }}{% if feed.last_error|length > 240 %}…{% endif %}</span>
+                  </div>
+                {% else %}
+                  ok
+                {% endif %}
+              </td>
               <td>
                 <form method="post" action="{{ url_for('admin.calendar_sync_feed_now', feed_id=feed.id) }}">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit">Synkronoi nyt</button>
+                  <button type="submit">Yritä uudelleen</button>
                 </form>
               </td>
             </tr>

@@ -1371,9 +1371,19 @@ def units_calendar_sync(unit_id: int):
         abort(404)
 
     service = IcalService()
-    token = service.sign_unit_token(unit_id=unit_id)
-    ics_url = url_for("api.export_unit_calendar_ics", unit_id=unit_id, token=token, _external=True)
-    error: str | None = None
+    ics_url: str | None = None
+    try:
+        token = service.sign_unit_token(unit_id=unit_id)
+        ics_url = url_for("api.export_unit_calendar_ics", unit_id=unit_id, token=token, _external=True)
+    except IcalServiceError as err:
+        current_app.logger.exception(
+            "Kalenterin vienti-URL:n luonti epäonnistui unit_id=%s code=%s",
+            unit_id,
+            err.code,
+        )
+        error = "Kalenterin vientiosoitetta ei voitu muodostaa. Ota yhteys ylläpitoon."
+    else:
+        error: str | None = None
 
     if request.method == "POST":
         source_url = (request.form.get("source_url") or "").strip()
@@ -1436,8 +1446,11 @@ def conflicts_api():
 @require_tenant_access("imported_calendar_feed", id_arg="feed_id")
 def calendar_sync_feed_now(feed_id: int):
     row = g.scoped_entity
-    IcalService().sync_all_feeds(organization_id=row.organization_id)
-    flash("Kalenterin synkronointi valmis.")
+    result = IcalService().sync_feed(organization_id=row.organization_id, feed_id=feed_id)
+    if result.success:
+        flash("Kalenterin synkronointi valmis.")
+    else:
+        flash(result.error or "Kalenterin synkronointi epäonnistui.")
     return redirect(url_for("admin.units_calendar_sync", unit_id=row.unit_id))
 
 
