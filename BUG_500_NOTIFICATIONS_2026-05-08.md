@@ -193,6 +193,8 @@ Testien tila:
 
 ## Commit
 
-- Commit SHA: `TODO after commit` _(päivitetään `git rev-parse --short
-  HEAD` -arvolla heti commitin jälkeen — tämä korjaus tallennetaan vain
-  käyttäjän erillisestä komennosta, ei automaattisesti)._
+- Commit SHA (short): `535c825`
+- Commit SHA (full): `535c82560752be6986fd238b75dc458273396f1e`
+- Branch: `main`
+- Commit message: `fix(admin-notifications): render grouped list without
+  dict.items shadow`
