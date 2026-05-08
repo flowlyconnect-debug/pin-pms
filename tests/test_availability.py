@@ -191,7 +191,7 @@ def test_availability_matrix_marks_first_day_only(app, admin_user):
         assert [cell["is_first_day"] for cell in reserved_cells] == [True, False, False]
 
 
-def test_availability_view_renders_no_overlapping_text(client, admin_user):
+def test_availability_view_renders_guest_name_only_once(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     prop = Property(
         organization_id=admin_user.organization_id,
@@ -249,3 +249,28 @@ def test_availability_css_defines_status_colors():
     assert "color: red" not in free_block
     assert "#f00" not in free_block
     assert "#ff0000" not in free_block
+
+
+def test_availability_free_cells_are_not_red():
+    css_path = "app/static/css/admin.css"
+    with open(css_path, encoding="utf-8") as handle:
+        css = handle.read()
+
+    assert ".availability-status-free" in css
+    free_block = css.split(".availability-status-free", 1)[1].split("}", 1)[0].lower()
+    assert "color: red" not in free_block
+    assert "#f00" not in free_block
+    assert "#ff0000" not in free_block
+
+
+def test_availability_links_are_block_and_ellipsis():
+    css_path = "app/static/css/admin.css"
+    with open(css_path, encoding="utf-8") as handle:
+        css = handle.read().lower()
+
+    assert ".availability-table td > a" in css
+    links_block = css.split(".availability-table td > a", 1)[1].split("}", 1)[0]
+    assert "display: block" in links_block
+    assert "overflow: hidden" in links_block
+    assert "text-overflow: ellipsis" in links_block
+    assert "white-space: nowrap" in links_block

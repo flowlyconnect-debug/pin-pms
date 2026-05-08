@@ -84,7 +84,7 @@
                     {% set reservation_label = ("Varaus #" ~ day.reservation_id) if day.reservation_id else "Varaus" %}
                     <td class="{{ cell_class }}" title="{{ guest_name }} · {{ reservation_label }}">
                       <a class="availability-cell-link" href="{{ url_for('admin.reservations_edit', reservation_id=day.reservation_id) }}">
-                        {% if day.is_first_day %}{{ guest_name }}{% endif %}
+                        {% if day.is_first_day %}{{ guest_name|truncate(24, True, "…") }}{% endif %}
                       </a>
                     </td>
                   {% elif status == "maintenance" %}
@@ -96,10 +96,12 @@
                       <a class="availability-cell-link" href="{{ url_for('admin.reservations_new') }}">{{ "Vaihto" if status == "checkout" else "Saapuu" }}</a>
                     </td>
                   {% elif status == "blocked" %}
-                    <td class="{{ cell_class }}" title="Yksikkö estetty">Estetty</td>
+                    <td class="{{ cell_class }}" title="Yksikkö estetty">
+                      <span>Estetty</span>
+                    </td>
                   {% else %}
-                    <td class="{{ cell_class }}" title="Klikkaa luodaksesi varauksen">
-                      <a class="availability-cell-link" href="{{ url_for('admin.reservations_new') }}">Vapaa</a>
+                    <td class="{{ cell_class }}" title="Vapaa">
+                      <span>Vapaa</span>
                     </td>
                   {% endif %}
                 {% endfor %}

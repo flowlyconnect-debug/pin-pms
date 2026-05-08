@@ -338,6 +338,24 @@ def availability_matrix(
     return {"properties": properties_payload, "date_range": date_range_iso}
 
 
+def compute_availability_matrix(
+    *,
+    organization_id: int,
+    start_date: date,
+    end_date: date,
+    property_id: int | None = None,
+    include_cancelled: bool = False,
+) -> dict:
+    """Backwards-compatible alias for availability matrix computation."""
+    return availability_matrix(
+        organization_id=organization_id,
+        start_date=start_date,
+        end_date=end_date,
+        property_id=property_id,
+        include_cancelled=include_cancelled,
+    )
+
+
 def resolve_quick_availability_range(
     range_key: str,
     today: date | None = None,

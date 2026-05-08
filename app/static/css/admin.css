@@ -3141,15 +3141,15 @@ a.admin-kpi-card:hover,
 .availability-sticky-col {
   position: sticky;
   left: 0;
-  z-index: 3;
+  z-index: 1;
   min-width: 180px !important;
   text-align: left !important;
-  background: var(--color-surface);
+  background: #fff;
 }
 
 .availability-status-free {
-  background: #dcfce7;
-  color: #166534;
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .availability-status-reserved {
@@ -3163,7 +3163,7 @@ a.admin-kpi-card:hover,
 }
 
 .availability-status-checkin {
-  background: #bbf7d0;
+  background: #d1fae5;
   color: #065f46;
 }
 
@@ -3173,7 +3173,7 @@ a.admin-kpi-card:hover,
 }
 
 .availability-status-blocked {
-  background: #f5f5f4;
+  background: #f3f4f6;
   color: #374151;
 }
 
@@ -3184,16 +3184,62 @@ a.admin-kpi-card:hover,
 .availability-cell-link {
   display: block;
   width: 100%;
-  height: 100%;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: inherit !important;
+  color: inherit;
   text-decoration: none;
 }
 
 .availability-cell-link:hover {
   text-decoration: underline;
+}
+
+.availability-table td > a,
+.availability-table td > span {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.availability-table td > a:hover {
+  text-decoration: underline;
+}
+
+.availability-table tbody tr:hover td.availability-status-free {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+}
+
+.availability-table tbody tr:hover td.availability-status-reserved {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+.availability-table tbody tr:hover td.availability-status-checkin {
+  background: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.availability-table tbody tr:hover td.availability-status-checkout {
+  background: #fed7aa !important;
+  color: #9a3412 !important;
+}
+
+.availability-table tbody tr:hover td.availability-status-maintenance {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+.availability-table tbody tr:hover td.availability-status-blocked {
+  background: #f3f4f6 !important;
+  color: #374151 !important;
 }
 
 .availability-preview-free {
