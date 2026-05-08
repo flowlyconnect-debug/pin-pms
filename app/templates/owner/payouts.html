@@ -11,7 +11,7 @@
       <td>{{ "%.2f"|format(row.gross_revenue_cents / 100) }}</td>
       <td>{{ "%.2f"|format(row.management_fee_cents / 100) }}</td>
       <td>{{ "%.2f"|format(row.net_payout_cents / 100) }}</td>
-      <td>{{ row.status }}</td>
+      <td>{{ row.status|status_label }}</td>
       <td><a href="{{ url_for('owner_portal.payout_pdf', payout_id=row.id) }}">Lataa PDF</a></td>
     </tr>
     {% else %}

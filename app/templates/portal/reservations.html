@@ -16,7 +16,7 @@
           <td>{{ row.unit_name }}</td>
           <td>{{ row.start_date }}</td>
           <td>{{ row.end_date }}</td>
-          <td>{{ row.status }}</td>
+          <td>{{ row.status|status_label }}</td>
           <td><a href="{{ url_for('portal.reservation_detail', reservation_id=row.id) }}">Näytä</a></td>
         </tr>
       {% else %}

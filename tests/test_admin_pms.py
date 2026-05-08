@@ -422,9 +422,9 @@ def test_admin_can_see_reservation_detail_with_labels(client, admin_user):
     assert b"Detail Prop" in page.data
     assert b"U9" in page.data
     assert b"2026-05-10" in page.data
-    assert b"confirmed" in page.data
+    assert b"Vahvistettu" in page.data
     assert b"Maksun tila:" in page.data
-    assert b"pending" in page.data
+    assert b"Odottaa" in page.data
     assert b"Muokkaa varausta" in page.data
 
 

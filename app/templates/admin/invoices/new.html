@@ -17,7 +17,7 @@
       <option value="">— Ei mitään —</option>
       {% for l in lease_rows %}
         <option value="{{ l.id }}" {% if form.lease_id == l.id|string %}selected{% endif %}>
-          #{{ l.id }} · {{ l.unit_name or l.unit_id }} · {{ l.guest_name or l.guest_id }} · {{ l.status }}
+          #{{ l.id }} · {{ l.unit_name or l.unit_id }} · {{ l.guest_name or l.guest_id }} · {{ l.status|status_label }}
         </option>
       {% endfor %}
     </select>
@@ -39,7 +39,7 @@
     <label for="status">Alkutila</label>
     <select id="status" name="status">
       <option value="draft" {% if form.status == "draft" %}selected{% endif %}>Luonnos</option>
-      <option value="open" {% if form.status == "open" %}selected{% endif %}>Avaa</option>
+      <option value="open" {% if form.status == "open" %}selected{% endif %}>Avoin</option>
     </select>
 
     <label for="guest_id">Asiakas-ID (valinnainen, erillinen)</label>

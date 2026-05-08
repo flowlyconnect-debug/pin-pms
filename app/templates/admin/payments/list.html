@@ -27,8 +27,8 @@
       {% for row in rows %}
         <tr>
           <td>#{{ row.id }}</td>
-          <td>{{ row.provider }}</td>
-          <td>{{ row.status }}</td>
+          <td>{{ row.provider|status_label }}</td>
+          <td>{{ row.status|status_label }}</td>
           <td>{{ row.amount }} {{ row.currency }}</td>
           <td>{% if row.invoice_id %}<a href="{{ url_for('admin.invoices_detail', invoice_id=row.invoice_id) }}">#{{ row.invoice_id }}</a>{% else %}—{% endif %}</td>
           <td>{{ row.reservation_id or "—" }}</td>

@@ -6,7 +6,7 @@
   <h1>Webhook-tilaus #{{ subscription.id }}</h1>
   <p><strong>URL:</strong> <code>{{ subscription.url }}</code></p>
   <p><strong>Tapahtumat:</strong> {{ (subscription.events or [])|join(', ') }}</p>
-  <p><strong>Aktiivinen:</strong> {{ "kyllä" if subscription.is_active else "ei" }}</p>
+  <p><strong>Aktiivinen:</strong> {{ subscription.is_active|bool_label }}</p>
   <p><strong>Viimeisin toimitus:</strong> {{ subscription.last_delivery_at.strftime('%Y-%m-%d %H:%M') if subscription.last_delivery_at else "—" }}</p>
   <p><strong>Viimeisin HTTP-tila:</strong> {{ subscription.last_delivery_status if subscription.last_delivery_status is not none else "—" }}</p>
   <p><strong>Epäonnistumiset:</strong> {{ subscription.failure_count }}</p>

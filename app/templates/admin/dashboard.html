@@ -133,7 +133,7 @@
   {% if summary.backup_status %}
     <section class="card content-card">
       <h2>Backup</h2>
-      <p class="meta">Tila: {{ summary.backup_status.state }}</p>
+      <p class="meta">Tila: {{ summary.backup_status.state|status_label }}</p>
     </section>
   {% endif %}
 

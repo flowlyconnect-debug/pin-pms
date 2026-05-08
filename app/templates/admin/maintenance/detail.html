@@ -10,8 +10,8 @@
   <h1>Huolto #{{ row.id }}</h1>
   <div class="card">
     <p><strong>Otsikko:</strong> {{ row.title }}</p>
-    <p><strong>Tila:</strong> {{ row.status }}</p>
-    <p><strong>Prioriteetti:</strong> {{ row.priority_label }}</p>
+    <p><strong>Tila:</strong> {{ row.status|status_label }}</p>
+    <p><strong>Prioriteetti:</strong> {{ row.priority_label or (row.priority|priority_label) }}</p>
     <p><strong>Kohde:</strong> {{ row.property_name or "—" }} (id {{ row.property_id }})</p>
     {% if row.unit_id %}
       <p><strong>Huone:</strong> {{ row.unit_name or row.unit_id }}</p>
@@ -37,9 +37,9 @@
     <form method="post" action="{{ url_for('admin.maintenance_requests_set_status', request_id=row.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <select name="status" required>
-        <option value="new" {% if row.status == "new" %}selected{% endif %}>Uusi</option>
-        <option value="in_progress" {% if row.status == "in_progress" %}selected{% endif %}>Työn alla</option>
-        <option value="waiting" {% if row.status == "waiting" %}selected{% endif %}>Odottaa</option>
+        <option value="new" {% if row.status == "new" %}selected{% endif %}>{{ "new"|status_label }}</option>
+        <option value="in_progress" {% if row.status == "in_progress" %}selected{% endif %}>{{ "in_progress"|status_label }}</option>
+        <option value="waiting" {% if row.status == "waiting" %}selected{% endif %}>{{ "waiting"|status_label }}</option>
       </select>
       <div class="actions">
         <button type="submit" class="btn">Päivitä tila</button>

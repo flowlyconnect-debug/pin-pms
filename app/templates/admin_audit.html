@@ -26,7 +26,7 @@
         <tr>
           <td><code>{{ row.created_at.isoformat() if row.created_at else '' }}</code></td>
           <td><code>{{ row.action }}</code></td>
-          <td>{{ row.status or '' }}</td>
+          <td>{{ row.status|status_label if row.status else '' }}</td>
           <td>{{ row.actor_type }}{% if row.actor_id is not none %} #{{ row.actor_id }}{% endif %}{% if row.actor_email %}<br><span class="meta">{{ row.actor_email }}</span>{% endif %}</td>
           <td>{% if row.target_type %}{{ row.target_type }}{% if row.target_id is not none %} #{{ row.target_id }}{% endif %}{% endif %}</td>
           <td><span class="meta">{{ row.ip_address or '' }}</span></td>

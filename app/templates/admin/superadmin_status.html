@@ -53,7 +53,7 @@
   <ul>
     {% for i in payload.incidents %}
       <li>
-        {{ i.started_at }} · {{ i.title }} · {{ i.status }}
+        {{ i.started_at }} · {{ i.title }} · {{ i.status|status_label }}
         {% if i.status != "resolved" %}
           <form method="post" style="display:inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

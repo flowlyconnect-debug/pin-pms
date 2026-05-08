@@ -11,5 +11,5 @@
   {% else %}
     {% set badge_variant = 'neutral' %}
   {% endif %}
-  <span class="status-badge status-badge--{{ badge_variant }} badge-{{ badge_variant }}"><span class="status-badge__dot" aria-hidden="true"></span>{{ status }}</span>
+  <span class="status-badge status-badge--{{ badge_variant }} badge-{{ badge_variant }}"><span class="status-badge__dot" aria-hidden="true"></span>{{ status|status_label }}</span>
 {%- endmacro %}

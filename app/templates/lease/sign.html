@@ -9,7 +9,7 @@
       <p class="flash flash-error">{{ error }}</p>
     {% elif row %}
       <p><strong>Sopimus:</strong> #{{ row.id }}</p>
-      <p><strong>Tila:</strong> {{ row.status }}</p>
+      <p><strong>Tila:</strong> {{ row.status|status_label }}</p>
       <p><strong>Vuokra:</strong> {{ row.rent_amount }}</p>
       <p><strong>Laskutusjakso:</strong> {{ row.billing_cycle }}</p>
       {% if row.signed_at %}

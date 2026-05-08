@@ -51,7 +51,7 @@
           <td>{{ row.title }}</td>
           <td>{{ row.property_name }}{% if row.unit_name %} / {{ row.unit_name }}{% endif %}</td>
           <td>{{ row.priority_label }}</td>
-          <td>{{ row.status }}</td>
+          <td>{{ row.status|status_label }}</td>
           <td>{{ row.due_date or "—" }}</td>
           <td><a href="{{ url_for('portal.maintenance_detail', request_id=row.id) }}">Näytä</a></td>
         </tr>

@@ -24,7 +24,7 @@
         <tr>
           <td>{{ row.effective_recipient_email }}</td>
           <td><code>{{ row.template_key }}</code></td>
-          <td>{{ row.status }}</td>
+          <td>{{ row.status|status_label }}</td>
           <td>{{ row.effective_attempt_count }}</td>
           <td class="meta">{{ row.last_error or "-" }}</td>
           <td class="meta">{{ row.next_attempt_at.strftime('%Y-%m-%d %H:%M') if row.next_attempt_at else "-" }}</td>

@@ -19,7 +19,7 @@
           <td>{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td>
           <td><code>{{ r.filename }}</code></td>
           <td>{{ r.size_human }}</td>
-          <td>{{ r.status }}</td>
+          <td>{{ r.status|status_label }}</td>
           <td>{{ r.trigger }}</td>
           <td>{% if r.uploads_filename %}<code>{{ r.uploads_filename }}</code>{% else %}—{% endif %}</td>
           <td>{% if r.error_message %}<code>{{ r.error_message[:200] }}{% if r.error_message|length > 200 %}…{% endif %}</code>{% else %}—{% endif %}</td>

@@ -33,6 +33,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
+import tempfile
 from pathlib import Path
 
 import psycopg2
@@ -41,6 +42,7 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+_SQLITE_TEST_DB_PATH = Path(tempfile.gettempdir()) / f"pindora_test_{os.getpid()}.sqlite3"
 
 
 def _load_dotenv_for_tests() -> None:
@@ -247,7 +249,7 @@ def _build_test_database_url() -> str:
 
     force_sqlite = (os.getenv("FORCE_SQLITE_TEST_DB") or "").strip() == "1"
     if force_sqlite:
-        sqlite_path = (_REPO_ROOT / "pindora_test.sqlite3").resolve()
+        sqlite_path = _SQLITE_TEST_DB_PATH.resolve()
         return f"sqlite+pysqlite:///{sqlite_path.as_posix()}"
 
     p = _conn_params()
@@ -259,7 +261,7 @@ def _build_test_database_url() -> str:
             probe = psycopg2.connect(**probe_kw)
             probe.close()
         except Exception:
-            sqlite_path = (_REPO_ROOT / "pindora_test.sqlite3").resolve()
+            sqlite_path = _SQLITE_TEST_DB_PATH.resolve()
             return f"sqlite+pysqlite:///{sqlite_path.as_posix()}"
 
     user = _percent_encode(str(p["user"]))
@@ -430,9 +432,10 @@ def organization(app):
 
     org = Organization(name=f"Test Org {secrets.token_hex(3)}")
     db.session.add(org)
-    # Flush keeps the row persisted for dependent fixtures while avoiding
-    # commit-time expiration of the ORM instance.
-    db.session.flush()
+    # Commit so the row is visible across any nested app contexts that a test
+    # may open (SQLite write-locks and visibility issues otherwise appear).
+    db.session.commit()
+    db.session.refresh(org)
     return org
 
 

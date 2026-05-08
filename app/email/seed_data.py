@@ -271,18 +271,18 @@ SEED_TEMPLATES: list[TemplateSeed] = [
     },
     {
         "key": "invoice_overdue",
-        "subject": "Overdue: invoice {{ invoice_number }}",
+        "subject": "Erääntynyt lasku {{ invoice_number }}",
         "body_text": (
-            "Hello,\n\n"
-            "Invoice {{ invoice_number }} was due on {{ due_date }} and is now overdue.\n"
-            "Amount: {{ amount }} {{ currency }}\n\n"
+            "Hei,\n\n"
+            "Lasku {{ invoice_number }} erääntyi {{ due_date }} ja on nyt erääntynyt.\n"
+            "Summa: {{ amount }} {{ currency }}\n\n"
             "— {{ from_name }}\n"
         ),
         "body_html": (
-            "<p>Hello,</p>"
-            "<p>Invoice <strong>{{ invoice_number }}</strong> was due on "
-            "<strong>{{ due_date }}</strong> and is now overdue.</p>"
-            "<p>Amount: {{ amount }} {{ currency }}</p>"
+            "<p>Hei,</p>"
+            "<p>Lasku <strong>{{ invoice_number }}</strong> erääntyi "
+            "<strong>{{ due_date }}</strong> ja on nyt erääntynyt.</p>"
+            "<p>Summa: {{ amount }} {{ currency }}</p>"
             "<p>— {{ from_name }}</p>"
         ),
         "description": "Placeholder for future overdue reminders (not sent automatically yet).",
@@ -296,17 +296,17 @@ SEED_TEMPLATES: list[TemplateSeed] = [
     },
     {
         "key": "invoice_paid",
-        "subject": "Received: invoice {{ invoice_number }}",
+        "subject": "Lasku {{ invoice_number }} maksettu",
         "body_text": (
-            "Hello,\n\n"
-            "Thank you. Invoice {{ invoice_number }} is marked paid.\n"
-            "Amount: {{ amount }} {{ currency }}\n\n"
+            "Hei,\n\n"
+            "Kiitos. Lasku {{ invoice_number }} on merkitty maksetuksi.\n"
+            "Summa: {{ amount }} {{ currency }}\n\n"
             "— {{ from_name }}\n"
         ),
         "body_html": (
-            "<p>Hello,</p>"
-            "<p>Thank you. Invoice <strong>{{ invoice_number }}</strong> is marked paid.</p>"
-            "<p>Amount: {{ amount }} {{ currency }}</p>"
+            "<p>Hei,</p>"
+            "<p>Kiitos. Lasku <strong>{{ invoice_number }}</strong> on merkitty maksetuksi.</p>"
+            "<p>Summa: {{ amount }} {{ currency }}</p>"
             "<p>— {{ from_name }}</p>"
         ),
         "description": "Placeholder for future paid confirmations (not sent automatically yet).",

@@ -5,7 +5,7 @@
 {% block content %}
   <h1>Vuokralaisen debug #{{ org_id }}</h1>
   <p>
-    Tilaus: <strong>{{ data.subscription.plan }}</strong> · Tila: <strong>{{ data.subscription.status }}</strong>
+    Tilaus: <strong>{{ data.subscription.plan }}</strong> · Tila: <strong>{{ data.subscription.status|status_label }}</strong>
     · Luotu: {{ data.organization.created_at }}
   </p>
   <p>
@@ -18,21 +18,21 @@
   <h2>Viimeisimmät audit-tapahtumat</h2>
   <ul>
     {% for row in data.audit_events %}
-      <li>{{ row.created_at }} · {{ row.action }} · {{ row.status }}</li>
+      <li>{{ row.created_at }} · {{ row.action }} · {{ row.status|status_label }}</li>
     {% endfor %}
   </ul>
 
   <h2>Viimeiset sähköpostit</h2>
   <ul>
     {% for row in data.emails %}
-      <li>{{ row.created_at }} · {{ row.to }} · {{ row.status }}</li>
+      <li>{{ row.created_at }} · {{ row.to }} · {{ row.status|status_label }}</li>
     {% endfor %}
   </ul>
 
   <h2>Viimeisimmät varmuuskopiot</h2>
   <ul>
     {% for row in data.backups %}
-      <li>{{ row.created_at }} · {{ row.filename }} · {{ row.status }}</li>
+      <li>{{ row.created_at }} · {{ row.filename }} · {{ row.status|status_label }}</li>
     {% endfor %}
   </ul>
 

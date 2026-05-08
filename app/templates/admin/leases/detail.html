@@ -10,7 +10,7 @@
   </div>
   <h1>Vuokrasopimus #{{ row.id }}</h1>
   <div class="card">
-    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Tila:</strong> {{ row.status|status_label }}</p>
     <p><strong>Kohde / huone:</strong> {{ row.property_name or "—" }} / {{ row.unit_name or row.unit_id }}</p>
     <p><strong>Asiakas:</strong> {{ row.guest_name or "—" }} (#{{ row.guest_id }})</p>
     {% if row.reservation_id %}

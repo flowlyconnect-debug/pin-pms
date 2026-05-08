@@ -25,10 +25,10 @@
     <p><strong>Huone:</strong> {{ row.unit_name }}</p>
     <p><strong>Alkupäivä:</strong> {{ row.start_date }}</p>
     <p><strong>Loppupäivä:</strong> {{ row.end_date }}</p>
-    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Tila:</strong> {{ row.status|status_label }}</p>
     <p><strong>Summa:</strong> {{ row.amount or "-" }}</p>
     <p><strong>Valuutta:</strong> {{ row.currency }}</p>
-    <p><strong>Maksun tila:</strong> {{ row.payment_status }}</p>
+    <p><strong>Maksun tila:</strong> {{ row.payment_status|status_label }}</p>
     <p><strong>Laskunumero:</strong> {{ row.invoice_number or "-" }}</p>
     <p><strong>Laskun päivä:</strong> {{ row.invoice_date or "-" }}</p>
     <p><strong>Eräpäivä:</strong> {{ row.due_date or "-" }}</p>

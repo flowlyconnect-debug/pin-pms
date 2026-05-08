@@ -22,7 +22,7 @@
       <h2>Tilaus #{{ s.id }}</h2>
       <p><strong>URL:</strong> <code>{{ s.url }}</code></p>
       <p><strong>Tapahtumat:</strong> {{ (s.events or [])|join(', ') }}</p>
-      <p><strong>Aktiivinen:</strong> {{ "kyllä" if s.is_active else "ei" }}</p>
+      <p><strong>Aktiivinen:</strong> {{ s.is_active|bool_label }}</p>
       <p><strong>Viimeisin toimitus:</strong> {{ s.last_delivery_at.strftime('%Y-%m-%d %H:%M') if s.last_delivery_at else "—" }}</p>
       <p><strong>Viimeisin HTTP-tila:</strong> {{ s.last_delivery_status if s.last_delivery_status is not none else "—" }}</p>
       <p><strong>Epäonnistumiset:</strong> {{ s.failure_count }}</p>

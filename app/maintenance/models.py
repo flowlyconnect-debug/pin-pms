@@ -71,7 +71,7 @@ class MaintenanceRequest(TimestampMixin, db.Model):
     PRIORITY_LABELS = {
         "low": "Matala",
         "normal": "Normaali",
-        "medium": "Keskitaso",
+        "medium": "Normaali",
         "high": "Korkea",
         "urgent": "Kiireellinen",
     }

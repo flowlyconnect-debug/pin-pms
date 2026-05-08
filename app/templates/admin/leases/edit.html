@@ -46,7 +46,7 @@
     <a class="btn btn-secondary" href="{{ url_for('admin.leases_detail', lease_id=row.id) }}">Takaisin vuokraan</a>
   </div>
   <h1>Muokkaa vuokrasopimusta #{{ row.id }}</h1>
-  <p class="meta">Tila: <strong>{{ row.status }}</strong></p>
+  <p class="meta">Tila: <strong>{{ row.status|status_label }}</strong></p>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}

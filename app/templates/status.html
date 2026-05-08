@@ -19,7 +19,7 @@
   <h2>Viimeisimmät häiriöt</h2>
   <ul>
     {% for i in payload.incidents %}
-      <li>{{ i.started_at }} · {{ i.title }} · {{ i.status }}</li>
+      <li>{{ i.started_at }} · {{ i.title }} · {{ i.status|status_label }}</li>
     {% else %}
       <li>Ei häiriöitä.</li>
     {% endfor %}

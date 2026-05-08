@@ -8,7 +8,7 @@
   </div>
   <h1>Lasku {{ row.invoice_number or "#" ~ (row.id|string) }}</h1>
   <div class="card">
-    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Tila:</strong> {{ row.status|status_label }}</p>
     <p><strong>Veroton:</strong> {{ row.subtotal_excl_vat }} {{ row.currency }}</p>
     <p><strong>ALV-kanta:</strong> {{ row.vat_rate }} %</p>
     <p><strong>ALV-summa:</strong> {{ row.vat_amount }} {{ row.currency }}</p>
@@ -64,8 +64,8 @@
         {% for p in payment_rows %}
           <tr>
             <td>#{{ p.id }}</td>
-            <td>{{ p.provider }}</td>
-            <td>{{ p.status }}</td>
+            <td>{{ p.provider|status_label }}</td>
+            <td>{{ p.status|status_label }}</td>
             <td>{{ p.amount }} {{ p.currency }}</td>
             <td>{{ p.created_at }}</td>
             <td>
@@ -86,7 +86,7 @@
               {% if refunds %}
                 <ul class="payment-refunds">
                   {% for r in refunds %}
-                    <li>#{{ r.id }} — {{ r.amount }} {{ p.currency }} — {{ r.status }}
+                    <li>#{{ r.id }} — {{ r.amount }} {{ p.currency }} — {{ r.status|status_label }}
                       {% if r.status == "failed" %}
                         <form method="post" action="{{ url_for('admin.invoices_refund_retry', invoice_id=row.id, refund_id=r.id) }}" style="display:inline;">
                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

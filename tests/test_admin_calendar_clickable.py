@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from app.extensions import db
 from app.properties.models import Property, Unit
@@ -68,21 +68,25 @@ def test_availability_cell_links_are_block_level(client, admin_user):
     unit = Unit(property_id=prop.id, name="Availability Unit", unit_type="std")
     db.session.add(unit)
     db.session.flush()
+    today = date.today()
     db.session.add(
         Reservation(
             unit_id=unit.id,
             guest_id=admin_user.id,
             guest_name="Saatavuus Asiakas",
-            start_date=date(2026, 5, 10),
-            end_date=date(2026, 5, 12),
+            start_date=today,
+            end_date=today + timedelta(days=2),
             status="confirmed",
         )
     )
     db.session.commit()
 
-    response = client.get("/admin/availability")
+    response = client.get(
+        f"/admin/availability?from={today.isoformat()}&days=3&property_id={prop.id}"
+    )
     assert response.status_code == 200
     html = response.get_data(as_text=True)
+    assert "Availability Property" in html
     assert "availability-cell-link" in html
 
     css_path = "app/static/css/admin.css"

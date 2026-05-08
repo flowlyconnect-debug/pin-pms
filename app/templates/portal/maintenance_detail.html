@@ -6,7 +6,7 @@
   <h1>Huolto #{{ row.id }}</h1>
   <div class="card">
     <p><strong>Otsikko:</strong> {{ row.title }}</p>
-    <p><strong>Tila:</strong> {{ row.status }}</p>
+    <p><strong>Tila:</strong> {{ row.status|status_label }}</p>
     <p><strong>Prioriteetti:</strong> {{ row.priority_label }}</p>
     <p><strong>Kohde:</strong> {{ row.property_name }}</p>
     <p><strong>Huone:</strong> {{ row.unit_name or "—" }}</p>

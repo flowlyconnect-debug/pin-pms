@@ -36,7 +36,7 @@
           <td>{{ reservation.property_name }}</td>
           <td>{{ reservation.unit_name }}</td>
           <td>{{ reservation.start_date }} → {{ reservation.end_date }}</td>
-          <td>{{ reservation.status }}</td>
+          <td>{{ reservation.status|status_label }}</td>
         </tr>
       {% else %}
         <tr><td colspan="5"><em>Ei tähän asiakkaaseen liitettyjä varauksia.</em></td></tr>
