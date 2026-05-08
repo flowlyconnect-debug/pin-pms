@@ -266,6 +266,79 @@ def test_availability_view_renders_guest_name_only_once(client, admin_user):
     assert any("Ville Testaaja" in title for title in title_values)
 
 
+def test_availability_view_shows_guest_name_when_reservation_in_range(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = Property(
+        organization_id=admin_user.organization_id,
+        name="In Range Property",
+        address=None,
+    )
+    db.session.add(prop)
+    db.session.flush()
+    unit = Unit(property_id=prop.id, name="Pindora toimisto", unit_type="std")
+    db.session.add(unit)
+    db.session.flush()
+    db.session.add(
+        Reservation(
+            unit_id=unit.id,
+            guest_id=None,
+            guest_name="Ville Testaaja",
+            start_date=date(2026, 5, 10),
+            end_date=date(2026, 5, 13),
+            status="confirmed",
+        )
+    )
+    db.session.commit()
+
+    response = client.get(
+        f"/admin/availability?from=2026-05-08&days=14&property_id={prop.id}",
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    soup = BeautifulSoup(html, "html.parser")
+
+    anchors = soup.select(".availability-table td a")
+    visible_texts = [a.get_text(strip=True) for a in anchors]
+    assert visible_texts.count("Ville Testaaja") == 1
+    assert "availability-status-reserved" in html or "availability-status-checkin" in html
+
+    title_values = [td.get("title", "") for td in soup.select(".availability-table td")]
+    assert any("Ville Testaaja" in title for title in title_values)
+
+
+def test_availability_matrix_reservation_overlaps_visible_range(app, admin_user):
+    with app.app_context():
+        unit = _seed_unit(
+            organization_id=admin_user.organization_id,
+            property_name="Overlap Visible Property",
+            unit_name="Pindora toimisto",
+        )
+        db.session.add(
+            Reservation(
+                unit_id=unit.id,
+                guest_id=None,
+                guest_name="Ville Testaaja",
+                start_date=date(2026, 5, 10),
+                end_date=date(2026, 5, 13),
+                status="confirmed",
+            )
+        )
+        db.session.commit()
+
+        matrix = reservation_service.compute_availability_matrix(
+            organization_id=admin_user.organization_id,
+            start_date=date(2026, 5, 8),
+            end_date=date(2026, 5, 21),
+        )
+        days = _unit_days_map(matrix, unit_id=unit.id)
+
+        assert days["2026-05-10"]["status"] != "free"
+        assert days["2026-05-11"]["status"] != "free"
+        assert days["2026-05-12"]["status"] != "free"
+        assert days["2026-05-10"]["guest_name"] == "Ville Testaaja"
+
+
 def test_availability_reserved_first_day_shows_guest_name(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     prop = Property(

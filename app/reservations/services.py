@@ -227,8 +227,8 @@ def availability_matrix(
             "name": row.unit_name,
             "type": row.unit_type,
             "days": day_map,
-            "_arrivals": set(),
-            "_departures": set(),
+            "_arrivals": {},
+            "_departures": {},
             "_blocked": bool(row.unit_blocked),
         }
         property_bucket["units"].append(unit_payload)
@@ -280,9 +280,25 @@ def availability_matrix(
                 }
                 cur += timedelta(days=1)
             if start_date <= row.start_date <= end_date:
-                unit_payload["_arrivals"].add(row.start_date.isoformat())
+                arrival_iso = row.start_date.isoformat()
+                unit_payload["_arrivals"].setdefault(
+                    arrival_iso,
+                    {
+                        "reservation_id": row.id,
+                        "guest_name": guest_name,
+                        "is_first_day": True,
+                    },
+                )
             if start_date <= row.end_date <= end_date:
-                unit_payload["_departures"].add(row.end_date.isoformat())
+                departure_iso = row.end_date.isoformat()
+                unit_payload["_departures"].setdefault(
+                    departure_iso,
+                    {
+                        "reservation_id": row.id,
+                        "guest_name": guest_name,
+                        "is_first_day": False,
+                    },
+                )
 
         maintenance_rows = (
             MaintenanceRequest.query.with_entities(
@@ -313,14 +329,26 @@ def availability_matrix(
         for unit_payload in unit_map.values():
             if unit_payload["_blocked"]:
                 continue
-            for day_iso in unit_payload["_departures"]:
+            for day_iso, departure_meta in unit_payload["_departures"].items():
                 existing = unit_payload["days"][day_iso]
                 if existing["status"] not in {"maintenance", "blocked"}:
-                    unit_payload["days"][day_iso] = {"date": day_iso, "status": "checkout"}
-            for day_iso in unit_payload["_arrivals"]:
+                    unit_payload["days"][day_iso] = {
+                        "date": day_iso,
+                        "status": "checkout",
+                        "reservation_id": departure_meta["reservation_id"],
+                        "guest_name": departure_meta["guest_name"],
+                        "is_first_day": departure_meta["is_first_day"],
+                    }
+            for day_iso, arrival_meta in unit_payload["_arrivals"].items():
                 existing = unit_payload["days"][day_iso]
                 if existing["status"] == "free":
-                    unit_payload["days"][day_iso] = {"date": day_iso, "status": "checkin"}
+                    unit_payload["days"][day_iso] = {
+                        "date": day_iso,
+                        "status": "checkin",
+                        "reservation_id": arrival_meta["reservation_id"],
+                        "guest_name": arrival_meta["guest_name"],
+                        "is_first_day": arrival_meta["is_first_day"],
+                    }
 
     properties_payload = []
     for prop in property_map.values():

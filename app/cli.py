@@ -558,6 +558,7 @@ def register_cli_commands(app: Flask) -> None:
             ("Demo Unit 102", 4, 8),
             ("Demo Unit 201", 12, 15),
         ]
+        showcase_seed = ("Demo Unit 201", 2, 5, "Ville Testaaja")
 
         existing_rows = reservation_service.list_reservations(organization_id=organization.id)
         existing_keyset = {
@@ -584,6 +585,31 @@ def register_cli_commands(app: Flask) -> None:
                 guest_id=guest.id,
                 start_date_raw=start_date,
                 end_date_raw=end_date,
+                actor_user_id=guest.id,
+            )
+            created_counts["reservations"] += 1
+
+        showcase_unit_name, showcase_start_offset, showcase_end_offset, showcase_guest_name = (
+            showcase_seed
+        )
+        showcase_unit_id = unit_ids_by_name[showcase_unit_name]
+        showcase_start_date = (today + timedelta(days=showcase_start_offset)).isoformat()
+        showcase_end_date = (today + timedelta(days=showcase_end_offset)).isoformat()
+        showcase_key = (
+            showcase_unit_id,
+            None,
+            showcase_start_date,
+            showcase_end_date,
+            "confirmed",
+        )
+        if showcase_key not in existing_keyset:
+            _ = reservation_service.create_reservation(
+                organization_id=organization.id,
+                unit_id=showcase_unit_id,
+                guest_id=None,
+                guest_name=showcase_guest_name,
+                start_date_raw=showcase_start_date,
+                end_date_raw=showcase_end_date,
                 actor_user_id=guest.id,
             )
             created_counts["reservations"] += 1
