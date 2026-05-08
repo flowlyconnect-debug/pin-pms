@@ -23,7 +23,9 @@
 
   {% if row.status in ["open", "overdue"] %}
     <h2>Merkitse maksetuksi</h2>
-    <form method="post" action="{{ url_for('admin.invoices_mark_paid', invoice_id=row.id) }}">
+    <form method="post"
+          action="{{ url_for('admin.invoices_mark_paid', invoice_id=row.id) }}"
+          data-confirm="Merkitäänkö lasku maksetuksi?">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="actions">
         <button type="submit" class="btn">Merkitse maksetuksi</button>

@@ -1179,20 +1179,25 @@ def mark_invoice_paid(
             status=404,
         )
     if row.status == "paid":
-        return _serialize_invoice(row)
+        raise InvoiceServiceError(
+            code="invalid_state",
+            message="Invoice is already marked paid.",
+            status=409,
+        )
     if row.status == "cancelled":
         raise InvoiceServiceError(
-            code="validation_error",
+            code="invalid_state",
             message="Cancelled invoices cannot be marked paid.",
-            status=400,
+            status=409,
         )
     if row.status == "draft":
         raise InvoiceServiceError(
-            code="validation_error",
+            code="invalid_state",
             message="Draft invoices must be opened before they can be marked paid.",
-            status=400,
+            status=409,
         )
 
+    previous_status = row.status
     row.status = "paid"
     row.paid_at = datetime.now(timezone.utc)
     row.updated_by_id = actor_user_id
@@ -1204,7 +1209,12 @@ def mark_invoice_paid(
         organization_id=organization_id,
         target_type="invoice",
         target_id=row.id,
-        context={"invoice_number": row.invoice_number},
+        context={
+            "invoice_number": row.invoice_number,
+            "previous_status": previous_status,
+            "new_status": row.status,
+            "amount": str(row.total_incl_vat),
+        },
         commit=True,
     )
     return _serialize_invoice(row)

@@ -81,6 +81,14 @@
                   <input type="hidden" name="provider" value="stripe">
                   <button type="submit">Lähetä uudelleen</button>
                 </form>
+                {% if row.status in ["open", "overdue"] %}
+                  <form method="post"
+                        action="{{ url_for('admin.invoices_mark_paid', invoice_id=row.id) }}"
+                        data-confirm="Merkitäänkö lasku maksetuksi?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit">Merkitse maksetuksi</button>
+                  </form>
+                {% endif %}
                 <button type="button" data-copy-ref="{{ row.invoice_number or ('#' ~ row.id) }}">Kopioi viite</button>
                 <a href="{{ url_for('admin.invoices_detail', invoice_id=row.id) }}#delete" class="danger">Poista</a>
               </div>

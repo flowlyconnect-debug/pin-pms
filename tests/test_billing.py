@@ -202,13 +202,15 @@ def test_invoice_service_mark_paid_and_overdue_and_audit(app, organization, admi
         invoice_id=inv["id"],
         actor_user_id=admin_user.id,
     )
-    out2 = billing_service.mark_invoice_paid(
-        organization_id=organization.id,
-        invoice_id=inv["id"],
-        actor_user_id=admin_user.id,
-    )
     assert out1["status"] == "paid"
-    assert out2["status"] == "paid"
+    with pytest.raises(billing_service.InvoiceServiceError) as exc:
+        billing_service.mark_invoice_paid(
+            organization_id=organization.id,
+            invoice_id=inv["id"],
+            actor_user_id=admin_user.id,
+        )
+    assert exc.value.status == 409
+    assert exc.value.code == "invalid_state"
 
     inv2 = billing_service.create_invoice(
         organization_id=organization.id,

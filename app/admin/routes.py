@@ -145,6 +145,11 @@ def _pms_pagination() -> tuple[int, int]:
     return page, per_page
 
 
+def _wants_json() -> bool:
+    best = request.accept_mimetypes.best
+    return best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
 def _parse_csv_filter_args(key: str) -> list[str]:
     raw_values = request.args.getlist(key)
     values: list[str] = []
@@ -3004,16 +3009,28 @@ def invoices_pdf(invoice_id: int):
 @require_admin_pms_access
 def invoices_mark_paid(invoice_id: int):
     try:
-        _ = billing_service.mark_invoice_paid(
+        data = billing_service.mark_invoice_paid(
             organization_id=_pms_org_id(),
             invoice_id=invoice_id,
             actor_user_id=current_user.id,
         )
     except billing_service.InvoiceServiceError as err:
         if err.status == 404:
-            abort(404)
-        flash(err.message)
+            if _wants_json():
+                return json_error("invoice_not_found", err.message, status=404)
+            flash("Laskua ei löytynyt.", "error")
+            return redirect(url_for("admin.invoices_list"))
+        if err.code == "invalid_state":
+            if _wants_json():
+                return json_error("invalid_state", err.message, status=409)
+            flash(f"Laskun tilaa ei voi muuttaa: {err.message}", "error")
+            return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+        if _wants_json():
+            return json_error(err.code, err.message, status=err.status)
+        flash(err.message, "error")
         return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
+    if _wants_json():
+        return json_ok({"invoice_id": data["id"], "status": data["status"]})
     flash("Lasku merkitty maksetuksi.")
     return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
 
