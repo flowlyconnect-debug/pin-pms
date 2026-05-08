@@ -111,9 +111,14 @@ def public_status():
     return render_template("status.html", payload=payload, has_open_incident=has_open_incident)
 
 
-@core_bp.get("/accessibility-statement")
+@core_bp.get("/accessibility")
 def accessibility_statement():
     return render_template("accessibility.html")
+
+
+@core_bp.get("/accessibility-statement")
+def accessibility_statement_legacy():
+    return redirect(url_for("core.accessibility_statement"))
 
 
 @core_bp.get("/lease/sign/<signed_token>")

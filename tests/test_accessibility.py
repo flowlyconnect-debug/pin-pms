@@ -82,3 +82,46 @@ def test_skip_link_present(client, admin_user):
 
     portal_html = client.get("/portal/login").get_data(as_text=True)
     assert ('class="skip-link"' in portal_html) or ('class="pms-login-skip"' in portal_html)
+
+
+def test_accessibility_page_status_200(client):
+    response = client.get("/accessibility")
+    assert response.status_code == 200
+
+
+def test_accessibility_page_extends_portal_base(client):
+    html = client.get("/accessibility").get_data(as_text=True)
+    assert 'class="skip-link"' in html or "portal-nav" in html
+
+
+def test_accessibility_page_has_correct_finnish_chars(client):
+    html = client.get("/accessibility").get_data(as_text=True)
+    assert "Tämä" in html
+    assert "järjestelmän" in html
+    assert "välttämättä" in html
+    assert "Tama" not in html
+    assert "jarjestelman" not in html
+    assert "valttamatta" not in html
+
+
+def test_accessibility_template_is_utf8_without_bom():
+    path = _template_path("accessibility.html")
+    data = path.read_bytes()
+    assert not data.startswith(b"\xef\xbb\xbf")
+    text = data.decode("utf-8")
+    assert "Tämä" in text
+    assert "järjestelmän" in text
+    assert "Saavutettavuusseloste" in text
+    assert "välttämättä" in text
+
+
+def test_accessibility_link_exists_in_footer_if_present_requirement(client):
+    portal_base = _template_path("portal/base.html").read_text(encoding="utf-8")
+    admin_base = _template_path("admin/base.html").read_text(encoding="utf-8")
+    link_expected = (
+        "url_for('core.accessibility_statement')" in portal_base
+        or "url_for('core.accessibility_statement')" in admin_base
+    )
+    if link_expected:
+        html = client.get("/accessibility").get_data(as_text=True)
+        assert 'href="/accessibility"' in html
