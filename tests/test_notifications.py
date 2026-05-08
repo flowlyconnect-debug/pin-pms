@@ -133,3 +133,89 @@ def test_mark_all_read_marks_only_own_org(app):
         assert Notification.query.get(a_row.id).is_read is True
         assert Notification.query.get(b_row.id).is_read is False
 
+
+def test_notifications_index_renders_when_table_empty(client, app):
+    """Regression for /admin/notifications 500 when the table is empty."""
+
+    with app.app_context():
+        _, user = _seed_org_and_admin(
+            name="Empty Org", email="empty-notifs@test.local", password="Pass123!"
+        )
+        assert Notification.query.filter_by(organization_id=user.organization_id).count() == 0
+        email = user.email
+        password = user.password_plain
+
+    _login(client, email=email, password=password)
+    response = client.get("/admin/notifications")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Ei ilmoituksia" in html
+
+
+def test_notifications_index_renders_with_seed_rows(client, app):
+    """Regression: rendering grouped notifications must not raise.
+
+    Reproduces the original 500 caused by ``{% for row in day_group.items %}``
+    iterating the dict's bound ``items`` method instead of the inner list.
+    """
+
+    with app.app_context():
+        org, user = _seed_org_and_admin(
+            name="Seeded Org", email="seeded-notifs@test.local", password="Pass123!"
+        )
+        row = notification_service.create(
+            organization_id=org.id,
+            type="reservation.created",
+            title="Tervetuloa testivaraus",
+            body="Varauksen runko",
+            severity="info",
+        )
+        db.session.commit()
+        assert row is not None
+        email = user.email
+        password = user.password_plain
+
+    _login(client, email=email, password=password)
+    response = client.get("/admin/notifications")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Tervetuloa testivaraus" in html
+    assert "Varauksen runko" in html
+    assert "Internal Server Error" not in html
+
+
+def test_notifications_index_handles_null_optional_fields(client, app):
+    """Regression: optional ``body`` / ``link`` / ``read_at`` may be NULL."""
+
+    with app.app_context():
+        org, user = _seed_org_and_admin(
+            name="Null Org", email="null-notifs@test.local", password="Pass123!"
+        )
+        # ``body`` and ``link`` are nullable in the model; ``read_at`` defaults to NULL.
+        row = Notification(
+            organization_id=org.id,
+            user_id=None,
+            type="system.legacy",
+            title="Vanha rivi ilman lisätietoja",
+            body=None,
+            link=None,
+            severity="info",
+            is_read=False,
+            read_at=None,
+        )
+        db.session.add(row)
+        db.session.commit()
+        email = user.email
+        password = user.password_plain
+
+    _login(client, email=email, password=password)
+    response = client.get("/admin/notifications")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Vanha rivi ilman lisätietoja" in html
+    assert "None" not in html.split('<body')[1].split('</body>')[0]
+    assert "Internal Server Error" not in html
+

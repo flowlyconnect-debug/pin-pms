@@ -3969,3 +3969,63 @@ def test_calendar_non_reservation_events_respect_tenant_isolation(client, admin_
     assert f"invoice-due-{own_invoice.id}" in ids
     assert "lease-start-" + str(other_lease.id) not in ids
     assert all("BIL-OTHER-CAL" not in str(item.get("title", "")) for item in response.get_json())
+
+
+import pytest  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Smoke tests: admin list pages must never raise 500.
+#
+# Added 2026-05-08 alongside the /admin/notifications 500 fix
+# (BUG_500_NOTIFICATIONS_2026-05-08.md). They guard against the same class
+# of regression for sibling admin list views.
+# ---------------------------------------------------------------------------
+
+
+_ADMIN_LIST_SMOKE_PATHS = [
+    "/admin/audit",
+    "/admin/email-queue",
+    "/admin/webhooks",
+    "/admin/api-keys",
+    "/admin/notifications",
+]
+
+
+def _verify_2fa(client, superadmin):
+    import pyotp
+
+    code = pyotp.TOTP(superadmin.totp_secret).now()
+    client.post("/2fa/verify", data={"code": code}, follow_redirects=True)
+
+
+@pytest.mark.parametrize("path", _ADMIN_LIST_SMOKE_PATHS)
+def test_admin_list_pages_do_not_500_as_superadmin(client, superadmin, path):
+    """Smoke: admin list views must never explode for a verified superadmin."""
+
+    _login(client, email=superadmin.email, password=superadmin.password_plain)
+    _verify_2fa(client, superadmin)
+
+    response = client.get(path, follow_redirects=False)
+
+    assert response.status_code != 500, (
+        f"GET {path} returned 500: {response.get_data(as_text=True)[:500]}"
+    )
+    assert response.status_code in {200, 302, 303, 403, 404}
+
+
+@pytest.mark.parametrize("path", _ADMIN_LIST_SMOKE_PATHS)
+def test_admin_list_pages_do_not_500_as_admin(client, admin_user, path):
+    """Smoke: same routes must never 500 for a plain organisation admin.
+
+    Some routes (audit, api-keys, webhooks) require superadmin and will
+    legitimately return 403 here — that's accepted; only 500 is a fail.
+    """
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+
+    response = client.get(path, follow_redirects=False)
+
+    assert response.status_code != 500, (
+        f"GET {path} returned 500: {response.get_data(as_text=True)[:500]}"
+    )
+    assert response.status_code in {200, 302, 303, 403, 404}

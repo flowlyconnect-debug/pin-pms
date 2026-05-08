@@ -13,7 +13,7 @@
 
   {% if grouped_rows %}
     {% for day_group in grouped_rows %}
-      <h2>{{ day_group.day }}</h2>
+      <h2>{{ day_group["day"] or "-" }}</h2>
       <div class="admin-table-panel">
         <table>
           <thead>
@@ -25,7 +25,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for row in day_group.items %}
+            {% for row in day_group["items"] %}
               <tr class="table-row-link" data-href="{{ row.link or '#' }}">
                 <td>
                   <span class="badge badge-{{ row.severity if row.severity in ['info', 'warning', 'danger', 'success'] else 'info' }}">
@@ -35,7 +35,7 @@
                 <td>
                   <form method="post" action="{{ url_for('admin.notifications_mark_read', notification_id=row.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="admin-notification-row-btn">{{ row.title }}</button>
+                    <button type="submit" class="admin-notification-row-btn">{{ row.title or "-" }}</button>
                   </form>
                 </td>
                 <td>{{ row.body or "-" }}</td>
