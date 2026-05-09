@@ -3186,6 +3186,13 @@ a.admin-kpi-card:hover,
   background: #fff;
 }
 
+/* Kohde- ja huonenimet näkyvät selvästi punaisella saatavuusnäkymässä. */
+html body .availability-table .availability-property-row th,
+html body .availability-table tbody tr > th.availability-sticky-col {
+  color: #B91C1C !important;
+  font-weight: 700 !important;
+}
+
 .availability-status-free {
   background: #ecfdf5;
   color: #047857;
