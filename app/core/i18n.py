@@ -49,6 +49,14 @@ PRIORITY_LABELS_FI = {
     "urgent": "Kiireellinen",
 }
 
+UNIT_AVAILABILITY_LABELS_FI = {
+    "free": "Vapaa",
+    "reserved": "Varattu",
+    "transition": "Vaihtopäivä",
+    "maintenance": "Huolto",
+    "blocked": "Estetty",
+}
+
 
 def status_label(value: str | None) -> str:
     normalized = (value or "").strip().lower()
@@ -58,6 +66,11 @@ def status_label(value: str | None) -> str:
 def priority_label(value: str | None) -> str:
     normalized = (value or "").strip().lower()
     return PRIORITY_LABELS_FI.get(normalized, "-")
+
+
+def availability_label(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    return UNIT_AVAILABILITY_LABELS_FI.get(normalized, value or "-")
 
 
 def bool_label(value: bool) -> str:

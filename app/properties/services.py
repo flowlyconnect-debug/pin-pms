@@ -1,12 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
+
+from sqlalchemy import func
 
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
 from app.extensions import db
 from app.properties.models import Property, Unit
+from app.reservations.models import Reservation
+
+ACTIVE_RESERVATION_STATUSES: tuple[str, ...] = ("confirmed", "active")
+OPEN_MAINTENANCE_STATUSES: tuple[str, ...] = ("new", "in_progress", "waiting")
+UNIT_AVAILABILITY_STATES: tuple[str, ...] = (
+    "free",
+    "reserved",
+    "transition",
+    "maintenance",
+    "blocked",
+)
 
 
 @dataclass
@@ -415,3 +429,213 @@ def update_unit(
         commit=True,
     )
     return _serialize_unit(row)
+
+
+def _is_unit_blocked_expr():
+    """Boolean SQL expression that flags units treated as blocked/inactive."""
+
+    has_unit_active = hasattr(Unit, "is_active")
+    if has_unit_active:
+        return Unit.is_active.is_(False)
+    return func.lower(func.coalesce(Unit.unit_type, "")).in_(
+        ("blocked", "out_of_service", "inactive")
+    )
+
+
+def list_units_with_availability_status(
+    *,
+    organization_id: int,
+    property_id: int | None = None,
+    as_of: date | None = None,
+) -> list[dict]:
+    """Return units with their current real-time availability state.
+
+    Tenant rajaus: ``organization_id`` on pakollinen — ilman sitä funktio ei
+    palauta yhtään riviä. Funktio tekee korkeintaan kolme kyselyä riippumatta
+    siitä, montako huonetta organisaatiossa on (units + property, varaukset,
+    huoltopyynnöt), eli N+1-iterointia ei synny.
+    """
+
+    if organization_id is None:
+        return []
+
+    today = as_of if as_of is not None else date.today()
+
+    blocked_expr = _is_unit_blocked_expr()
+
+    units_rows = (
+        db.session.query(
+            Unit.id.label("unit_id"),
+            Unit.name.label("unit_name"),
+            Unit.unit_type.label("unit_type"),
+            Property.id.label("property_id"),
+            Property.name.label("property_name"),
+            blocked_expr.label("unit_blocked"),
+        )
+        .select_from(Unit)
+        .join(Property, Unit.property_id == Property.id)
+        .filter(Property.organization_id == organization_id)
+    )
+    if property_id is not None:
+        units_rows = units_rows.filter(Property.id == property_id)
+    units_rows = units_rows.order_by(
+        Property.name.asc(), Unit.name.asc(), Unit.id.asc()
+    ).all()
+
+    if not units_rows:
+        return []
+
+    unit_ids = [row.unit_id for row in units_rows]
+
+    current_reservations: dict[int, list[dict]] = {}
+    next_reservations: dict[int, dict] = {}
+    if unit_ids:
+        reservation_rows = (
+            db.session.query(
+                Reservation.id.label("reservation_id"),
+                Reservation.unit_id.label("unit_id"),
+                Reservation.start_date.label("start_date"),
+                Reservation.end_date.label("end_date"),
+                Reservation.guest_name.label("guest_name"),
+                Reservation.status.label("status"),
+            )
+            .filter(
+                Reservation.unit_id.in_(unit_ids),
+                func.lower(func.coalesce(Reservation.status, "")).in_(
+                    ACTIVE_RESERVATION_STATUSES
+                ),
+                Reservation.end_date >= today,
+            )
+            .order_by(
+                Reservation.unit_id.asc(),
+                Reservation.start_date.asc(),
+                Reservation.id.asc(),
+            )
+            .all()
+        )
+        for row in reservation_rows:
+            payload = {
+                "reservation_id": row.reservation_id,
+                "start_date": row.start_date,
+                "end_date": row.end_date,
+                "guest_name": (row.guest_name or "").strip() or None,
+            }
+            if row.start_date <= today < row.end_date or row.end_date == today:
+                current_reservations.setdefault(row.unit_id, []).append(payload)
+            elif row.start_date > today:
+                if row.unit_id not in next_reservations:
+                    next_reservations[row.unit_id] = payload
+
+    maintenance_rows: dict[int, dict] = {}
+    if unit_ids:
+        from app.maintenance.models import MaintenanceRequest  # local import: optional model
+
+        rows = (
+            db.session.query(
+                MaintenanceRequest.id.label("request_id"),
+                MaintenanceRequest.unit_id.label("unit_id"),
+                MaintenanceRequest.title.label("title"),
+                MaintenanceRequest.status.label("status"),
+                MaintenanceRequest.due_date.label("due_date"),
+            )
+            .filter(
+                MaintenanceRequest.organization_id == organization_id,
+                MaintenanceRequest.unit_id.in_(unit_ids),
+                MaintenanceRequest.status.in_(OPEN_MAINTENANCE_STATUSES),
+            )
+            .order_by(
+                MaintenanceRequest.due_date.asc().nullslast(),
+                MaintenanceRequest.id.asc(),
+            )
+            .all()
+        )
+        for row in rows:
+            existing = maintenance_rows.get(row.unit_id)
+            row_due_active = row.due_date is None or row.due_date <= today
+            if not row_due_active:
+                continue
+            if existing is None:
+                maintenance_rows[row.unit_id] = {
+                    "request_id": row.request_id,
+                    "title": row.title,
+                    "status": row.status,
+                    "due_date": row.due_date,
+                }
+
+    result: list[dict] = []
+    for row in units_rows:
+        current_list = current_reservations.get(row.unit_id, [])
+        ongoing = next(
+            (
+                r
+                for r in current_list
+                if r["start_date"] < today < r["end_date"]
+            ),
+            None,
+        )
+        ending_today = next(
+            (r for r in current_list if r["end_date"] == today), None
+        )
+        starting_today = next(
+            (
+                r
+                for r in current_list
+                if r["start_date"] == today and r["end_date"] > today
+            ),
+            None,
+        )
+        next_res = next_reservations.get(row.unit_id)
+        maintenance = maintenance_rows.get(row.unit_id)
+
+        current_state = "free"
+        current_guest_name: str | None = None
+        current_reservation_id: int | None = None
+        occupied_until: date | None = None
+        next_reservation_at: date | None = None
+        next_guest_name: str | None = None
+        days_until_next: int | None = None
+
+        if row.unit_blocked:
+            current_state = "blocked"
+        elif ending_today is not None and starting_today is not None:
+            current_state = "transition"
+            current_guest_name = starting_today["guest_name"]
+            current_reservation_id = starting_today["reservation_id"]
+            occupied_until = starting_today["end_date"]
+        elif ongoing is not None:
+            current_state = "reserved"
+            current_guest_name = ongoing["guest_name"]
+            current_reservation_id = ongoing["reservation_id"]
+            occupied_until = ongoing["end_date"]
+        elif starting_today is not None:
+            current_state = "reserved"
+            current_guest_name = starting_today["guest_name"]
+            current_reservation_id = starting_today["reservation_id"]
+            occupied_until = starting_today["end_date"]
+        elif maintenance is not None:
+            current_state = "maintenance"
+        else:
+            current_state = "free"
+            if next_res is not None:
+                next_reservation_at = next_res["start_date"]
+                next_guest_name = next_res["guest_name"]
+                days_until_next = (next_res["start_date"] - today).days
+
+        result.append(
+            {
+                "id": row.unit_id,
+                "name": row.unit_name,
+                "unit_type": row.unit_type,
+                "property_id": row.property_id,
+                "property_name": row.property_name,
+                "current_state": current_state,
+                "current_guest_name": current_guest_name,
+                "current_reservation_id": current_reservation_id,
+                "occupied_until": occupied_until,
+                "next_reservation_at": next_reservation_at,
+                "next_guest_name": next_guest_name,
+                "days_until_next": days_until_next,
+            }
+        )
+
+    return result

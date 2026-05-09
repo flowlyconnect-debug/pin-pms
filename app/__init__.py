@@ -18,7 +18,7 @@ from sqlalchemy.orm.exc import DetachedInstanceError, ObjectDeletedError
 from app.cli import register_cli_commands
 from app.config import config_by_name
 from app.core.errors import copy_for as error_copy_for
-from app.core.i18n import bool_label, priority_label, status_label
+from app.core.i18n import availability_label, bool_label, priority_label, status_label
 from app.core.logging import _SECRET_KEYS, configure_logging, record_slow_query_observation
 from app.core.security_headers import register_security_headers
 from app.core.telemetry import init_tracing
@@ -323,6 +323,7 @@ def register_template_filters(app: Flask) -> None:
     app.jinja_env.filters["status_label"] = status_label
     app.jinja_env.filters["priority_label"] = priority_label
     app.jinja_env.filters["bool_label"] = bool_label
+    app.jinja_env.filters["availability_label"] = availability_label
 
 
 def register_slow_query_logging(app):

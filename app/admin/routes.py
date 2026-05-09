@@ -1133,6 +1133,10 @@ def properties_detail(property_id: int):
     comments = CommentService.list_for_target(
         _pms_org_id(), "property", property_id, include_internal=True
     )
+    units_with_status = property_service.list_units_with_availability_status(
+        organization_id=_pms_org_id(),
+        property_id=property_id,
+    )
     return render_template(
         "admin/properties/detail.html",
         row=row,
@@ -1140,6 +1144,7 @@ def properties_detail(property_id: int):
         all_tags=all_tags,
         comments=comments,
         target_type="property",
+        units_with_status=units_with_status,
     )
 
 
@@ -1280,7 +1285,17 @@ def units_list(property_id: int):
         )
     except property_service.PropertyServiceError:
         abort(404)
-    return render_template("admin/units/list.html", property_row=property_row, rows=rows)
+    units_with_status = property_service.list_units_with_availability_status(
+        organization_id=_pms_org_id(),
+        property_id=property_id,
+    )
+    status_by_unit = {item["id"]: item for item in units_with_status}
+    return render_template(
+        "admin/units/list.html",
+        property_row=property_row,
+        rows=rows,
+        status_by_unit=status_by_unit,
+    )
 
 
 @admin_bp.route("/properties/<int:property_id>/units/new", methods=["GET", "POST"])
@@ -1777,40 +1792,74 @@ def reservations_edit(reservation_id: int):
 @admin_bp.post("/reservations/<int:reservation_id>/cancel")
 @require_admin_pms_access
 def reservations_cancel(reservation_id: int):
+    wants_json = _wants_json()
     if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
-        flash("Vahvista peruutus.")
+        if wants_json:
+            return json_error(
+                "validation_error",
+                "Vahvista peruutus (confirm_cancel=yes).",
+                status=400,
+            )
+        flash("Vahvista peruutus.", "error")
         return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
 
     try:
-        _ = reservation_service.cancel_reservation(
+        data = reservation_service.cancel_reservation(
             organization_id=_pms_org_id(),
             reservation_id=reservation_id,
             actor_user_id=current_user.id,
         )
-    except reservation_service.ReservationServiceError:
+    except reservation_service.ReservationServiceError as err:
+        if wants_json:
+            return json_error(
+                getattr(err, "code", "reservation_error"),
+                getattr(err, "message", "Reservation could not be cancelled."),
+                status=getattr(err, "status", 404) or 404,
+            )
         abort(404)
 
-    flash("Varaus peruttu.")
+    if wants_json:
+        return json_ok(
+            {
+                "reservation_id": (data or {}).get("id", reservation_id),
+                "status": (data or {}).get("status"),
+            }
+        )
+    flash("Varaus peruttu.", "success")
     return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
 
 
 @admin_bp.post("/reservations/<int:reservation_id>/mark-paid")
 @require_admin_pms_access
 def reservations_mark_paid(reservation_id: int):
+    wants_json = _wants_json()
     try:
-        _ = reservation_service.mark_reservation_paid(
+        data = reservation_service.mark_reservation_paid(
             reservation_id=reservation_id,
             organization_id=_pms_org_id(),
             actor_user=current_user,
         )
     except reservation_service.ReservationServiceError as err:
         if err.status == 404:
+            if wants_json:
+                return json_error("reservation_not_found", err.message, status=404)
             abort(404)
         if err.status == 403:
+            if wants_json:
+                return json_error("forbidden", err.message, status=403)
             abort(403)
-        flash(err.message)
+        if wants_json:
+            return json_error(err.code, err.message, status=err.status or 400)
+        flash(err.message, "error")
         return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
-    flash("Varaus merkitty maksetuksi.")
+    if wants_json:
+        return json_ok(
+            {
+                "reservation_id": (data or {}).get("id", reservation_id),
+                "payment_status": (data or {}).get("payment_status"),
+            }
+        )
+    flash("Varaus merkitty maksetuksi.", "success")
     return redirect(url_for("admin.reservations_detail", reservation_id=reservation_id))
 
 
@@ -2820,6 +2869,7 @@ def invoices_detail(invoice_id: int):
 @admin_bp.post("/invoices/<int:invoice_id>/send-payment-link")
 @require_admin_pms_access
 def invoices_send_payment_link(invoice_id: int):
+    wants_json = _wants_json()
     provider = (request.form.get("provider") or "stripe").strip().lower()
     configured_return = (current_app.config.get("PAYMENT_RETURN_URL") or "").strip()
     if configured_return:
@@ -2844,9 +2894,19 @@ def invoices_send_payment_link(invoice_id: int):
             idempotency_key=(request.headers.get("Idempotency-Key") or "").strip() or None,
         )
     except payment_service.PaymentServiceError as err:
-        flash(err.message)
+        if wants_json:
+            return json_error(err.code, err.message, status=err.status or 400)
+        flash(err.message, "error")
         return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
-    flash(f"Maksulinkki luotu: {checkout['redirect_url']}")
+    if wants_json:
+        return json_ok(
+            {
+                "payment_id": checkout.get("payment_id"),
+                "redirect_url": checkout.get("redirect_url"),
+                "provider": provider,
+            }
+        )
+    flash(f"Maksulinkki luotu: {checkout['redirect_url']}", "success")
     return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
 
 
@@ -2876,8 +2936,9 @@ def invoices_refund_retry(invoice_id: int, refund_id: int):
 @require_admin_pms_access
 @require_tenant_access("payment", id_arg="payment_id")
 def payments_refund(payment_id: int):
+    wants_json = _wants_json()
     try:
-        _ = payment_service.refund(
+        data = payment_service.refund(
             payment_id=payment_id,
             amount=request.form.get("amount"),
             reason=request.form.get("reason"),
@@ -2885,9 +2946,19 @@ def payments_refund(payment_id: int):
             idempotency_key=(request.headers.get("Idempotency-Key") or "").strip() or None,
         )
     except payment_service.PaymentServiceError as err:
-        flash(err.message)
+        if wants_json:
+            return json_error(err.code, err.message, status=err.status or 400)
+        flash(err.message, "error")
         return redirect(request.referrer or url_for("admin.payments_list"))
-    flash("Hyvitys käynnistetty.")
+    if wants_json:
+        return json_ok(
+            {
+                "refund_id": (data or {}).get("id"),
+                "payment_id": payment_id,
+                "status": (data or {}).get("status"),
+            }
+        )
+    flash("Hyvitys käynnistetty.", "success")
     return redirect(request.referrer or url_for("admin.payments_list"))
 
 
@@ -3038,21 +3109,34 @@ def invoices_mark_paid(invoice_id: int):
 @admin_bp.post("/invoices/<int:invoice_id>/cancel")
 @require_admin_pms_access
 def invoices_cancel(invoice_id: int):
+    wants_json = _wants_json()
     if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
-        flash("Vahvista peruutus.")
+        if wants_json:
+            return json_error(
+                "validation_error",
+                "Vahvista peruutus (confirm_cancel=yes).",
+                status=400,
+            )
+        flash("Vahvista peruutus.", "error")
         return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
     try:
-        _ = billing_service.cancel_invoice(
+        data = billing_service.cancel_invoice(
             organization_id=_pms_org_id(),
             invoice_id=invoice_id,
             actor_user_id=current_user.id,
         )
     except billing_service.InvoiceServiceError as err:
         if err.status == 404:
+            if wants_json:
+                return json_error("invoice_not_found", err.message, status=404)
             abort(404)
-        flash(err.message)
+        if wants_json:
+            return json_error(err.code, err.message, status=err.status)
+        flash(err.message, "error")
         return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
-    flash("Lasku peruttu.")
+    if wants_json:
+        return json_ok({"invoice_id": data["id"], "status": data["status"]})
+    flash("Lasku peruttu.", "success")
     return redirect(url_for("admin.invoices_detail", invoice_id=invoice_id))
 
 
@@ -3087,9 +3171,20 @@ def reservations_bulk():
         request.headers.get("Idempotency-Key") or request.form.get("idempotency_key") or ""
     ).strip()
     if not idem_key:
-        return json_error("idempotency_key_required", "Idempotency key required.", status=400)
+        # HTML-form POST — generoi avain automaattisesti, jotta käyttäjä
+        # ei näe raakaa JSON-virhettä. JSON-pyynnöiltä avain vaaditaan.
+        if _wants_json():
+            return json_error(
+                "idempotency_key_required", "Idempotency key required.", status=400
+            )
+        idem_key = uuid.uuid4().hex
     if len(ids) > 1000:
-        return json_error("too_many_ids", "Too many ids for synchronous processing.", status=422)
+        if _wants_json():
+            return json_error(
+                "too_many_ids", "Too many ids for synchronous processing.", status=422
+            )
+        flash("Liian monta varausta valittu (max 1000).", "error")
+        return redirect(url_for("admin.reservations_list"))
     req_hash = hashlib.sha256(
         json.dumps({"action": action, "ids": ids}, sort_keys=True).encode("utf-8")
     ).hexdigest()
@@ -3101,7 +3196,12 @@ def reservations_bulk():
             request_hash=req_hash,
         )
     except Exception:
-        return json_error("idempotency_key_conflict", "Conflicting idempotency key.", status=409)
+        if _wants_json():
+            return json_error(
+                "idempotency_key_conflict", "Conflicting idempotency key.", status=409
+            )
+        flash("Konflikti — yritä uudelleen.", "error")
+        return redirect(url_for("admin.reservations_list"))
     if not created and idem_row.response_body:
         return Response(
             idem_row.response_body, status=idem_row.response_status, mimetype="application/json"
@@ -3128,7 +3228,15 @@ def reservations_bulk():
             )
     body = {"success": True, "data": {"count": len(ids)}, "error": None}
     admin_service.record_response(idem_row, 200, body)
-    return json_ok({"count": len(ids)})
+    if _wants_json():
+        return json_ok({"count": len(ids)})
+    if action == "cancel":
+        flash(f"{len(ids)} varaus(ta) peruttu.", "success")
+    elif action:
+        flash(f"Bulk-toiminto '{action}' suoritettu ({len(ids)} riviä).", "success")
+    else:
+        flash("Bulk-toimintoa ei valittu.", "error")
+    return redirect(url_for("admin.reservations_list"))
 
 
 @admin_bp.post("/invoices/bulk")
@@ -3136,7 +3244,12 @@ def reservations_bulk():
 def invoices_bulk():
     ids = _parse_bulk_ids()
     if len(ids) > 1000:
-        return json_error("too_many_ids", "Too many ids for synchronous processing.", status=422)
+        if _wants_json():
+            return json_error(
+                "too_many_ids", "Too many ids for synchronous processing.", status=422
+            )
+        flash("Liian monta laskua valittu (max 1000).", "error")
+        return redirect(url_for("admin.invoices_list"))
     action = (request.form.get("action") or "").strip()
     if action == "mark_paid":
         for iid in ids:
@@ -3151,7 +3264,15 @@ def invoices_bulk():
                 target_id=iid,
                 commit=True,
             )
-    return json_ok({"count": len(ids)})
+    if _wants_json():
+        return json_ok({"count": len(ids)})
+    if action == "mark_paid":
+        flash(f"{len(ids)} lasku(a) merkitty maksetuksi.", "success")
+    elif action:
+        flash(f"Bulk-toiminto '{action}' suoritettu ({len(ids)} riviä).", "success")
+    else:
+        flash("Bulk-toimintoa ei valittu.", "error")
+    return redirect(url_for("admin.invoices_list"))
 
 
 @admin_bp.post("/guests/bulk")
@@ -3159,7 +3280,12 @@ def invoices_bulk():
 def guests_bulk():
     ids = _parse_bulk_ids()
     if len(ids) > 1000:
-        return json_error("too_many_ids", "Too many ids for synchronous processing.", status=422)
+        if _wants_json():
+            return json_error(
+                "too_many_ids", "Too many ids for synchronous processing.", status=422
+            )
+        flash("Liian monta asiakasta valittu (max 1000).", "error")
+        return redirect(url_for("admin.guests_list"))
     action = (request.form.get("action") or "").strip()
     if action == "delete" and not current_user.is_superadmin:
         abort(403)
@@ -3172,7 +3298,13 @@ def guests_bulk():
             target_id=gid,
             commit=True,
         )
-    return json_ok({"count": len(ids)})
+    if _wants_json():
+        return json_ok({"count": len(ids)})
+    if action:
+        flash(f"Bulk-toiminto '{action}' suoritettu ({len(ids)} riviä).", "success")
+    else:
+        flash("Bulk-toimintoa ei valittu.", "error")
+    return redirect(url_for("admin.guests_list"))
 
 
 @admin_bp.get("/<string:resource>/export")
@@ -3510,39 +3642,69 @@ def maintenance_requests_assign(request_id: int):
 @admin_bp.post("/maintenance-requests/<int:request_id>/resolve")
 @require_admin_pms_access
 def maintenance_requests_resolve(request_id: int):
+    wants_json = _wants_json()
     try:
-        _ = maintenance_service.resolve_maintenance_request(
+        data = maintenance_service.resolve_maintenance_request(
             organization_id=_pms_org_id(),
             request_id=request_id,
             actor_user_id=current_user.id,
         )
     except maintenance_service.MaintenanceServiceError as err:
         if err.status == 404:
+            if wants_json:
+                return json_error("maintenance_not_found", err.message, status=404)
             abort(404)
-        flash(err.message)
-    else:
-        flash("Pyyntö merkitty ratkaistuksi.")
+        if wants_json:
+            return json_error(err.code, err.message, status=err.status or 400)
+        flash(err.message, "error")
+        return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
+    if wants_json:
+        return json_ok(
+            {
+                "request_id": (data or {}).get("id", request_id),
+                "status": (data or {}).get("status"),
+            }
+        )
+    flash("Pyyntö merkitty ratkaistuksi.", "success")
     return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
 
 @admin_bp.post("/maintenance-requests/<int:request_id>/cancel")
 @require_admin_pms_access
 def maintenance_requests_cancel(request_id: int):
+    wants_json = _wants_json()
     if (request.form.get("confirm_cancel") or "").strip().lower() != "yes":
-        flash("Vahvista peruutus.")
+        if wants_json:
+            return json_error(
+                "validation_error",
+                "Vahvista peruutus (confirm_cancel=yes).",
+                status=400,
+            )
+        flash("Vahvista peruutus.", "error")
         return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
     try:
-        _ = maintenance_service.cancel_maintenance_request(
+        data = maintenance_service.cancel_maintenance_request(
             organization_id=_pms_org_id(),
             request_id=request_id,
             actor_user_id=current_user.id,
         )
     except maintenance_service.MaintenanceServiceError as err:
         if err.status == 404:
+            if wants_json:
+                return json_error("maintenance_not_found", err.message, status=404)
             abort(404)
-        flash(err.message)
-    else:
-        flash("Pyyntö peruttu.")
+        if wants_json:
+            return json_error(err.code, err.message, status=err.status or 400)
+        flash(err.message, "error")
+        return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
+    if wants_json:
+        return json_ok(
+            {
+                "request_id": (data or {}).get("id", request_id),
+                "status": (data or {}).get("status"),
+            }
+        )
+    flash("Pyyntö peruttu.", "success")
     return redirect(url_for("admin.maintenance_requests_detail", request_id=request_id))
 
 

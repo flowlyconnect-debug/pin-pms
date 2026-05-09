@@ -319,75 +319,39 @@ def get_dashboard_stats(
         .count()
     )
     today = date.today()
-    active_units_subq = (
-        db.session.query(Reservation.unit_id.label("unit_id"))
-        .select_from(Reservation)
-        .join(Unit, Reservation.unit_id == Unit.id)
-        .join(Property, Unit.property_id == Property.id)
-        .filter(
-            Property.organization_id == organization_id,
-            Reservation.status == "confirmed",
-            Reservation.start_date <= today,
-            Reservation.end_date > today,
-        )
-        .distinct()
-        .subquery()
-    )
-    next_reservations_subq = (
-        db.session.query(
-            Reservation.unit_id.label("unit_id"),
-            func.min(Reservation.start_date).label("next_start_date"),
-        )
-        .select_from(Reservation)
-        .join(Unit, Reservation.unit_id == Unit.id)
-        .join(Property, Unit.property_id == Property.id)
-        .filter(
-            Property.organization_id == organization_id,
-            Reservation.status == "confirmed",
-            Reservation.start_date > today,
-        )
-        .group_by(Reservation.unit_id)
-        .subquery()
-    )
-    free_units_rows = (
-        db.session.query(
-            Unit.id.label("unit_id"),
-            Unit.name.label("unit_name"),
-            Property.name.label("property_name"),
-            next_reservations_subq.c.next_start_date.label("next_start_date"),
-        )
-        .select_from(Unit)
-        .join(Property, Unit.property_id == Property.id)
-        .outerjoin(active_units_subq, active_units_subq.c.unit_id == Unit.id)
-        .outerjoin(next_reservations_subq, next_reservations_subq.c.unit_id == Unit.id)
-        .filter(
-            Property.organization_id == organization_id,
-            active_units_subq.c.unit_id.is_(None),
-        )
-        .order_by(Property.name.asc(), Unit.name.asc(), Unit.id.asc())
-        .limit(10)
-        .all()
+    # Käytetään yhtenäistä availability-palvelua, jotta dashboardilla ei ole
+    # erillistä duplikoitua logiikkaa /admin/properties/<id>-näkymän kanssa.
+    from app.properties import services as _property_service
+
+    units_status = _property_service.list_units_with_availability_status(
+        organization_id=organization_id,
+        as_of=today,
     )
     free_units_now = []
-    for row in free_units_rows:
-        property_name = (row.property_name or "").strip()
-        unit_name = (row.unit_name or "").strip()
+    for entry in units_status:
+        if entry["current_state"] != "free":
+            continue
+        property_name = (entry.get("property_name") or "").strip()
+        unit_name = (entry.get("name") or "").strip()
         if property_name and unit_name:
             unit_label = f"{property_name} / {unit_name}"
         else:
-            unit_label = property_name or unit_name or f"Yksikkö #{row.unit_id}"
+            unit_label = property_name or unit_name or f"Yksikkö #{entry['id']}"
+        next_start = entry.get("next_reservation_at")
         next_reservation_label = (
-            f"Vapaa kunnes {_day_month_label_fi(row.next_start_date)}"
-            if row.next_start_date is not None
+            f"Vapaa kunnes {_day_month_label_fi(next_start)}"
+            if next_start is not None
             else "Ei tulevia varauksia"
         )
         free_units_now.append(
             {
                 "unit_label": unit_label,
-                "link": _safe_url_for("admin.units_detail", unit_id=row.unit_id),
+                "link": _safe_url_for("admin.units_detail", unit_id=entry["id"]),
                 "next_reservation_label": next_reservation_label,
             }
         )
+        if len(free_units_now) >= 10:
+            break
 
     range_start, range_end, range_days = _resolve_range_window(
         range_key=normalized_range, today=today

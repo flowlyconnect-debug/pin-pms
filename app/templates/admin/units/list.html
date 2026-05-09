@@ -15,15 +15,39 @@
         <th>ID</th>
         <th>Nimi</th>
         <th>Tyyppi</th>
+        <th>Tila</th>
         <th>Toiminnot</th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
+        {% set unit_status = (status_by_unit or {}).get(row.id) %}
         <tr>
           <td>{{ row.id }}</td>
           <td>{{ row.name }}</td>
           <td>{{ row.unit_type or "" }}</td>
+          <td>
+            {% if unit_status %}
+              <span class="status-badge status-badge--{{ unit_status.current_state }}">
+                {{ unit_status.current_state|availability_label }}
+              </span>
+              {% if unit_status.current_state == "reserved" and unit_status.current_guest_name %}
+                <span class="meta">
+                  {{ unit_status.current_guest_name }}{% if unit_status.occupied_until %} · vapautuu {{ unit_status.occupied_until.day }}.{{ unit_status.occupied_until.month }}.{% endif %}
+                </span>
+              {% elif unit_status.current_state == "transition" %}
+                <span class="meta">vaihtopäivä{% if unit_status.current_guest_name %} · {{ unit_status.current_guest_name }}{% endif %}</span>
+              {% elif unit_status.current_state == "maintenance" %}
+                <span class="meta">huolto</span>
+              {% elif unit_status.current_state == "free" and unit_status.next_reservation_at %}
+                <span class="meta">seur. varaus {{ unit_status.next_reservation_at.day }}.{{ unit_status.next_reservation_at.month }}.</span>
+              {% elif unit_status.current_state == "blocked" %}
+                <span class="meta">estetty</span>
+              {% endif %}
+            {% else %}
+              <span class="status-badge status-badge--free">{{ "free"|availability_label }}</span>
+            {% endif %}
+          </td>
           <td>
             <a href="{{ url_for('admin.units_detail', unit_id=row.id) }}">Näytä</a>
             ·
@@ -33,7 +57,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="4"><em>Ei huoneita vielä.</em></td></tr>
+        <tr><td colspan="5"><em>Ei huoneita vielä.</em></td></tr>
       {% endfor %}
     </tbody>
   </table>

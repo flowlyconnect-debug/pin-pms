@@ -47,6 +47,61 @@
       {% endif %}
     </p>
   </div>
+
+  <section class="card content-card" aria-labelledby="property-units-status-h">
+    <div class="card-header">
+      <h2 id="property-units-status-h">Huoneet</h2>
+      <a class="btn btn-secondary btn-sm" href="{{ url_for('admin.units_list', property_id=row.id) }}">Avaa huonelista</a>
+    </div>
+    <div class="data-table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Huone</th>
+            <th>Tyyppi</th>
+            <th>Tila</th>
+            <th>Toiminnot</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for unit in units_with_status %}
+            <tr>
+              <td>{{ unit.name }}</td>
+              <td>{{ unit.unit_type or "" }}</td>
+              <td>
+                <span class="status-badge status-badge--{{ unit.current_state }}">
+                  {{ unit.current_state|availability_label }}
+                </span>
+                {% if unit.current_state == "reserved" and unit.current_guest_name %}
+                  <span class="meta">
+                    {{ unit.current_guest_name }}{% if unit.occupied_until %} · vapautuu {{ unit.occupied_until.day }}.{{ unit.occupied_until.month }}.{% endif %}
+                  </span>
+                {% elif unit.current_state == "transition" %}
+                  <span class="meta">vaihtopäivä{% if unit.current_guest_name %} · {{ unit.current_guest_name }}{% endif %}</span>
+                {% elif unit.current_state == "maintenance" %}
+                  <span class="meta">huolto</span>
+                {% elif unit.current_state == "free" and unit.next_reservation_at %}
+                  <span class="meta">seur. varaus {{ unit.next_reservation_at.day }}.{{ unit.next_reservation_at.month }}.</span>
+                {% elif unit.current_state == "blocked" %}
+                  <span class="meta">estetty</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('admin.units_detail', unit_id=unit.id) }}">Näytä</a>
+                ·
+                <a href="{{ url_for('admin.units_edit', unit_id=unit.id) }}">Muokkaa</a>
+                ·
+                <a href="{{ url_for('admin.units_calendar_sync', unit_id=unit.id) }}">Kalenterisynk</a>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4"><em>Ei huoneita vielä.</em></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   {% set resource = "properties" %}
   {% set resource_id = row.id %}
   {% include "admin/_tag_input.html" %}

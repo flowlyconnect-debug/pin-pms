@@ -6,6 +6,8 @@ class Reservation(TimestampMixin, db.Model):
     __tablename__ = "reservations"
     __table_args__ = (
         db.Index("ix_reservations_unit_start_end", "unit_id", "start_date", "end_date"),
+        db.Index("ix_reservations_status_end_date", "status", "end_date"),
+        db.Index("ix_reservations_status_start_date", "status", "start_date"),
     )
 
     id = db.Column(db.Integer, primary_key=True)

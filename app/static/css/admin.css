@@ -2259,6 +2259,45 @@ body.admin-mobile-sheet-open {
   border-color: #bfdbfe;
 }
 
+/* —— Unit availability badges —— */
+/* Värit vastaavat saatavuusmatriisin värejä (polish.css) */
+.status-badge--free {
+  background: #DCFCE7;
+  color: #166534;
+  border-color: #86EFAC;
+}
+
+.status-badge--reserved {
+  background: #DBEAFE;
+  color: #1E40AF;
+  border-color: #93C5FD;
+}
+
+.status-badge--transition {
+  background: #FED7AA;
+  color: #9A3412;
+  border-color: #FDBA74;
+}
+
+.status-badge--maintenance {
+  background: #FEF3C7;
+  color: #92400E;
+  border-color: #FDE68A;
+}
+
+.status-badge--blocked {
+  background: #F5F5F4;
+  color: #57534E;
+  border-color: #D6D3D1;
+}
+
+/* Tila-sarakkeen meta-rivi badgejen alapuolella */
+td .status-badge + .meta {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+}
+
 /* —— Empty state —— */
 .empty-state {
   text-align: center;
