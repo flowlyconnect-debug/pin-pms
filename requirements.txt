@@ -27,6 +27,6 @@ opentelemetry-distro==0.62b1
 opentelemetry-instrumentation-flask==0.62b1
 opentelemetry-instrumentation-sqlalchemy==0.62b1
 opentelemetry-exporter-otlp==1.41.1
-sentry-sdk[flask]==2.59.0
+sentry-sdk[flask]==2.60.0
 stripe==9.12.0
 openpyxl==3.1.5
