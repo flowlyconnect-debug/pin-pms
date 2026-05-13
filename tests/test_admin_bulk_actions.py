@@ -45,6 +45,7 @@ def test_bulk_cancel_reservations_audits_each(app, client, organization, admin_u
     rv = client.post(
         "/admin/reservations/bulk",
         data={"action": "cancel", "ids": [r.id for r in rows], "idempotency_key": "bulk-1"},
+        headers={"Accept": "application/json"},
     )
     assert rv.status_code == 200
     for row in rows:
@@ -80,8 +81,9 @@ def test_bulk_action_idempotent_with_key(app, client, organization, admin_user):
     rows = _seed_reservations(app, organization, 1)
     _login_admin(client, admin_user)
     payload = {"action": "cancel", "ids": [rows[0].id], "idempotency_key": "bulk-3"}
-    assert client.post("/admin/reservations/bulk", data=payload).status_code == 200
-    assert client.post("/admin/reservations/bulk", data=payload).status_code == 200
+    headers = {"Accept": "application/json"}
+    assert client.post("/admin/reservations/bulk", data=payload, headers=headers).status_code == 200
+    assert client.post("/admin/reservations/bulk", data=payload, headers=headers).status_code == 200
     count = AuditLog.query.filter_by(
         action="reservation.bulk_cancelled", target_id=rows[0].id
     ).count()
@@ -102,5 +104,6 @@ def test_bulk_action_rejects_more_than_1000_sync(app, client, organization, admi
     rv = client.post(
         "/admin/reservations/bulk",
         data={"action": "cancel", "ids": list(range(1, 1002)), "idempotency_key": "bulk-4"},
+        headers={"Accept": "application/json"},
     )
     assert rv.status_code == 422
