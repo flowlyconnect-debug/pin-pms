@@ -20,7 +20,7 @@ reportlab==4.5.0
 icalendar==7.1.0
 boto3==1.43.5
 Pillow==12.2.0
-moto[s3]==5.2.0
+moto[s3]==5.2.1
 apispec==6.10.0
 structlog==25.5.0
 opentelemetry-distro==0.62b1
