@@ -2817,6 +2817,14 @@ td .status-badge + .meta {
   max-width: 72ch;
 }
 
+.page-header .page-subtitle:first-child {
+  margin-top: 0;
+}
+
+.page-header > .page-header-actions:only-child {
+  margin-inline-start: auto;
+}
+
 .page-header-actions {
   display: inline-flex;
   align-items: center;

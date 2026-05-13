@@ -4,7 +4,6 @@
 {% block page_title %}Varmuuskopiot{% endblock %}
 
 {% block content %}
-  <h1>Varmuuskopiot</h1>
   <p class="meta">Scheduled by <code>BACKUP_SCHEDULE_CRON</code>; files stored in <code>BACKUP_DIR</code>.</p>
   <form method="post" action="{{ url_for('backups_admin.backups_create') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
