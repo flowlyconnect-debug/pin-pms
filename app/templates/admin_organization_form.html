@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 
 {% block title %}{% if is_new %}Uusi organisaatio{% else %}Muokkaa {{ target_org.name }}{% endif %} · Pin PMS{% endblock %}
+{% block page_title %}{% if is_new %}Uusi organisaatio{% else %}Muokkaa organisaatiota{% endif %}{% endblock %}
 
 {% block content %}
   <h1>{% if is_new %}Luo organisaatio{% else %}Muokkaa <code>{{ target_org.name }}</code>{% endif %}</h1>

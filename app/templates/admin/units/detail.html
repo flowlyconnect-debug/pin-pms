@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 
 {% block title %}Huone #{{ row.id }} · Pin PMS{% endblock %}
+{% block page_title %}{{ row.name or ("Huone #" ~ row.id) }}{% endblock %}
 
 {% block content %}
   <div class="actions">

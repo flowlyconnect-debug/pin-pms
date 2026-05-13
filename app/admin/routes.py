@@ -13,6 +13,7 @@ import json
 import secrets
 import time
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 from io import BytesIO, StringIO
 
@@ -148,6 +149,33 @@ def _pms_pagination() -> tuple[int, int]:
 def _wants_json() -> bool:
     best = request.accept_mimetypes.best
     return best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def _coerce_decimal_fields(row: dict, fields: tuple[str, ...]) -> dict:
+    """Palauta dictin kopio, jossa listatut kentät on muunnettu Decimaliksi.
+
+    Palvelukerros sarjallistaa ``Decimal``-arvot merkkijonoiksi JSON-rajapintaa
+    varten. WTFormsin ``DecimalField`` taas tallentaa ``data=``-arvon
+    sellaisenaan ja yrittää myöhemmin formatoida sen ``"%.Nf" %`` -kaavalla,
+    joka heittää TypeErrorin merkkijonolla. Tämä helper muuntaa kyseiset kentät
+    takaisin ``Decimal``-tyyppisiksi ennen lomakkeen alustusta. Tyhjät arvot
+    ja virheelliset arvot säilyvät ``None``-arvoina, jotta lomakkeen
+    validointi voi raportoida ne tavallisesti.
+    """
+
+    prepared = dict(row)
+    for key in fields:
+        value = prepared.get(key)
+        if value is None or value == "":
+            prepared[key] = None
+            continue
+        if isinstance(value, Decimal):
+            continue
+        try:
+            prepared[key] = Decimal(str(value))
+        except (InvalidOperation, ValueError):
+            prepared[key] = None
+    return prepared
 
 
 def _parse_csv_filter_args(key: str) -> list[str]:
@@ -1232,7 +1260,7 @@ def properties_edit(property_id: int):
     except property_service.PropertyServiceError:
         abort(404)
 
-    form = PropertyForm(data=row)
+    form = PropertyForm(data=_coerce_decimal_fields(row, ("latitude", "longitude")))
     error: str | None = None
 
     if form.validate_on_submit():
@@ -1365,7 +1393,7 @@ def units_edit(unit_id: int):
     except property_service.PropertyServiceError:
         abort(404)
 
-    form = UnitForm(data=row)
+    form = UnitForm(data=_coerce_decimal_fields(row, ("area_sqm",)))
     error: str | None = None
 
     if form.validate_on_submit():

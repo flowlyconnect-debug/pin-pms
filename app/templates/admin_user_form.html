@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 
 {% block title %}{% if is_new %}Uusi käyttäjä{% else %}Muokkaa: {{ target_user.email }}{% endif %} · Pin PMS{% endblock %}
+{% block page_title %}{% if is_new %}Uusi käyttäjä{% else %}Muokkaa käyttäjää{% endif %}{% endblock %}
 
 {% block content %}
   <h1>{% if is_new %}Uusi käyttäjä{% else %}Muokkaa: <code>{{ target_user.email }}</code>{% endif %}</h1>

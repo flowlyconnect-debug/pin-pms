@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 
 {% block title %}Muokkaa varausta #{{ row.id }} · Pin PMS{% endblock %}
+{% block page_title %}Muokkaa varausta{% endblock %}
 
 {% block head_extra %}
   <script src="{{ url_for('static', filename='js/admin-form-helpers.js') }}" defer></script>

@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 
 {% block title %}Varaus #{{ row.id }} · Pin PMS{% endblock %}
+{% block page_title %}Varaus #{{ row.id }}{% endblock %}
 {% block head_extra %}
   <script src="{{ url_for('static', filename='js/admin-tags.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-comments.js') }}" defer></script>
