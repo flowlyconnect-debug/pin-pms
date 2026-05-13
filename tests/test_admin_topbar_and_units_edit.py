@@ -1,7 +1,7 @@
 """Testit asiakaspalautteen korjauksille:
 
-1. Yläpalkin otsikko ja murupolku eivät enää toistuu "Hallinta · Hallinta"
-   tyyppisesti vaan vaihtuvat sivun mukaan.
+1. Yläpalkin iso otsikko vaihtuu sivun mukaan; pientä "Hallinta · …"
+   -breadcrumb-riviä ei enää renderöidä.
 2. Kohteet → Huoneet → Muokkaa -näkymä ei enää palauta 500-virhettä myöskään
    silloin kun huoneella on Decimal-arvo (esim. ``area_sqm``).
 """
@@ -24,16 +24,14 @@ def _login(client, *, email: str, password: str):
 
 
 def test_topbar_breadcrumb_does_not_duplicate_hallinta_on_dashboard(client, admin_user):
-    """Etusivulla otsikko on 'Hallintapaneeli' eikä murupolku toista 'Hallinta'a."""
+    """Etusivulla otsikko on 'Hallintapaneeli'; ylimääräistä murupolku-riviä ei ole."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     response = client.get("/admin/dashboard", follow_redirects=False)
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "Hallintapaneeli" in html
-    # Murupolku ei saa olla "Hallinta · Hallinta"
-    assert "Hallinta · Hallinta<" not in html
-    assert "Hallinta · Hallinta " not in html
+    assert 'class="admin-topbar-breadcrumb"' not in html
 
 
 def test_topbar_title_changes_on_properties_list(client, admin_user):
@@ -43,12 +41,11 @@ def test_topbar_title_changes_on_properties_list(client, admin_user):
     html = response.get_data(as_text=True)
     # Page title -block renderöityy topbarin title-paikalle
     assert 'class="admin-topbar-title">Kohteet<' in html
-    assert "Hallinta · Kohteet" in html
+    assert 'class="admin-topbar-breadcrumb"' not in html
 
 
 def test_topbar_title_changes_on_units_edit(client, admin_user):
-    """Huoneen muokkausnäkymässä yläpalkki näyttää 'Muokkaa huonetta'
-    eikä 'Hallinta · Hallinta'."""
+    """Huoneen muokkausnäkymässä yläpalkki näyttää 'Muokkaa huonetta'."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     prop = Property(
@@ -64,20 +61,16 @@ def test_topbar_title_changes_on_units_edit(client, admin_user):
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert 'class="admin-topbar-title">Muokkaa huonetta<' in html
-    assert "Hallinta · Muokkaa huonetta" in html
-    # Mikään sivu ei saa palauttaa duplikoitua "Hallinta · Hallinta"
-    assert "Hallinta · Hallinta<" not in html
-    assert "Hallinta · Hallinta " not in html
+    assert 'class="admin-topbar-breadcrumb"' not in html
 
 
 def test_topbar_title_for_dashboard_does_not_duplicate(client, admin_user):
-    """Sanity check: /admin redirect-flow tai dashboard ei näytä 'Hallinta · Hallinta'."""
+    """Sanity check: dashboard ei renderöi vanhaa murupolku-elementtiä."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     response = client.get("/admin/dashboard", follow_redirects=False)
     html = response.get_data(as_text=True)
-    # Yläpalkin breadcrumb-rivi ei toista oletusta
-    assert "Hallinta · Hallinta" not in html
+    assert 'class="admin-topbar-breadcrumb"' not in html
 
 
 # ---------------------------------------------------------------------------
