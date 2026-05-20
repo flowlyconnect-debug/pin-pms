@@ -24,7 +24,7 @@ moto[s3]==5.2.0
 apispec==6.10.0
 structlog==25.5.0
 opentelemetry-distro==0.62b1
-opentelemetry-instrumentation-flask==0.62b1
+opentelemetry-instrumentation-flask==0.63b0
 opentelemetry-instrumentation-sqlalchemy==0.62b1
 opentelemetry-exporter-otlp==1.41.1
 sentry-sdk[flask]==2.59.0
