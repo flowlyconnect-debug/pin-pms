@@ -653,6 +653,7 @@ def upload_property_image_api(property_id: int):
             content_type=(file.mimetype or "").lower(),
             alt_text=alt_text,
             uploaded_by=_actor_user_id() or g.api_key.user_id,
+            filename=file.filename,
         )
     except property_image_service.PropertyImageError as err:
         return json_error(err.code, err.message, status=err.status)

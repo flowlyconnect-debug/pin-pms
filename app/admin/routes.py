@@ -1200,6 +1200,7 @@ def properties_images(property_id: int):
                     content_type=(image_file.mimetype or "").lower(),
                     alt_text=alt_text,
                     uploaded_by=current_user.id,
+                    filename=image_file.filename,
                 )
                 flash("Kuva ladattu.")
                 return redirect(url_for("admin.properties_images", property_id=property_id))

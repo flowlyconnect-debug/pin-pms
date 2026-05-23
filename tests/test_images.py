@@ -171,6 +171,30 @@ def test_image_delete_removes_from_storage(client, app, api_key, regular_user):
     assert not thumb_path.exists()
 
 
+def test_image_upload_rejects_over_10mb(client, app, api_key, regular_user):
+    from app.extensions import db
+    from app.properties.models import Property
+
+    app.config["STORAGE_BACKEND"] = "local"
+    prop = Property(organization_id=regular_user.organization_id, name="Big Property", address=None)
+    db.session.add(prop)
+    db.session.commit()
+
+    oversized = b"\xff\xd8\xff" + (b"\x00" * (10 * 1024 * 1024 + 1))
+    response = _upload(
+        client,
+        api_key.raw,
+        prop.id,
+        oversized,
+        "huge.jpg",
+        "image/jpeg",
+        "Liian iso",
+    )
+    assert response.status_code == 400
+    body = response.get_json()
+    assert body["error"]["message"] == "Image exceeds 10 MB limit."
+
+
 def test_svg_upload_rejected(client, app, api_key, regular_user):
     from app.extensions import db
     from app.properties.models import Property

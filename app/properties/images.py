@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import secrets
 from dataclasses import dataclass
 from io import BytesIO
@@ -14,7 +15,8 @@ from app.storage import get_url as storage_get_url
 from app.storage import upload as storage_upload
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
-MAX_UPLOAD_BYTES = 2 * 1024 * 1024
+ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_WIDTH = 800
 MAX_HEIGHT = 600
 THUMB_WIDTH = 200
@@ -35,13 +37,25 @@ def _assert_property_for_org(*, organization_id: int, property_id: int) -> Prope
     return row
 
 
+def _validate_filename_extension(filename: str | None) -> None:
+    if not filename:
+        return
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise PropertyImageError(
+            "validation_error",
+            "Only JPG, JPEG, PNG and WebP files are allowed.",
+            400,
+        )
+
+
 def _process_image(raw: bytes, content_type: str) -> tuple[bytes, bytes, str]:
     if content_type not in ALLOWED_CONTENT_TYPES:
         if content_type == "image/svg+xml":
             raise PropertyImageError("validation_error", "SVG uploads are not allowed.", 400)
         raise PropertyImageError("validation_error", "Only WebP, JPEG and PNG are supported.", 400)
     if len(raw) > MAX_UPLOAD_BYTES:
-        raise PropertyImageError("validation_error", "Image exceeds 2 MB limit.", 400)
+        raise PropertyImageError("validation_error", "Image exceeds 10 MB limit.", 400)
 
     try:
         img = Image.open(BytesIO(raw))
@@ -74,7 +88,7 @@ def _process_image(raw: bytes, content_type: str) -> tuple[bytes, bytes, str]:
     thumb.save(thumb_bytes, format=save_format, **save_kwargs)
 
     if base_bytes.tell() > MAX_UPLOAD_BYTES:
-        raise PropertyImageError("validation_error", "Optimized image still exceeds 2 MB.", 400)
+        raise PropertyImageError("validation_error", "Optimized image still exceeds 10 MB.", 400)
 
     return base_bytes.getvalue(), thumb_bytes.getvalue(), ext
 
@@ -103,8 +117,10 @@ def upload_property_image(
     content_type: str,
     alt_text: str,
     uploaded_by: int | None,
+    filename: str | None = None,
 ) -> PropertyImage:
     _assert_property_for_org(organization_id=organization_id, property_id=property_id)
+    _validate_filename_extension(filename)
     alt_clean = (alt_text or "").strip()
     if not alt_clean:
         raise PropertyImageError("validation_error", "alt_text is required.", 400)

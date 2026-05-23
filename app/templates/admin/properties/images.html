@@ -14,7 +14,7 @@
   <div class="card">
     <form method="post" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="image">Kuva (JPEG, PNG, WebP, max 2 MB)</label><br>
+      <label for="image">Kuva (JPG, JPEG, PNG, WebP, max 10 MB)</label><br>
       <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required><br><br>
       <label for="alt_text">Alt-teksti</label><br>
       <input id="alt_text" name="alt_text" type="text" maxlength="255" required><br><br>

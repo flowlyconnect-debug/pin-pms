@@ -69,6 +69,68 @@ def test_property_images_upload_with_csrf(client, app, admin_user):
     assert row.alt_text == "Parveke"
 
 
+def test_property_images_page_shows_10mb_limit(client, app, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = _seed_property(admin_user)
+
+    page = client.get(f"/admin/properties/{prop.id}/images")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "max 10 MB" in html
+    assert 'accept="image/jpeg,image/png,image/webp"' in html
+
+
+def test_property_images_upload_jpeg_extension(client, app, admin_user):
+    app.config["STORAGE_BACKEND"] = "local"
+    app.config["STORAGE_LOCAL_ROOT"] = str(app.instance_path) + "/test_admin_property_images"
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = _seed_property(admin_user)
+
+    app.config["WTF_CSRF_ENABLED"] = True
+    page = client.get(f"/admin/properties/{prop.id}/images")
+    csrf = _extract_csrf(page.get_data(as_text=True))
+
+    response = client.post(
+        f"/admin/properties/{prop.id}/images",
+        data={
+            "csrf_token": csrf,
+            "alt_text": "Terassi",
+            "image": (BytesIO(_jpeg_bytes()), "terrace.jpeg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    row = PropertyImage.query.filter_by(property_id=prop.id).first()
+    assert row is not None
+    assert row.alt_text == "Terassi"
+
+
+def test_property_images_upload_rejects_over_10mb(client, app, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = _seed_property(admin_user)
+
+    app.config["WTF_CSRF_ENABLED"] = True
+    page = client.get(f"/admin/properties/{prop.id}/images")
+    csrf = _extract_csrf(page.get_data(as_text=True))
+
+    oversized = b"\xff\xd8\xff" + (b"\x00" * (10 * 1024 * 1024 + 1))
+    response = client.post(
+        f"/admin/properties/{prop.id}/images",
+        data={
+            "csrf_token": csrf,
+            "alt_text": "Liian iso",
+            "image": (BytesIO(oversized), "huge.jpg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Image exceeds 10 MB limit." in response.data
+    assert PropertyImage.query.filter_by(property_id=prop.id).count() == 0
+
+
 def test_property_images_upload_rejected_without_csrf(client, app, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     prop = _seed_property(admin_user)
