@@ -13,6 +13,7 @@
   {% endif %}
   <div class="card">
     <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="image">Kuva (JPEG, PNG, WebP, max 2 MB)</label><br>
       <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required><br><br>
       <label for="alt_text">Alt-teksti</label><br>
@@ -31,6 +32,7 @@
           <span>{{ image.content_type }}</span>
           <span>{{ image.file_size }} B</span>
           <form method="post" action="{{ url_for('admin.properties_images_delete', property_id=row.id, image_id=image.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-secondary" type="submit">Poista</button>
           </form>
         </div>

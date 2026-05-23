@@ -374,6 +374,25 @@ def app():
     ctx.pop()
 
 
+@pytest.fixture(autouse=True)
+def _reset_wtf_csrf_enabled(app):
+    """Keep CSRF config predictable when individual tests toggle protection."""
+
+    from flask import g
+
+    def _clear_leaked_csrf_g() -> None:
+        # Session-scoped app_context keeps ``g`` alive between tests; views that
+        # render CSRF fields can leave a stale token and skip session init.
+        if hasattr(g, "csrf_token"):
+            del g.csrf_token
+
+    app.config["WTF_CSRF_ENABLED"] = False
+    _clear_leaked_csrf_g()
+    yield
+    app.config["WTF_CSRF_ENABLED"] = False
+    _clear_leaked_csrf_g()
+
+
 @pytest.fixture
 def client(app):
     """A Flask test client. Cookies persist across calls inside a single test."""
