@@ -24,8 +24,6 @@
     <p><strong>Katuosoite:</strong> {{ row.street_address or "Ei määritetty" }}</p>
     <p><strong>Postinumero:</strong> {{ row.postal_code or "Ei määritetty" }}</p>
     <p><strong>Kaupunki:</strong> {{ row.city or "Ei määritetty" }}</p>
-    <p><strong>Leveysaste:</strong> {{ row.latitude or "Ei määritetty" }}</p>
-    <p><strong>Pituusaste:</strong> {{ row.longitude or "Ei määritetty" }}</p>
 
     <h2>Rakennus</h2>
     <p><strong>Rakennusvuosi:</strong> {{ row.year_built if row.year_built is not none else "Ei määritetty" }}</p>

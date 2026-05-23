@@ -1120,8 +1120,6 @@ def properties_new():
                 city=form.city.data,
                 postal_code=form.postal_code.data,
                 street_address=form.street_address.data,
-                latitude=form.latitude.data,
-                longitude=form.longitude.data,
                 year_built=form.year_built.data,
                 has_elevator=form.has_elevator.data,
                 has_parking=form.has_parking.data,
@@ -1261,8 +1259,9 @@ def properties_edit(property_id: int):
     except property_service.PropertyServiceError:
         abort(404)
 
-    form = PropertyForm(data=_coerce_decimal_fields(row, ("latitude", "longitude")))
+    form = PropertyForm(data=row)
     error: str | None = None
+    stored_coords = _coerce_decimal_fields(row, ("latitude", "longitude"))
 
     if form.validate_on_submit():
         try:
@@ -1274,8 +1273,8 @@ def properties_edit(property_id: int):
                 city=form.city.data,
                 postal_code=form.postal_code.data,
                 street_address=form.street_address.data,
-                latitude=form.latitude.data,
-                longitude=form.longitude.data,
+                latitude=stored_coords["latitude"],
+                longitude=stored_coords["longitude"],
                 year_built=form.year_built.data,
                 has_elevator=form.has_elevator.data,
                 has_parking=form.has_parking.data,

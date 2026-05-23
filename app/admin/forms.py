@@ -108,8 +108,6 @@ class PropertyForm(FlaskForm):
     city = StringField("Kaupunki", validators=[Optional(), Length(max=100)])
     postal_code = StringField("Postinumero", validators=[Optional(), Length(max=10)])
     street_address = StringField("Katuosoite", validators=[Optional(), Length(max=200)])
-    latitude = DecimalField("Leveysaste", validators=[Optional()], places=7)
-    longitude = DecimalField("Pituusaste", validators=[Optional()], places=7)
     year_built = IntegerField(
         "Rakennusvuosi",
         validators=[

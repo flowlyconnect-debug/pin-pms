@@ -21,8 +21,6 @@ def test_admin_create_property_with_all_descriptive_fields(client, admin_user):
             "street_address": "Kanavakatu 1 A",
             "postal_code": "00160",
             "city": "Helsinki",
-            "latitude": "60.1675000",
-            "longitude": "24.9631000",
             "year_built": "2002",
             "has_elevator": "y",
             "has_parking": "y",
@@ -44,8 +42,8 @@ def test_admin_create_property_with_all_descriptive_fields(client, admin_user):
     assert row.street_address == "Kanavakatu 1 A"
     assert row.postal_code == "00160"
     assert row.city == "Helsinki"
-    assert row.latitude == Decimal("60.1675000")
-    assert row.longitude == Decimal("24.9631000")
+    assert row.latitude is None
+    assert row.longitude is None
     assert row.year_built == 2002
     assert row.has_elevator is True
     assert row.has_parking is True
@@ -78,8 +76,6 @@ def test_admin_property_and_unit_edit_views_show_all_fields(client, admin_user):
         "street_address",
         "postal_code",
         "city",
-        "latitude",
-        "longitude",
         "year_built",
         "has_elevator",
         "has_parking",

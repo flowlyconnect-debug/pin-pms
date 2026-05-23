@@ -129,8 +129,7 @@ def test_unit_edit_page_loads_when_area_sqm_is_none(client, admin_user):
 
 
 def test_property_edit_page_loads_when_latitude_longitude_are_set(client, admin_user):
-    """Sama bugi piili PropertyForm.latitude/longitude-kentissä. Tämä testi
-    suojaa regressiolta."""
+    """Koordinaatit voivat olla tietokannassa, vaikka admin-lomake ei näytä niitä."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     prop = Property(
@@ -146,8 +145,38 @@ def test_property_edit_page_loads_when_latitude_longitude_are_set(client, admin_
     response = client.get(f"/admin/properties/{prop.id}/edit", follow_redirects=False)
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert 'name="latitude"' in html
-    assert 'name="longitude"' in html
+    assert 'name="latitude"' not in html
+    assert 'name="longitude"' not in html
+    assert "Leveysaste" not in html
+    assert "Pituusaste" not in html
+
+
+def test_property_edit_post_preserves_stored_coordinates(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = Property(
+        organization_id=admin_user.organization_id,
+        name="GPS-koti",
+        address="Vanha 1",
+        latitude=Decimal("60.1234567"),
+        longitude=Decimal("24.7654321"),
+    )
+    db.session.add(prop)
+    db.session.commit()
+
+    response = client.post(
+        f"/admin/properties/{prop.id}/edit",
+        data={
+            "name": "GPS-koti päivitetty",
+            "address": "Uusi 2",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    db.session.refresh(prop)
+    assert prop.name == "GPS-koti päivitetty"
+    assert prop.address == "Uusi 2"
+    assert prop.latitude == Decimal("60.1234567")
+    assert prop.longitude == Decimal("24.7654321")
 
 
 def test_unit_edit_post_still_persists_changes(client, admin_user):
