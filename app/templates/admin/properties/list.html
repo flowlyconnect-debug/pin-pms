@@ -6,11 +6,59 @@
 
 {% block content %}
   <div class="page-header">
-    <div class="page-header-actions">
+    <div class="page-header-actions properties-view-toggle">
+      <a class="btn btn-secondary{% if view == 'list' %} is-active{% endif %}" href="{{ url_for('admin.properties_list', view='list', page=page) }}">Lista</a>
+      <a class="btn btn-secondary{% if view == 'cards' %} is-active{% endif %}" href="{{ url_for('admin.properties_list', view='cards', page=page) }}">Kortit</a>
       <a class="btn btn-primary" href="{{ url_for('admin.properties_new') }}">Uusi kohde</a>
     </div>
   </div>
   <p class="meta">Yhteensä: {{ total }} · Sivu: {{ page }}</p>
+
+  {% if view == 'cards' %}
+    <div class="properties-cards-grid">
+      {% for row in rows %}
+        {% set cover = cover_images.get(row.id) %}
+        {% set units = unit_summaries.get(row.id, {}) %}
+        <a class="property-card" href="{{ url_for('admin.properties_detail', property_id=row.id) }}">
+          <div class="property-card__media">
+            {% if cover %}
+              <img
+                class="property-card__img"
+                src="{{ cover.thumbnail_url }}"
+                alt="{{ cover.alt_text }}"
+                width="400"
+                height="300"
+                loading="lazy"
+              >
+            {% else %}
+              <div class="property-card__placeholder" aria-hidden="true">
+                <span class="property-card__placeholder-icon">🏢</span>
+                <span>Ei kuvaa</span>
+              </div>
+            {% endif %}
+          </div>
+          <div class="property-card__body">
+            <h2 class="property-card__title">{{ row.name }}</h2>
+            <p class="property-card__address">{{ row.address or row.street_address or "—" }}</p>
+            {% if units.total %}
+              <p class="property-card__units meta">
+                {{ units.total }} huonetta
+                {% for state, count in units.by_state.items() if count > 0 %}
+                  · {{ count }} {{ state|availability_label|lower }}
+                {% endfor %}
+              </p>
+            {% else %}
+              <p class="property-card__units meta">Ei huoneita</p>
+            {% endif %}
+          </div>
+        </a>
+      {% else %}
+        <div class="property-card property-card--empty">
+          {{ empty_state("🏢", "Ei kohteita", "Luo ensimmäinen kohde aloittaaksesi hallinnan.", url_for('admin.properties_new'), "Uusi kohde") }}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
   <div data-table-load-shell>
   <div class="table-load-skeleton" data-table-skeleton aria-hidden="true">
     {% for _ in range(6) %}
@@ -24,9 +72,10 @@
     {% endfor %}
   </div>
   <div class="data-table-card ui-table-shell" data-table-content hidden>
-  <table class="data-table ui-table">
+  <table class="data-table ui-table properties-list-table">
     <thead>
       <tr>
+        <th class="properties-list-table__thumb-col" aria-label="Kuva"></th>
         <th>ID</th>
         <th>Nimi</th>
         <th>Osoite</th>
@@ -35,7 +84,22 @@
     </thead>
     <tbody>
       {% for row in rows %}
+        {% set cover = cover_images.get(row.id) %}
         <tr class="table-row-link" data-href="{{ url_for('admin.properties_detail', property_id=row.id) }}">
+          <td data-label="Kuva" class="properties-list-table__thumb-cell">
+            {% if cover %}
+              <img
+                class="properties-list-table__thumb"
+                src="{{ cover.thumbnail_url }}"
+                alt="{{ cover.alt_text }}"
+                width="72"
+                height="54"
+                loading="lazy"
+              >
+            {% else %}
+              <div class="properties-list-table__placeholder" aria-hidden="true" title="Ei kuvaa">🏢</div>
+            {% endif %}
+          </td>
           <td data-label="ID">{{ row.id }}</td>
           <td data-label="Nimi">{{ row.name }}</td>
           <td data-label="Osoite">{{ row.address or "" }}</td>
@@ -45,7 +109,7 @@
               <div class="row-actions__menu">
                 <a href="{{ url_for('admin.properties_detail', property_id=row.id) }}">Näytä</a>
                 <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}">Muokkaa</a>
-                <a href="{{ url_for('admin.units_list', property_id=row.id) }}">Lähetä uudelleen</a>
+                <a href="{{ url_for('admin.units_list', property_id=row.id) }}">Huoneet</a>
                 <button type="button" data-copy-ref="#{{ row.id }}">Kopioi viite</button>
                 <a href="{{ url_for('admin.properties_edit', property_id=row.id) }}#delete" class="danger">Poista</a>
               </div>
@@ -54,7 +118,7 @@
         </tr>
       {% else %}
         <tr>
-          <td colspan="4" class="table-empty">
+          <td colspan="5" class="table-empty">
             {{ empty_state("🏢", "Ei kohteita", "Luo ensimmäinen kohde aloittaaksesi hallinnan.", url_for('admin.properties_new'), "Uusi kohde") }}
           </td>
         </tr>
@@ -63,4 +127,5 @@
   </table>
   </div>
   </div>
+  {% endif %}
 {% endblock %}

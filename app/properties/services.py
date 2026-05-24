@@ -98,6 +98,35 @@ def list_properties_paginated(
     return [_serialize_property(row) for row in rows], total
 
 
+def summarize_units_for_properties(
+    *,
+    organization_id: int,
+    property_ids: list[int],
+    as_of: date | None = None,
+) -> dict[int, dict]:
+    """Aggregate unit availability states per property (reuses list_units_with_availability_status)."""
+
+    if not property_ids:
+        return {}
+    rows = list_units_with_availability_status(
+        organization_id=organization_id,
+        property_id=None,
+        as_of=as_of,
+    )
+    empty_state_counts = dict.fromkeys(UNIT_AVAILABILITY_STATES, 0)
+    summaries: dict[int, dict] = {
+        pid: {"total": 0, "by_state": dict(empty_state_counts)} for pid in property_ids
+    }
+    for row in rows:
+        pid = row["property_id"]
+        if pid not in summaries:
+            continue
+        summaries[pid]["total"] += 1
+        state = row["current_state"]
+        summaries[pid]["by_state"][state] = summaries[pid]["by_state"].get(state, 0) + 1
+    return summaries
+
+
 def create_property(
     *,
     organization_id: int,

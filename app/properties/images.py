@@ -19,8 +19,8 @@ ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_WIDTH = 800
 MAX_HEIGHT = 600
-THUMB_WIDTH = 200
-THUMB_HEIGHT = 150
+THUMB_WIDTH = 400
+THUMB_HEIGHT = 300
 
 
 @dataclass
@@ -98,6 +98,85 @@ def _cdn_invalidate(urls: list[str]) -> None:
         return
     # Placeholder hook; provider-specific purge API is environment-dependent.
     current_app.logger.info("cdn_invalidate_requested", extra={"count": len(urls), "urls": urls})
+
+
+def serialize_cover_image(row: PropertyImage) -> dict:
+    return {
+        "id": row.id,
+        "property_id": row.property_id,
+        "url": row.url,
+        "thumbnail_url": row.thumbnail_url,
+        "alt_text": row.alt_text,
+        "sort_order": row.sort_order,
+    }
+
+
+def pick_cover_image(rows: list[PropertyImage]) -> PropertyImage | None:
+    if not rows:
+        return None
+    return min(rows, key=lambda row: (row.sort_order, row.id))
+
+
+def get_cover_image(*, organization_id: int, property_id: int) -> dict | None:
+    rows = list_property_images(organization_id=organization_id, property_id=property_id)
+    cover = pick_cover_image(rows)
+    return serialize_cover_image(cover) if cover is not None else None
+
+
+def get_cover_images_for_properties(
+    *, organization_id: int, property_ids: list[int]
+) -> dict[int, dict]:
+    """Return cover image payloads keyed by property_id (one DB query)."""
+
+    if not property_ids:
+        return {}
+    rows = (
+        PropertyImage.query.filter(
+            PropertyImage.organization_id == organization_id,
+            PropertyImage.property_id.in_(property_ids),
+        )
+        .order_by(
+            PropertyImage.property_id.asc(),
+            PropertyImage.sort_order.asc(),
+            PropertyImage.id.asc(),
+        )
+        .all()
+    )
+    covers: dict[int, dict] = {}
+    for row in rows:
+        if row.property_id not in covers:
+            covers[row.property_id] = serialize_cover_image(row)
+    return covers
+
+
+def set_cover_image(*, organization_id: int, property_id: int, image_id: int) -> None:
+    rows = list_property_images(organization_id=organization_id, property_id=property_id)
+    by_id = {row.id: row for row in rows}
+    if image_id not in by_id:
+        raise PropertyImageError("not_found", "Image not found.", 404)
+    ids = [image_id] + [row.id for row in rows if row.id != image_id]
+    reorder_property_images(organization_id=organization_id, property_id=property_id, ids=ids)
+
+
+def move_property_image(
+    *,
+    organization_id: int,
+    property_id: int,
+    image_id: int,
+    direction: str,
+) -> None:
+    rows = list_property_images(organization_id=organization_id, property_id=property_id)
+    ids = [row.id for row in rows]
+    if image_id not in ids:
+        raise PropertyImageError("not_found", "Image not found.", 404)
+    idx = ids.index(image_id)
+    if direction == "up" and idx > 0:
+        ids[idx - 1], ids[idx] = ids[idx], ids[idx - 1]
+    elif direction == "down" and idx < len(ids) - 1:
+        ids[idx + 1], ids[idx] = ids[idx], ids[idx + 1]
+    else:
+        return
+    reorder_property_images(organization_id=organization_id, property_id=property_id, ids=ids)
 
 
 def list_property_images(*, organization_id: int, property_id: int) -> list[PropertyImage]:

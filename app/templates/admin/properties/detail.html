@@ -16,6 +16,67 @@
     <a class="btn" href="{{ url_for('admin.units_new', property_id=row.id) }}">Uusi huone</a>
   </div>
   <h1>{{ row.name }}</h1>
+
+  {% if gallery_images %}
+    <section class="card property-gallery" aria-label="Kuvagalleria" data-property-gallery>
+      <div class="property-gallery__main">
+        {% set hero = cover_image or gallery_images[0] %}
+        <img
+          id="property-gallery-main"
+          class="property-gallery__hero"
+          src="{{ hero.url }}"
+          alt="{{ hero.alt_text }}"
+          width="800"
+          height="600"
+        >
+      </div>
+      <div class="property-gallery__thumbs" role="list">
+        {% for image in gallery_images %}
+          <button
+            type="button"
+            class="property-gallery__thumb-btn{% if image.id == hero.id %} is-active{% endif %}"
+            role="listitem"
+            data-gallery-url="{{ image.url }}"
+            data-gallery-alt="{{ image.alt_text }}"
+            aria-label="{{ image.alt_text }}"
+            aria-pressed="{{ 'true' if image.id == hero.id else 'false' }}"
+          >
+            <img
+              src="{{ image.thumbnail_url }}"
+              alt=""
+              width="120"
+              height="90"
+              loading="lazy"
+            >
+          </button>
+        {% endfor %}
+      </div>
+    </section>
+    <script>
+      (function () {
+        var root = document.querySelector("[data-property-gallery]");
+        if (!root) return;
+        var main = document.getElementById("property-gallery-main");
+        root.addEventListener("click", function (event) {
+          var btn = event.target.closest("[data-gallery-url]");
+          if (!btn || !main) return;
+          main.src = btn.getAttribute("data-gallery-url");
+          main.alt = btn.getAttribute("data-gallery-alt") || "";
+          root.querySelectorAll(".property-gallery__thumb-btn").forEach(function (el) {
+            var active = el === btn;
+            el.classList.toggle("is-active", active);
+            el.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+        });
+      })();
+    </script>
+  {% else %}
+    <div class="property-gallery__placeholder card">
+      <span aria-hidden="true">🏢</span>
+      <p>Ei kuvia. <a href="{{ url_for('admin.properties_images', property_id=row.id) }}">Lisää kuvia galleriaan</a>.</p>
+    </div>
+  {% endif %}
+
   <div class="card">
     <p><strong>ID:</strong> {{ row.id }}</p>
     <p><strong>Osoite:</strong> {{ row.address or "—" }}</p>

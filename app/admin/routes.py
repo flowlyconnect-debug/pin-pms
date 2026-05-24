@@ -1087,21 +1087,42 @@ def guests_edit(guest_id: int):
     return render_template("admin/guests/edit.html", row=row, form=form, error=error)
 
 
+def _properties_list_view() -> str:
+    view = (request.args.get("view") or "list").strip().lower()
+    if view in {"list", "cards"}:
+        return view
+    return "list"
+
+
 @admin_bp.get("/properties")
 @require_admin_pms_access
 def properties_list():
     page, per_page = _pms_pagination()
+    org_id = _pms_org_id()
     rows, total = property_service.list_properties_paginated(
-        organization_id=_pms_org_id(),
+        organization_id=org_id,
         page=page,
         per_page=per_page,
     )
+    property_ids = [row["id"] for row in rows]
+    cover_images = property_image_service.get_cover_images_for_properties(
+        organization_id=org_id,
+        property_ids=property_ids,
+    )
+    unit_summaries = property_service.summarize_units_for_properties(
+        organization_id=org_id,
+        property_ids=property_ids,
+    )
+    view = _properties_list_view()
     return render_template(
         "admin/properties/list.html",
         rows=rows,
         page=page,
         per_page=per_page,
         total=total,
+        cover_images=cover_images,
+        unit_summaries=unit_summaries,
+        view=view,
     )
 
 
@@ -1160,10 +1181,16 @@ def properties_detail(property_id: int):
     comments = CommentService.list_for_target(
         _pms_org_id(), "property", property_id, include_internal=True
     )
+    org_id = _pms_org_id()
     units_with_status = property_service.list_units_with_availability_status(
-        organization_id=_pms_org_id(),
+        organization_id=org_id,
         property_id=property_id,
     )
+    gallery_images = property_image_service.list_property_images(
+        organization_id=org_id,
+        property_id=property_id,
+    )
+    cover_image = property_image_service.pick_cover_image(gallery_images)
     return render_template(
         "admin/properties/detail.html",
         row=row,
@@ -1172,6 +1199,8 @@ def properties_detail(property_id: int):
         comments=comments,
         target_type="property",
         units_with_status=units_with_status,
+        gallery_images=gallery_images,
+        cover_image=cover_image,
     )
 
 
@@ -1243,9 +1272,41 @@ def properties_images_reorder(property_id: int):
             property_id=property_id,
             ids=ids,
         )
-        flash("Kuvien jarjestys paivitetty.")
+        flash("Kuvien järjestys päivitetty.")
     except (ValueError, property_image_service.PropertyImageError):
-        flash("Kuvien jarjestyksen paivitys epaonnistui.")
+        flash("Kuvien järjestyksen päivitys epäonnistui.")
+    return redirect(url_for("admin.properties_images", property_id=property_id))
+
+
+@admin_bp.post("/properties/<int:property_id>/images/<int:image_id>/set-cover")
+@require_admin_pms_access
+def properties_images_set_cover(property_id: int, image_id: int):
+    try:
+        property_image_service.set_cover_image(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+            image_id=image_id,
+        )
+        flash("Kansikuva päivitetty.")
+    except property_image_service.PropertyImageError as err:
+        flash(err.message)
+    return redirect(url_for("admin.properties_images", property_id=property_id))
+
+
+@admin_bp.post("/properties/<int:property_id>/images/<int:image_id>/move")
+@require_admin_pms_access
+def properties_images_move(property_id: int, image_id: int):
+    direction = (request.form.get("direction") or "").strip().lower()
+    try:
+        property_image_service.move_property_image(
+            organization_id=_pms_org_id(),
+            property_id=property_id,
+            image_id=image_id,
+            direction=direction,
+        )
+        flash("Kuvan järjestys päivitetty.")
+    except property_image_service.PropertyImageError as err:
+        flash(err.message)
     return redirect(url_for("admin.properties_images", property_id=property_id))
 
 

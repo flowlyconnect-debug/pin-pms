@@ -97,8 +97,8 @@ def test_image_resize_max_dimensions(client, app, api_key, regular_user):
     thumb = Image.open(LocalStorage().path_for_key(key=row.thumbnail_storage_key))
     assert saved.width <= 800
     assert saved.height <= 600
-    assert thumb.width <= 200
-    assert thumb.height <= 150
+    assert thumb.width <= 400
+    assert thumb.height <= 300
 
 
 def test_image_only_org_can_upload(client, app, regular_user, api_key):
