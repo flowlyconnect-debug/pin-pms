@@ -27,7 +27,7 @@
     <div class="card property-images-admin" style="margin-top: 1rem;">
       {% for image in images %}
         <div class="property-images-admin__row">
-          <img src="{{ image.thumbnail_url }}" alt="{{ image.alt_text }}" width="120" height="90" loading="lazy">
+          <img src="{{ image.thumbnail_src }}" alt="{{ image.alt_text }}" width="120" height="90" loading="lazy">
           <div class="property-images-admin__meta">
             <span class="property-images-admin__order">{{ image.sort_order }}.</span>
             {% if loop.first %}

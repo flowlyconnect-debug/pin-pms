@@ -88,7 +88,7 @@ from app.payments import services as payment_service
 from app.payments.models import Payment, PaymentRefund
 from app.properties import images as property_image_service
 from app.properties import services as property_service
-from app.properties.models import Property, Unit
+from app.properties.models import Property, PropertyImage, Unit
 from app.reports import services as report_service
 from app.reservations import services as reservation_service
 from app.settings import services as settings_service
@@ -1087,6 +1087,32 @@ def guests_edit(guest_id: int):
     return render_template("admin/guests/edit.html", row=row, form=form, error=error)
 
 
+@admin_bp.get("/property-images/<path:key>")
+@require_admin_pms_access
+def serve_property_image(key: str):
+    """Serve local property image bytes to authenticated admin browsers."""
+
+    if (current_app.config.get("STORAGE_BACKEND") or "local").strip().lower() != "local":
+        abort(404)
+    org_id = _pms_org_id()
+    row = PropertyImage.query.filter(
+        PropertyImage.organization_id == org_id,
+        or_(
+            PropertyImage.storage_key == key,
+            PropertyImage.thumbnail_storage_key == key,
+        ),
+    ).first()
+    if row is None:
+        abort(404)
+    from app.storage.local import LocalStorage
+
+    path = LocalStorage().path_for_key(key=key)
+    if not path.exists() or not path.is_file():
+        abort(404)
+    mimetype = row.content_type if key == row.storage_key else row.content_type
+    return send_file(path, mimetype=mimetype, conditional=True)
+
+
 def _properties_list_view() -> str:
     view = (request.args.get("view") or "list").strip().lower()
     if view in {"list", "cards"}:
@@ -1186,11 +1212,19 @@ def properties_detail(property_id: int):
         organization_id=org_id,
         property_id=property_id,
     )
-    gallery_images = property_image_service.list_property_images(
+    gallery_rows = property_image_service.list_property_images(
         organization_id=org_id,
         property_id=property_id,
     )
-    cover_image = property_image_service.pick_cover_image(gallery_images)
+    gallery_images = [
+        property_image_service.serialize_property_image_for_admin(row) for row in gallery_rows
+    ]
+    cover_row = property_image_service.pick_cover_image(gallery_rows)
+    cover_image = (
+        property_image_service.serialize_property_image_for_admin(cover_row)
+        if cover_row is not None
+        else None
+    )
     return render_template(
         "admin/properties/detail.html",
         row=row,
@@ -1235,13 +1269,16 @@ def properties_images(property_id: int):
                 return redirect(url_for("admin.properties_images", property_id=property_id))
             except property_image_service.PropertyImageError as err:
                 error = err.message
-    rows = property_image_service.list_property_images(
+    image_rows = property_image_service.list_property_images(
         organization_id=_pms_org_id(), property_id=property_id
     )
+    images = [
+        property_image_service.serialize_property_image_for_admin(row) for row in image_rows
+    ]
     return render_template(
         "admin/properties/images.html",
         row=property_row,
-        images=rows,
+        images=images,
         error=error,
     )
 

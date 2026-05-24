@@ -131,6 +131,79 @@ def test_property_images_upload_rejects_over_10mb(client, app, admin_user):
     assert PropertyImage.query.filter_by(property_id=prop.id).count() == 0
 
 
+def test_admin_property_image_serve_without_public_base_url(client, app, admin_user):
+    from app.properties import images as image_service
+    from app.storage.local import LocalStorage
+
+    app.config["STORAGE_BACKEND"] = "local"
+    app.config["STORAGE_PUBLIC_BASE_URL"] = ""
+    root = str(app.instance_path) + "/test_admin_property_image_serve"
+    app.config["STORAGE_LOCAL_ROOT"] = root
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = _seed_property(admin_user)
+
+    app.config["WTF_CSRF_ENABLED"] = True
+    page = client.get(f"/admin/properties/{prop.id}/images")
+    csrf = _extract_csrf(page.get_data(as_text=True))
+    response = client.post(
+        f"/admin/properties/{prop.id}/images",
+        data={
+            "csrf_token": csrf,
+            "alt_text": "Nakyva",
+            "image": (BytesIO(_jpeg_bytes()), "view.jpg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    row = PropertyImage.query.filter_by(property_id=prop.id).first()
+    assert row is not None
+    assert image_service.uses_admin_image_proxy() is True
+    thumb_src = image_service.browser_image_url(storage_key=row.thumbnail_storage_key)
+    assert thumb_src.startswith("/admin/property-images/")
+
+    img_response = client.get(thumb_src)
+    assert img_response.status_code == 200
+    assert img_response.mimetype == "image/jpeg"
+    assert len(img_response.data) > 0
+    assert LocalStorage().path_for_key(key=row.thumbnail_storage_key).exists()
+
+
+def test_properties_list_uses_admin_image_src(client, app, admin_user):
+    from app.properties import images as image_service
+
+    app.config["STORAGE_BACKEND"] = "local"
+    app.config["STORAGE_PUBLIC_BASE_URL"] = ""
+    app.config["STORAGE_LOCAL_ROOT"] = str(app.instance_path) + "/test_admin_list_image_src"
+
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    prop = _seed_property(admin_user)
+
+    app.config["WTF_CSRF_ENABLED"] = True
+    page = client.get(f"/admin/properties/{prop.id}/images")
+    csrf = _extract_csrf(page.get_data(as_text=True))
+    client.post(
+        f"/admin/properties/{prop.id}/images",
+        data={
+            "csrf_token": csrf,
+            "alt_text": "Lista",
+            "image": (BytesIO(_jpeg_bytes()), "list.jpg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    listing = client.get("/admin/properties")
+    assert listing.status_code == 200
+    html = listing.get_data(as_text=True)
+    row = PropertyImage.query.filter_by(property_id=prop.id).first()
+    assert row is not None
+    assert "/admin/property-images/" in html
+    assert row.thumbnail_storage_key.split("/")[-1] in html
+
+
 def test_property_images_upload_rejected_without_csrf(client, app, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     prop = _seed_property(admin_user)

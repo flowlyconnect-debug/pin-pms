@@ -24,7 +24,7 @@
         <img
           id="property-gallery-main"
           class="property-gallery__hero"
-          src="{{ hero.url }}"
+          src="{{ hero.url_src }}"
           alt="{{ hero.alt_text }}"
           width="800"
           height="600"
@@ -42,7 +42,7 @@
             aria-pressed="{{ 'true' if image.id == hero.id else 'false' }}"
           >
             <img
-              src="{{ image.thumbnail_url }}"
+              src="{{ image.thumbnail_src }}"
               alt=""
               width="120"
               height="90"

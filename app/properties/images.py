@@ -5,6 +5,8 @@ import secrets
 from dataclasses import dataclass
 from io import BytesIO
 
+from urllib.parse import quote
+
 from flask import current_app
 from PIL import Image
 
@@ -100,14 +102,39 @@ def _cdn_invalidate(urls: list[str]) -> None:
     current_app.logger.info("cdn_invalidate_requested", extra={"count": len(urls), "urls": urls})
 
 
+def uses_admin_image_proxy() -> bool:
+    """Local storage without a public base URL must be served via admin session."""
+
+    backend = (current_app.config.get("STORAGE_BACKEND") or "local").strip().lower()
+    if backend != "local":
+        return False
+    return not (current_app.config.get("STORAGE_PUBLIC_BASE_URL") or "").strip()
+
+
+def browser_image_url(*, storage_key: str) -> str:
+    """URL suitable for ``<img src>`` in logged-in admin HTML."""
+
+    if uses_admin_image_proxy():
+        return f"/admin/property-images/{quote(storage_key.lstrip('/'), safe='/')}"
+    return storage_get_url(storage_key)
+
+
 def serialize_cover_image(row: PropertyImage) -> dict:
+    return serialize_property_image_for_admin(row)
+
+
+def serialize_property_image_for_admin(row: PropertyImage) -> dict:
     return {
         "id": row.id,
         "property_id": row.property_id,
         "url": row.url,
         "thumbnail_url": row.thumbnail_url,
+        "url_src": browser_image_url(storage_key=row.storage_key),
+        "thumbnail_src": browser_image_url(storage_key=row.thumbnail_storage_key),
         "alt_text": row.alt_text,
         "sort_order": row.sort_order,
+        "content_type": row.content_type,
+        "file_size": row.file_size,
     }
 
 
