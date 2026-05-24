@@ -145,8 +145,10 @@ def test_property_edit_page_loads_when_latitude_longitude_are_set(client, admin_
     response = client.get(f"/admin/properties/{prop.id}/edit", follow_redirects=False)
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert 'name="latitude"' not in html
-    assert 'name="longitude"' not in html
+    assert 'type="hidden" name="latitude"' in html
+    assert 'type="hidden" name="longitude"' in html
+    assert '<label for="latitude">' not in html
+    assert '<label for="longitude">' not in html
     assert "Leveysaste" not in html
     assert "Pituusaste" not in html
 

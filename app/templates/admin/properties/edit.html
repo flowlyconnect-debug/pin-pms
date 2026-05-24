@@ -3,6 +3,10 @@
 {% block title %}Muokkaa kohdetta · Pin PMS{% endblock %}
 {% block page_title %}Muokkaa kohdetta{% endblock %}
 
+{% block head_extra %}
+  {% include "admin/properties/_address_autocomplete_assets.html" %}
+{% endblock %}
+
 {% block content %}
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.properties_detail', property_id=row.id) }}">Takaisin kohteeseen</a>
@@ -11,12 +15,18 @@
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
-  <form method="post">
+  <form
+    method="post"
+    data-address-autocomplete
+    data-address-suggest-url="{{ url_for('admin.api_address_suggest') }}"
+  >
     {{ form.hidden_tag() }}
     <label for="name">Nimi</label>
     {{ form.name(id="name", required=true) }}
     <label for="address">Osoite</label>
-    {{ form.address(id="address") }}
+    {{ form.address(id="address", autocomplete="off") }}
+    <input type="hidden" name="latitude" id="latitude" value="{{ row.latitude or '' }}">
+    <input type="hidden" name="longitude" id="longitude" value="{{ row.longitude or '' }}">
 
     <fieldset>
       <legend>Sijainti</legend>

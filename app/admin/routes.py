@@ -68,7 +68,7 @@ from app.core.decorators import require_tenant_access
 from app.email.models import EmailQueueItem, EmailTemplate, OutgoingEmailStatus, TemplateKey
 from app.email.services import EmailServiceError, send_template, update_email_template_admin
 from app.expenses import services as expense_service
-from app.extensions import db
+from app.extensions import db, limiter
 from app.gdpr.services import (
     GdprPermissionError,
     anonymize_user_data,
@@ -77,6 +77,7 @@ from app.gdpr.services import (
     export_user_data,
 )
 from app.guests import services as guest_service
+from app.integrations.geocoding import suggest_addresses
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
 from app.notifications import routes as notification_routes
@@ -150,6 +151,21 @@ def _pms_pagination() -> tuple[int, int]:
 def _wants_json() -> bool:
     best = request.accept_mimetypes.best
     return best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def _property_coords_from_request(
+    *,
+    fallback_lat: Decimal | None = None,
+    fallback_lon: Decimal | None = None,
+) -> tuple[Decimal | None, Decimal | None]:
+    lat_raw = (request.form.get("latitude") or "").strip()
+    lon_raw = (request.form.get("longitude") or "").strip()
+    if lat_raw and lon_raw:
+        try:
+            return Decimal(lat_raw), Decimal(lon_raw)
+        except (InvalidOperation, ValueError):
+            pass
+    return fallback_lat, fallback_lon
 
 
 def _coerce_decimal_fields(row: dict, fields: tuple[str, ...]) -> dict:
@@ -822,6 +838,22 @@ def guests_detail(guest_id: int):
     )
 
 
+@admin_bp.get("/api/address-suggest")
+@require_admin_pms_access
+@limiter.limit("30/minute")
+def api_address_suggest():
+    """JSON address suggestions for property forms (geocoding stays server-side)."""
+
+    q = (request.args.get("q") or "").strip()
+    limit_raw = request.args.get("limit", "5")
+    try:
+        limit = int(limit_raw)
+    except (TypeError, ValueError):
+        limit = 5
+    items = suggest_addresses(q, limit=limit)
+    return json_ok(items)
+
+
 @admin_bp.get("/api/guests/search")
 @require_admin_pms_access
 def api_guests_search():
@@ -1159,6 +1191,7 @@ def properties_new():
     error: str | None = None
 
     if form.validate_on_submit():
+        latitude, longitude = _property_coords_from_request()
         try:
             row = property_service.create_property(
                 organization_id=_pms_org_id(),
@@ -1167,6 +1200,8 @@ def properties_new():
                 city=form.city.data,
                 postal_code=form.postal_code.data,
                 street_address=form.street_address.data,
+                latitude=latitude,
+                longitude=longitude,
                 year_built=form.year_built.data,
                 has_elevator=form.has_elevator.data,
                 has_parking=form.has_parking.data,
@@ -1363,6 +1398,10 @@ def properties_edit(property_id: int):
     stored_coords = _coerce_decimal_fields(row, ("latitude", "longitude"))
 
     if form.validate_on_submit():
+        latitude, longitude = _property_coords_from_request(
+            fallback_lat=stored_coords["latitude"],
+            fallback_lon=stored_coords["longitude"],
+        )
         try:
             row = property_service.update_property(
                 organization_id=_pms_org_id(),
@@ -1372,8 +1411,8 @@ def properties_edit(property_id: int):
                 city=form.city.data,
                 postal_code=form.postal_code.data,
                 street_address=form.street_address.data,
-                latitude=stored_coords["latitude"],
-                longitude=stored_coords["longitude"],
+                latitude=latitude,
+                longitude=longitude,
                 year_built=form.year_built.data,
                 has_elevator=form.has_elevator.data,
                 has_parking=form.has_parking.data,

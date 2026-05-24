@@ -420,6 +420,11 @@ class BaseConfig:
     S3_PUBLIC_BASE_URL = os.getenv("S3_PUBLIC_BASE_URL", "")
     CDN_ENABLED = os.getenv("CDN_ENABLED", "0").lower() in {"1", "true", "yes"}
 
+    # Geocoding (server-side address autocomplete for admin forms).
+    GEOCODING_API_KEY = os.getenv("GEOCODING_API_KEY", "")
+    GEOCODING_PROVIDER = os.getenv("GEOCODING_PROVIDER", "digitransit")
+    GEOCODING_TIMEOUT_SECONDS = int(os.getenv("GEOCODING_TIMEOUT_SECONDS", "5"))
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True
