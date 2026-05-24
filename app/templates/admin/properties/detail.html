@@ -5,6 +5,9 @@
 {% block head_extra %}
   <script src="{{ url_for('static', filename='js/admin-tags.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-comments.js') }}" defer></script>
+  {% if gallery_images is defined and gallery_images %}
+    <script src="{{ url_for('static', filename='js/admin-property-gallery.js') }}" defer></script>
+  {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -18,11 +21,29 @@
   <h1>{{ row.name }}</h1>
 
   {% if gallery_images %}
-    <section class="card property-gallery" aria-label="Kuvagalleria" data-property-gallery>
+    {% set hero = cover_image or gallery_images[0] %}
+    <section
+      class="card property-gallery"
+      aria-label="Kuvagalleria"
+      data-property-gallery
+      tabindex="0"
+    >
       <div class="property-gallery__main">
-        {% set hero = cover_image or gallery_images[0] %}
+        {% if gallery_images|length > 1 %}
+          <button
+            type="button"
+            class="property-gallery__nav property-gallery__nav--prev"
+            data-gallery-prev
+            aria-label="Edellinen kuva"
+          >‹</button>
+          <button
+            type="button"
+            class="property-gallery__nav property-gallery__nav--next"
+            data-gallery-next
+            aria-label="Seuraava kuva"
+          >›</button>
+        {% endif %}
         <img
-          id="property-gallery-main"
           class="property-gallery__hero"
           src="{{ hero.url_src }}"
           alt="{{ hero.alt_text }}"
@@ -36,7 +57,7 @@
             type="button"
             class="property-gallery__thumb-btn{% if image.id == hero.id %} is-active{% endif %}"
             role="listitem"
-            data-gallery-url="{{ image.url }}"
+            data-gallery-url="{{ image.url_src }}"
             data-gallery-alt="{{ image.alt_text }}"
             aria-label="{{ image.alt_text }}"
             aria-pressed="{{ 'true' if image.id == hero.id else 'false' }}"
@@ -52,24 +73,6 @@
         {% endfor %}
       </div>
     </section>
-    <script>
-      (function () {
-        var root = document.querySelector("[data-property-gallery]");
-        if (!root) return;
-        var main = document.getElementById("property-gallery-main");
-        root.addEventListener("click", function (event) {
-          var btn = event.target.closest("[data-gallery-url]");
-          if (!btn || !main) return;
-          main.src = btn.getAttribute("data-gallery-url");
-          main.alt = btn.getAttribute("data-gallery-alt") || "";
-          root.querySelectorAll(".property-gallery__thumb-btn").forEach(function (el) {
-            var active = el === btn;
-            el.classList.toggle("is-active", active);
-            el.setAttribute("aria-pressed", active ? "true" : "false");
-          });
-        });
-      })();
-    </script>
   {% else %}
     <div class="property-gallery__placeholder card">
       <span aria-hidden="true">🏢</span>

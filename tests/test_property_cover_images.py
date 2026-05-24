@@ -268,6 +268,9 @@ def test_properties_detail_renders_gallery(client, app, admin_user):
     assert "property-gallery" in html
     assert "Iso kuva" in html
     assert "data-gallery-url" in html
+    assert "admin-property-gallery.js" in html
+    assert "data-gallery-prev" in html
+    assert "data-gallery-next" in html
 
 
 def test_properties_list_cover_fetch_bounded_queries(app, admin_user, client, query_counter):
