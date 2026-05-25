@@ -5,7 +5,7 @@ from decimal import Decimal
 from html.parser import HTMLParser
 
 from app.billing.models import Invoice, Lease
-from app.core.i18n import priority_label, status_label
+from app.core.i18n import billing_cycle_label, priority_label, status_label
 from app.extensions import db
 from app.guests.models import Guest
 from app.maintenance.models import MaintenanceRequest
@@ -230,8 +230,19 @@ def test_list_views_do_not_render_raw_enum_labels(client, admin_user):
         "Työn alla",
         "Kiireellinen",
         "Maksettu",
+        "Kuukausittain",
     }
-    raw_values = {"active", "draft", "overdue", "in_progress", "urgent", "paid"}
+    raw_values = {
+        "active",
+        "draft",
+        "overdue",
+        "in_progress",
+        "urgent",
+        "paid",
+        "monthly",
+        "weekly",
+        "one_time",
+    }
 
     for route in routes:
         response = client.get(route)
@@ -275,6 +286,25 @@ def test_filter_dropdown_labels_are_finnish(client, admin_user):
         options_maintenance[value] = segment.split(">", 1)[1].split("</option>", 1)[0].strip()
     assert options_maintenance.get("high") == "Korkea"
     assert options_maintenance.get("urgent") == "Kiireellinen"
+
+
+def test_lease_list_renders_billing_cycle_in_finnish(client, admin_user):
+    _login(client, email=admin_user.email, password=admin_user.password_plain)
+    _seed_ui_rows(admin_user)
+
+    response = client.get("/admin/leases")
+    assert response.status_code == 200
+    text = _visible_text(response.get_data(as_text=True))
+    assert "Kuukausittain" in text
+    assert "monthly" not in text.lower()
+
+
+def test_billing_cycle_label_filter():
+    assert billing_cycle_label("monthly") == "Kuukausittain"
+    assert billing_cycle_label("weekly") == "Viikoittain"
+    assert billing_cycle_label("yearly") == "Vuosittain"
+    assert billing_cycle_label("one_time") == "Kertamaksu"
+    assert billing_cycle_label(None) == "-"
 
 
 def test_status_label_filter():

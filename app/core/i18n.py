@@ -57,6 +57,13 @@ UNIT_AVAILABILITY_LABELS_FI = {
     "blocked": "Estetty",
 }
 
+BILLING_CYCLE_LABELS_FI = {
+    "monthly": "Kuukausittain",
+    "weekly": "Viikoittain",
+    "yearly": "Vuosittain",
+    "one_time": "Kertamaksu",
+}
+
 
 def status_label(value: str | None) -> str:
     normalized = (value or "").strip().lower()
@@ -71,6 +78,11 @@ def priority_label(value: str | None) -> str:
 def availability_label(value: str | None) -> str:
     normalized = (value or "").strip().lower()
     return UNIT_AVAILABILITY_LABELS_FI.get(normalized, value or "-")
+
+
+def billing_cycle_label(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    return BILLING_CYCLE_LABELS_FI.get(normalized, value or "-")
 
 
 def bool_label(value: bool) -> str:

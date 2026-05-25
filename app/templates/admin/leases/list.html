@@ -31,7 +31,7 @@
           <td>{{ row.guest_name or "—" }} (#{{ row.guest_id }})</td>
           <td>{{ row.start_date }}{% if row.end_date %} → {{ row.end_date }}{% else %} → …{% endif %}</td>
           <td>{{ row.rent_amount }}</td>
-          <td>{{ row.billing_cycle }}</td>
+          <td>{{ row.billing_cycle|billing_cycle_label }}</td>
           <td>{{ status_badge(row.status, "lease") }}</td>
           <td class="actions-col">
             <details class="row-actions" onclick="event.stopPropagation();">

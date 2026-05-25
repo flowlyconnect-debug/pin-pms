@@ -21,7 +21,7 @@
     <p><strong>Loppu:</strong> {{ row.end_date or "—" }}</p>
     <p><strong>Vuokra:</strong> {{ row.rent_amount }}</p>
     <p><strong>Vakuus:</strong> {{ row.deposit_amount }}</p>
-    <p><strong>Laskutusjakso:</strong> {{ row.billing_cycle }}</p>
+    <p><strong>Laskutusjakso:</strong> {{ row.billing_cycle|billing_cycle_label }}</p>
     {% if row.notes %}<p><strong>Huomiot:</strong> {{ row.notes }}</p>{% endif %}
   </div>
 
