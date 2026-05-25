@@ -1,0 +1,30 @@
+{% from "admin/_nav_icon_render.html" import render_nav_icon %}
+
+<nav class="admin-mobile-bottom-nav" aria-label="Mobiilin pikanavigaatio">
+  {% for item in admin_mobile_bottom_items %}
+    {% set active = admin_nav_is_active(item) %}
+    <a href="{{ url_for(item.endpoint) }}" class="admin-mobile-bottom-link{% if active %} is-active{% endif %}"{% if active %} aria-current="page"{% endif %}>
+      {{ render_nav_icon(item.icon) }}
+      <span>{{ item.label }}</span>
+    </a>
+  {% endfor %}
+  <button type="button" class="admin-mobile-bottom-link admin-mobile-bottom-more-trigger" data-mobile-more-open aria-label="Lisää toimintoja">
+    <span class="admin-mobile-bottom-more-icon" aria-hidden="true">⋯</span>
+    <span>Lisää</span>
+  </button>
+</nav>
+
+<div class="admin-mobile-more-sheet" data-mobile-more-sheet hidden>
+  <button type="button" class="admin-mobile-more-sheet-backdrop" data-mobile-more-close aria-label="Sulje lisänavigaatio"></button>
+  <div class="admin-mobile-more-sheet-panel" role="dialog" aria-modal="true" aria-label="Lisänavigaatio">
+    <div class="admin-mobile-more-sheet-head">
+      <p>Lisää toimintoja</p>
+      <button type="button" class="admin-mobile-more-close" data-mobile-more-close aria-label="Sulje">✕</button>
+    </div>
+    <div class="admin-mobile-more-list">
+      {% for item in admin_mobile_more_items %}
+        <a href="{{ url_for(item.endpoint) }}">{{ render_nav_icon(item.icon) }}<span>{{ item.label }}</span></a>
+      {% endfor %}
+    </div>
+  </div>
+</div>

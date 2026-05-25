@@ -1,0 +1,27 @@
+{% from "admin/_nav_icons.html" import nav_icon_dashboard, nav_icon_building, nav_icon_user, nav_icon_bookings, nav_icon_document, nav_icon_invoice, nav_icon_maintenance, nav_icon_calendar, nav_icon_warning, nav_icon_reports, nav_icon_clipboard, nav_icon_bell, nav_icon_users, nav_icon_org, nav_icon_key, nav_icon_link, nav_icon_mail, nav_icon_server, nav_icon_settings, nav_icon_status %}
+
+{% macro render_nav_icon(name) %}
+  {% if name == "dashboard" %}{{ nav_icon_dashboard() }}
+  {% elif name == "building" %}{{ nav_icon_building() }}
+  {% elif name == "user" %}{{ nav_icon_user() }}
+  {% elif name == "bookings" %}{{ nav_icon_bookings() }}
+  {% elif name == "document" %}{{ nav_icon_document() }}
+  {% elif name == "invoice" %}{{ nav_icon_invoice() }}
+  {% elif name == "maintenance" %}{{ nav_icon_maintenance() }}
+  {% elif name == "calendar" %}{{ nav_icon_calendar() }}
+  {% elif name == "calendar_emoji" %}<span class="admin-nav-ico" aria-hidden="true">🗓</span>
+  {% elif name == "warning" %}{{ nav_icon_warning() }}
+  {% elif name == "reports" %}{{ nav_icon_reports() }}
+  {% elif name == "bell" %}{{ nav_icon_bell() }}
+  {% elif name == "users" %}{{ nav_icon_users() }}
+  {% elif name == "org" %}{{ nav_icon_org() }}
+  {% elif name == "key" %}{{ nav_icon_key() }}
+  {% elif name == "link" %}{{ nav_icon_link() }}
+  {% elif name == "mail" %}{{ nav_icon_mail() }}
+  {% elif name == "server" %}{{ nav_icon_server() }}
+  {% elif name == "settings" %}{{ nav_icon_settings() }}
+  {% elif name == "status" %}{{ nav_icon_status() }}
+  {% elif name == "clipboard" %}{{ nav_icon_clipboard() }}
+  {% elif name == "a11y" %}<span class="admin-nav-ico" aria-hidden="true">A11Y</span>
+  {% endif %}
+{% endmacro %}

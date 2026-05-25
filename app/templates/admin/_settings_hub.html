@@ -1,0 +1,22 @@
+{% from "admin/_nav_icon_render.html" import render_nav_icon %}
+
+{% if admin_settings_hub_sections %}
+  <section class="admin-settings-hub" aria-label="Hallinta ja asetukset">
+    {% for section in admin_settings_hub_sections %}
+      <div class="admin-settings-hub-section">
+        <h2 class="admin-settings-hub-section-title">{{ section.title }}</h2>
+        <div class="admin-settings-hub-grid">
+          {% for item in section.items %}
+            <a class="admin-settings-hub-card" href="{{ url_for(item.endpoint) }}">
+              <span class="admin-settings-hub-card-icon" aria-hidden="true">{{ render_nav_icon(item.icon) }}</span>
+              <span class="admin-settings-hub-card-copy">
+                <span class="admin-settings-hub-card-title">{{ item.label }}</span>
+                <span class="admin-settings-hub-card-desc">{{ item.description }}</span>
+              </span>
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+{% endif %}

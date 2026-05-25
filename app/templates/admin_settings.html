@@ -4,28 +4,32 @@
 {% block page_title %}Asetukset{% endblock %}
 
 {% block content %}
-  <div class="actions">
-    <a href="{{ url_for('admin.settings_new') }}" class="btn">Uusi asetus</a>
-  </div>
-  <p class="meta">Asetukset luetaan <code>app.settings.services.get(key)</code>-kutsulla; tallennukset auditoidaan tapahtumana <code>settings.update</code>.</p>
-  <div class="data-table-card">
-  <table>
-    <thead>
-      <tr><th>Avain</th><th>Arvo</th><th>Tyyppi</th><th>Kuvaus</th><th>Päivitetty</th></tr>
-    </thead>
-    <tbody>
-      {% for r in rows %}
-        <tr>
-          <td><a href="{{ url_for('admin.settings_edit', key=r.key) }}"><code>{{ r.key }}</code></a>{% if r.is_secret %} <span class="meta">· salainen</span>{% endif %}</td>
-          <td><code>{{ mask(r) }}</code></td>
-          <td>{{ r.type }}</td>
-          <td class="meta">{{ r.description }}</td>
-          <td class="meta">{{ r.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
-        </tr>
-      {% else %}
-        <tr><td colspan="5">Ei asetuksia vielä.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
+  {% if show_settings_table %}
+    <div class="actions">
+      <a href="{{ url_for('admin.settings_new') }}" class="btn">Uusi asetus</a>
+    </div>
+    <p class="meta">Asetukset luetaan <code>app.settings.services.get(key)</code>-kutsulla; tallennukset auditoidaan tapahtumana <code>settings.update</code>.</p>
+    <div class="data-table-card">
+      <table>
+        <thead>
+          <tr><th>Avain</th><th>Arvo</th><th>Tyyppi</th><th>Kuvaus</th><th>Päivitetty</th></tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td><a href="{{ url_for('admin.settings_edit', key=r.key) }}"><code>{{ r.key }}</code></a>{% if r.is_secret %} <span class="meta">· salainen</span>{% endif %}</td>
+              <td><code>{{ mask(r) }}</code></td>
+              <td>{{ r.type }}</td>
+              <td class="meta">{{ r.description }}</td>
+              <td class="meta">{{ r.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5">Ei asetuksia vielä.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {% include "admin/_settings_hub.html" %}
 {% endblock %}

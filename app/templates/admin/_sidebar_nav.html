@@ -1,0 +1,34 @@
+{% from "admin/_nav_icon_render.html" import render_nav_icon %}
+
+{% macro render_nav_link(item) %}
+  {% set active = admin_nav_is_active(item) %}
+  <a href="{{ url_for(item.endpoint) }}" class="admin-nav-link{% if active %} is-active{% endif %}"{% if active %} aria-current="page"{% endif %}>
+    {{ render_nav_icon(item.icon) }}
+    <span class="admin-nav-text">{{ item.label }}</span>
+    {% if item.badge_key == "open_invoices" and admin_nav_badges.open_invoices > 0 %}
+      <span class="admin-nav-badge" aria-label="{{ admin_nav_badges.open_invoices }} avointa">{{ admin_nav_badges.open_invoices }}</span>
+    {% elif item.badge_key == "conflicts" %}
+      <span class="admin-nav-badge" data-conflicts-nav-badge hidden aria-label="Konfliktien määrä">0</span>
+    {% endif %}
+  </a>
+{% endmacro %}
+
+<nav class="admin-sidebar-nav" role="navigation" aria-label="Päävalikko">
+  {% for group in admin_nav_groups %}
+    <div class="admin-nav-group" role="group" aria-labelledby="admin-nav-grp-{{ group.id }}">
+      <p id="admin-nav-grp-{{ group.id }}" class="admin-nav-group-title">{{ group.title }}</p>
+      <div class="admin-nav-group-items">
+        {% for item in group.items %}
+          {{ render_nav_link(item) }}
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+  {% if admin_nav_settings_item %}
+    <div class="admin-nav-group admin-nav-group--settings" role="group" aria-labelledby="admin-nav-grp-settings">
+      <div class="admin-nav-group-items">
+        {{ render_nav_link(admin_nav_settings_item) }}
+      </div>
+    </div>
+  {% endif %}
+</nav>

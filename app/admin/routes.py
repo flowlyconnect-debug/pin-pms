@@ -4665,15 +4665,20 @@ def email_template_edit(key: str):
 
 
 @admin_bp.get("/settings")
-@require_superadmin_2fa
+@require_admin_pms_access
 def settings_list():
-    """Show every application setting, alphabetical, secrets masked."""
+    """Settings hub for org admins; superadmins also see the settings table."""
 
-    rows = settings_service.get_all()
+    rows = None
+    mask = None
+    if current_user.is_superadmin:
+        rows = settings_service.get_all()
+        mask = settings_service.mask_for_display
     return render_template(
         "admin_settings.html",
         rows=rows,
-        mask=settings_service.mask_for_display,
+        mask=mask,
+        show_settings_table=current_user.is_superadmin,
     )
 
 
