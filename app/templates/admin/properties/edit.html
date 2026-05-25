@@ -18,7 +18,9 @@
   <form
     method="post"
     data-address-autocomplete
+    data-address-input="street_address"
     data-address-suggest-url="{{ url_for('admin.api_address_suggest') }}"
+    {% if config.DEBUG %}data-address-debug="1"{% endif %}
   >
     {{ form.hidden_tag() }}
     <label for="name">Nimi</label>
@@ -31,7 +33,7 @@
     <fieldset>
       <legend>Sijainti</legend>
       <label for="street_address">Katuosoite</label>
-      {{ form.street_address(id="street_address") }}
+      {{ form.street_address(id="street_address", autocomplete="off") }}
       <label for="postal_code">Postinumero</label>
       {{ form.postal_code(id="postal_code") }}
       <label for="city">Kaupunki</label>

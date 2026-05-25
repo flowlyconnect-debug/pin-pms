@@ -1,12 +1,18 @@
 <script src="{{ url_for('static', filename='js/admin-address-autocomplete.js') }}" defer></script>
 <style>
-  .address-suggest-wrap { position: relative; }
+  form[data-address-autocomplete] fieldset {
+    overflow: visible;
+  }
+  .address-suggest-wrap {
+    position: relative;
+  }
   .address-suggest-results {
+    display: none;
     position: absolute;
     left: 0;
     right: 0;
     top: 100%;
-    z-index: 30;
+    z-index: 50;
     margin-top: 4px;
     max-height: 220px;
     overflow-y: auto;

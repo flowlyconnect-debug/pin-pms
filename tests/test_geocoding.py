@@ -125,11 +125,24 @@ def test_address_suggest_endpoint_json_for_logged_in_admin(client, admin_user, m
 def test_property_form_renders_without_geocoding_config(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
 
-    for path in ("/admin/properties/new",):
+    prop = Property(
+        organization_id=admin_user.organization_id,
+        name="Autocomplete Kohde",
+    )
+    db.session.add(prop)
+    db.session.commit()
+
+    for path in (
+        "/admin/properties/new",
+        f"/admin/properties/{prop.id}/edit",
+    ):
         response = client.get(path)
         assert response.status_code == 200
         html = response.get_data(as_text=True)
         assert 'name="street_address"' in html
+        assert 'id="street_address"' in html
+        assert 'data-address-input="street_address"' in html
+        assert "admin-address-autocomplete.js" in html
         assert "GEOCODING_API_KEY" not in html
         assert "digitransit-subscription-key" not in html
         assert "data-address-suggest-url" in html

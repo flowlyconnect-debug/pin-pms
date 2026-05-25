@@ -4,37 +4,57 @@
   var DEBOUNCE_MS = 300;
   var MIN_QUERY_LEN = 3;
 
+  function debugLog(form, message, detail) {
+    if (!form || form.getAttribute("data-address-debug") !== "1") {
+      return;
+    }
+    if (typeof console !== "undefined" && console.debug) {
+      console.debug("[address-suggest] " + message, detail || "");
+    }
+  }
+
+  function resolveSuggestInput(form) {
+    var inputId = (form.getAttribute("data-address-input") || "street_address").trim();
+    if (!inputId) {
+      return null;
+    }
+    return form.querySelector("#" + CSS.escape(inputId));
+  }
+
   function initForm(form) {
     if (!form || form.dataset.addressAutocompleteInit === "1") {
       return;
     }
-    var addressInput = form.querySelector("#address");
-    if (!addressInput) {
+
+    var suggestInput = resolveSuggestInput(form);
+    if (!suggestInput) {
       return;
     }
-    form.dataset.addressAutocompleteInit = "1";
 
     var suggestUrl = form.getAttribute("data-address-suggest-url");
     if (!suggestUrl) {
       return;
     }
 
+    form.dataset.addressAutocompleteInit = "1";
+
     var streetInput = form.querySelector("#street_address");
     var postalInput = form.querySelector("#postal_code");
     var cityInput = form.querySelector("#city");
+    var addressInput = form.querySelector("#address");
     var latInput = form.querySelector("#latitude");
     var lonInput = form.querySelector("#longitude");
 
     var wrap = document.createElement("div");
     wrap.className = "address-suggest-wrap";
-    addressInput.parentNode.insertBefore(wrap, addressInput);
-    wrap.appendChild(addressInput);
+    suggestInput.parentNode.insertBefore(wrap, suggestInput);
+    wrap.appendChild(suggestInput);
 
     var list = document.createElement("div");
     list.className = "address-suggest-results";
-    list.hidden = true;
     list.setAttribute("role", "listbox");
-    list.id = "address_suggest_results";
+    list.id = suggestInput.id + "_suggest_results";
+    list.style.display = "none";
     wrap.appendChild(list);
 
     var timer = null;
@@ -42,7 +62,7 @@
     var items = [];
 
     function hideList() {
-      list.hidden = true;
+      list.style.display = "none";
       list.innerHTML = "";
       items = [];
     }
@@ -57,8 +77,10 @@
       if (cityInput && item.city) {
         cityInput.value = item.city;
       }
-      if (item.label) {
+      if (addressInput && item.label) {
         addressInput.value = item.label;
+      } else if (item.label) {
+        suggestInput.value = item.label;
       }
       if (latInput && item.lat != null && item.lat !== "") {
         latInput.value = String(item.lat);
@@ -81,7 +103,7 @@
         button.className = "address-suggest-item";
         button.textContent = item.label || item.street || "";
         button.setAttribute("role", "option");
-        button.id = "address-suggest-opt-" + index;
+        button.id = suggestInput.id + "-suggest-opt-" + index;
         button.addEventListener("mousedown", function (ev) {
           ev.preventDefault();
         });
@@ -90,11 +112,11 @@
         });
         list.appendChild(button);
       });
-      list.hidden = false;
+      list.style.display = "block";
     }
 
     async function fetchSuggestions() {
-      var q = (addressInput.value || "").trim();
+      var q = (suggestInput.value || "").trim();
       if (q.length < MIN_QUERY_LEN) {
         hideList();
         return;
@@ -109,35 +131,41 @@
           (suggestUrl.indexOf("?") >= 0 ? "&" : "?") +
           "q=" +
           encodeURIComponent(q);
+        debugLog(form, "fetch", url);
         var res = await fetch(url, {
           credentials: "same-origin",
           signal: activeController.signal,
+          headers: { Accept: "application/json" },
         });
         if (!res.ok) {
+          debugLog(form, "http error", res.status);
           hideList();
           return;
         }
         var body = await res.json();
-        items = body && body.success && Array.isArray(body.data) ? body.data : [];
+        items =
+          body && body.success && Array.isArray(body.data) ? body.data : [];
+        debugLog(form, "results", items.length);
         render();
       } catch (err) {
         if (err && err.name === "AbortError") {
           return;
         }
+        debugLog(form, "fetch failed", err);
         hideList();
       }
     }
 
-    addressInput.addEventListener("input", function () {
+    suggestInput.addEventListener("input", function () {
       window.clearTimeout(timer);
       timer = window.setTimeout(fetchSuggestions, DEBOUNCE_MS);
     });
 
-    addressInput.addEventListener("keydown", function (ev) {
+    suggestInput.addEventListener("keydown", function (ev) {
       if (ev.key === "Escape") {
         hideList();
       }
-      if (ev.key === "Enter" && !list.hidden && items.length) {
+      if (ev.key === "Enter" && list.style.display !== "none" && items.length) {
         ev.preventDefault();
         applySelection(items[0]);
       }
@@ -150,7 +178,13 @@
     });
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
+  function boot() {
     document.querySelectorAll("form[data-address-autocomplete]").forEach(initForm);
-  });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
 })();
