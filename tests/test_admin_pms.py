@@ -1096,26 +1096,26 @@ def test_dashboard_respects_tenant_isolation(client, admin_user):
     assert b"Other Hotel" not in response.data
 
 
-def test_dashboard_hides_backup_status_from_admin(client, admin_user):
+def test_dashboard_excludes_backup_widget(client, admin_user, superadmin):
+    import pyotp
+
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    response = client.get("/admin/dashboard")
-    assert response.status_code == 200
-    assert b"Backup" not in response.data
-    assert b"dashboard-backup-widget" not in response.data
+    admin_response = client.get("/admin/dashboard")
+    assert admin_response.status_code == 200
+    assert b"Backup" not in admin_response.data
+
+    _login(client, email=superadmin.email, password=superadmin.password_plain)
+    code = pyotp.TOTP(superadmin.totp_secret).now()
+    client.post("/2fa/verify", data={"code": code}, follow_redirects=True)
+    superadmin_response = client.get("/admin/dashboard")
+    assert superadmin_response.status_code == 200
+    assert b"Backup" not in superadmin_response.data
+
+    backups_page = client.get("/admin/backups")
+    assert backups_page.status_code == 200
 
 
-def test_get_dashboard_stats_omits_backup_status_for_non_superadmin(app, admin_user):
-    from app.admin import services as admin_services
-
-    with app.app_context():
-        stats = admin_services.get_dashboard_stats(
-            organization_id=admin_user.organization_id,
-            viewer_is_superadmin=False,
-        )
-    assert stats["backup_status"] is None
-
-
-def test_get_dashboard_stats_includes_backup_status_for_superadmin(app, admin_user):
+def test_get_dashboard_stats_omits_backup_status(app, admin_user):
     from app.admin import services as admin_services
 
     with app.app_context():
@@ -1123,34 +1123,7 @@ def test_get_dashboard_stats_includes_backup_status_for_superadmin(app, admin_us
             organization_id=admin_user.organization_id,
             viewer_is_superadmin=True,
         )
-    assert stats["backup_status"] is not None
-    assert "state" in stats["backup_status"]
-
-
-def test_dashboard_shows_backup_status_for_superadmin(client, superadmin):
-    import pyotp
-
-    from app.backups.models import Backup, BackupStatus, BackupTrigger
-    from app.extensions import db
-
-    _login(client, email=superadmin.email, password=superadmin.password_plain)
-    code = pyotp.TOTP(superadmin.totp_secret).now()
-    client.post("/2fa/verify", data={"code": code}, follow_redirects=True)
-
-    db.session.add(
-        Backup(
-            filename="test-superadmin-backup.sql.gz",
-            location="/tmp/test-superadmin-backup.sql.gz",
-            status=BackupStatus.SUCCESS,
-            trigger=BackupTrigger.MANUAL,
-        )
-    )
-    db.session.commit()
-
-    response = client.get("/admin/dashboard")
-    assert response.status_code == 200
-    assert b"Backup" in response.data
-    assert b"dashboard-backup-widget" in response.data
+    assert "backup_status" not in stats
 
 
 def test_dashboard_revenue_trend_pct_uses_previous_month_baseline(client, admin_user):

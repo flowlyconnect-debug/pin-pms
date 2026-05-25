@@ -130,13 +130,6 @@
     {% endif %}
   </section>
 
-  {% if current_user.is_superadmin and summary.backup_status %}
-    <section class="card content-card dashboard-backup-widget">
-      <h2>Backup</h2>
-      <p class="meta">Tila: {{ summary.backup_status.state|status_label }}</p>
-    </section>
-  {% endif %}
-
   <section class="dashboard-mini-charts-grid">
     <article class="card content-card dashboard-mini-chart-card">
       <h2>Viikkonäkymä</h2>

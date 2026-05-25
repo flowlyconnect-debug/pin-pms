@@ -13,7 +13,7 @@ from sqlalchemy import case, func, or_
 from app.admin.models import SavedFilter
 from app.audit import record as audit_record
 from app.audit.models import AuditLog, AuditStatus
-from app.backups.models import Backup, BackupStatus
+from app.backups.models import Backup
 from app.billing.models import Invoice, Lease
 from app.email.models import OutgoingEmail, OutgoingEmailStatus
 from app.email.services import render_template as render_email_template
@@ -670,44 +670,6 @@ def get_dashboard_stats(
             ((range_total_revenue - range_compare_revenue) / range_compare_revenue) * Decimal("100")
         )
 
-    backup_status = None
-    if viewer_is_superadmin:
-        backup_metrics = (
-            db.session.query(
-                db.session.query(Backup.status)
-                .order_by(Backup.created_at.desc(), Backup.id.desc())
-                .limit(1)
-                .scalar_subquery()
-                .label("latest_status"),
-                func.max(Backup.created_at)
-                .filter(Backup.status == BackupStatus.SUCCESS)
-                .label("last_success_at"),
-                func.max(Backup.created_at)
-                .filter(Backup.status == BackupStatus.FAILED)
-                .label("last_failure_at"),
-            )
-            .select_from(Backup)
-            .one()
-        )
-        latest_status = backup_metrics.latest_status
-        latest_success_at = _as_utc(backup_metrics.last_success_at)
-        latest_failure_at = _as_utc(backup_metrics.last_failure_at)
-        backup_state = "missing"
-        if latest_status is not None:
-            if latest_status == BackupStatus.FAILED:
-                backup_state = "failed"
-            elif latest_success_at is None:
-                backup_state = "missing"
-            else:
-                age = now_utc - latest_success_at
-                backup_state = "ok" if age <= timedelta(hours=36) else "stale"
-        backup_status = {
-            "last_success_at": latest_success_at,
-            "last_failure_at": latest_failure_at,
-            "state": backup_state,
-            "scheduler_enabled": bool(current_app.config.get("BACKUP_SCHEDULER_ENABLED", False)),
-        }
-
     email_window_start = range_start_dt
     email_scope_is_org = hasattr(OutgoingEmail, "organization_id")
     email_q = OutgoingEmail.query.filter(
@@ -855,7 +817,6 @@ def get_dashboard_stats(
             "90_plus_fi": _format_eur_fi(aging_receivables["90_plus"]),
         },
         "integrations": integrations,
-        "backup_status": backup_status,
         "email_health": (
             {
                 **email_health,
