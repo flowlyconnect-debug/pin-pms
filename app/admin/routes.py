@@ -338,7 +338,7 @@ def admin_home():
     selected_range = admin_service.normalize_dashboard_range(request.args.get("range"))
     summary = admin_service.get_dashboard_stats(
         organization_id=selected_org_id,
-        viewer_is_superadmin=current_user.is_superadmin,
+        viewer_is_superadmin=bool(current_user.is_superadmin),
         range_key=selected_range,
     )
     modern_summary = admin_service.dashboard_summary(organization_id=selected_org_id)
@@ -379,7 +379,7 @@ def api_dashboard_stats():
     selected_org_id = _pms_org_id()
     summary = admin_service.get_dashboard_stats(
         organization_id=selected_org_id,
-        viewer_is_superadmin=current_user.is_superadmin,
+        viewer_is_superadmin=bool(current_user.is_superadmin),
         range_key="30d",
     )
     modern_summary = admin_service.dashboard_summary(organization_id=selected_org_id)

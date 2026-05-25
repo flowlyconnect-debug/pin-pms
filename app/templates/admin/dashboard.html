@@ -130,8 +130,8 @@
     {% endif %}
   </section>
 
-  {% if summary.backup_status %}
-    <section class="card content-card">
+  {% if current_user.is_superadmin and summary.backup_status %}
+    <section class="card content-card dashboard-backup-widget">
       <h2>Backup</h2>
       <p class="meta">Tila: {{ summary.backup_status.state|status_label }}</p>
     </section>

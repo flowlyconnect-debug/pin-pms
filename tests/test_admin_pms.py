@@ -1101,6 +1101,30 @@ def test_dashboard_hides_backup_status_from_admin(client, admin_user):
     response = client.get("/admin/dashboard")
     assert response.status_code == 200
     assert b"Backup" not in response.data
+    assert b"dashboard-backup-widget" not in response.data
+
+
+def test_get_dashboard_stats_omits_backup_status_for_non_superadmin(app, admin_user):
+    from app.admin import services as admin_services
+
+    with app.app_context():
+        stats = admin_services.get_dashboard_stats(
+            organization_id=admin_user.organization_id,
+            viewer_is_superadmin=False,
+        )
+    assert stats["backup_status"] is None
+
+
+def test_get_dashboard_stats_includes_backup_status_for_superadmin(app, admin_user):
+    from app.admin import services as admin_services
+
+    with app.app_context():
+        stats = admin_services.get_dashboard_stats(
+            organization_id=admin_user.organization_id,
+            viewer_is_superadmin=True,
+        )
+    assert stats["backup_status"] is not None
+    assert "state" in stats["backup_status"]
 
 
 def test_dashboard_shows_backup_status_for_superadmin(client, superadmin):
@@ -1126,6 +1150,7 @@ def test_dashboard_shows_backup_status_for_superadmin(client, superadmin):
     response = client.get("/admin/dashboard")
     assert response.status_code == 200
     assert b"Backup" in response.data
+    assert b"dashboard-backup-widget" in response.data
 
 
 def test_dashboard_revenue_trend_pct_uses_previous_month_baseline(client, admin_user):
