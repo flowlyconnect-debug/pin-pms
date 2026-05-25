@@ -424,6 +424,11 @@ class BaseConfig:
     GEOCODING_API_KEY = os.getenv("GEOCODING_API_KEY", "")
     GEOCODING_PROVIDER = os.getenv("GEOCODING_PROVIDER", "digitransit")
     GEOCODING_TIMEOUT_SECONDS = int(os.getenv("GEOCODING_TIMEOUT_SECONDS", "5"))
+    GEOCODING_DEV_FALLBACK = os.getenv("GEOCODING_DEV_FALLBACK", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
 
 class DevelopmentConfig(BaseConfig):

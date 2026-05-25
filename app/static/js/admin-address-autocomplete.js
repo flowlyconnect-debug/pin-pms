@@ -3,6 +3,7 @@
 
   var DEBOUNCE_MS = 300;
   var MIN_QUERY_LEN = 3;
+  var EMPTY_MESSAGE = "Ei ehdotuksia";
 
   function debugLog(form, message, detail) {
     if (!form || form.getAttribute("data-address-debug") !== "1") {
@@ -38,6 +39,7 @@
 
     form.dataset.addressAutocompleteInit = "1";
 
+    var debugEnabled = form.getAttribute("data-address-debug") === "1";
     var streetInput = form.querySelector("#street_address");
     var postalInput = form.querySelector("#postal_code");
     var cityInput = form.querySelector("#city");
@@ -54,17 +56,70 @@
     list.className = "address-suggest-results";
     list.setAttribute("role", "listbox");
     list.id = suggestInput.id + "_suggest_results";
-    list.style.display = "none";
+    list.hidden = true;
     wrap.appendChild(list);
+
+    var emptyEl = document.createElement("p");
+    emptyEl.className = "address-suggest-empty";
+    emptyEl.textContent = EMPTY_MESSAGE;
+    emptyEl.hidden = true;
+    wrap.appendChild(emptyEl);
+
+    var statusEl = null;
+    if (debugEnabled) {
+      statusEl = document.createElement("p");
+      statusEl.className = "address-suggest-debug";
+      statusEl.setAttribute("aria-live", "polite");
+      wrap.appendChild(statusEl);
+    }
+
+    suggestInput.setAttribute("aria-autocomplete", "list");
+    suggestInput.setAttribute("aria-controls", list.id);
+    suggestInput.setAttribute("aria-expanded", "false");
 
     var timer = null;
     var activeController = null;
+    var fetchGeneration = 0;
     var items = [];
+    var lastQueried = "";
+
+    function setDebugStatus(text) {
+      if (!statusEl) {
+        return;
+      }
+      statusEl.textContent = text || "";
+      statusEl.hidden = !text;
+    }
+
+    function resetSuggestUI() {
+      list.classList.remove("is-open");
+      list.hidden = true;
+      list.innerHTML = "";
+      emptyEl.hidden = true;
+      items = [];
+      lastQueried = "";
+      suggestInput.setAttribute("aria-expanded", "false");
+      setDebugStatus("");
+    }
 
     function hideList() {
-      list.style.display = "none";
+      list.classList.remove("is-open");
+      list.hidden = true;
       list.innerHTML = "";
-      items = [];
+      suggestInput.setAttribute("aria-expanded", "false");
+    }
+
+    function showList() {
+      list.hidden = false;
+      list.removeAttribute("hidden");
+      list.classList.add("is-open");
+      suggestInput.setAttribute("aria-expanded", "true");
+    }
+
+    function showEmptyState() {
+      hideList();
+      emptyEl.hidden = false;
+      setDebugStatus(EMPTY_MESSAGE);
     }
 
     function applySelection(item) {
@@ -88,15 +143,12 @@
       if (lonInput && item.lon != null && item.lon !== "") {
         lonInput.value = String(item.lon);
       }
-      hideList();
+      resetSuggestUI();
     }
 
-    function render() {
+    function renderResults() {
+      emptyEl.hidden = true;
       list.innerHTML = "";
-      if (!items.length) {
-        hideList();
-        return;
-      }
       items.forEach(function (item, index) {
         var button = document.createElement("button");
         button.type = "button";
@@ -112,19 +164,42 @@
         });
         list.appendChild(button);
       });
-      list.style.display = "block";
+      showList();
+      if (debugEnabled) {
+        setDebugStatus(items.length + " ehdotusta");
+      }
+    }
+
+    function renderForQuery(query) {
+      if (query !== lastQueried) {
+        return;
+      }
+      if (!items.length) {
+        showEmptyState();
+        return;
+      }
+      renderResults();
     }
 
     async function fetchSuggestions() {
       var q = (suggestInput.value || "").trim();
       if (q.length < MIN_QUERY_LEN) {
-        hideList();
+        resetSuggestUI();
         return;
       }
+
       if (activeController) {
         activeController.abort();
       }
       activeController = new AbortController();
+      var generation = ++fetchGeneration;
+      lastQueried = q;
+      emptyEl.hidden = true;
+      hideList();
+      if (debugEnabled) {
+        setDebugStatus("Haetaan...");
+      }
+
       try {
         var url =
           suggestUrl +
@@ -137,43 +212,59 @@
           signal: activeController.signal,
           headers: { Accept: "application/json" },
         });
+        if (generation !== fetchGeneration) {
+          return;
+        }
         if (!res.ok) {
           debugLog(form, "http error", res.status);
-          hideList();
+          items = [];
+          renderForQuery(q);
           return;
         }
         var body = await res.json();
+        if (generation !== fetchGeneration) {
+          return;
+        }
         items =
           body && body.success && Array.isArray(body.data) ? body.data : [];
         debugLog(form, "results", items.length);
-        render();
+        renderForQuery(q);
       } catch (err) {
         if (err && err.name === "AbortError") {
           return;
         }
+        if (generation !== fetchGeneration) {
+          return;
+        }
         debugLog(form, "fetch failed", err);
-        hideList();
+        items = [];
+        renderForQuery(q);
       }
     }
 
     suggestInput.addEventListener("input", function () {
+      var q = (suggestInput.value || "").trim();
+      if (q.length < MIN_QUERY_LEN) {
+        resetSuggestUI();
+        return;
+      }
       window.clearTimeout(timer);
       timer = window.setTimeout(fetchSuggestions, DEBOUNCE_MS);
     });
 
     suggestInput.addEventListener("keydown", function (ev) {
       if (ev.key === "Escape") {
-        hideList();
+        resetSuggestUI();
       }
-      if (ev.key === "Enter" && list.style.display !== "none" && items.length) {
+      if (ev.key === "Enter" && list.classList.contains("is-open") && items.length) {
         ev.preventDefault();
         applySelection(items[0]);
       }
     });
 
-    document.addEventListener("click", function (ev) {
+    document.addEventListener("mousedown", function (ev) {
       if (!wrap.contains(ev.target)) {
-        hideList();
+        resetSuggestUI();
       }
     });
   }

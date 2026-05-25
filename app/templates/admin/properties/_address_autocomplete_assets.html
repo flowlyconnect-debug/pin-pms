@@ -1,10 +1,18 @@
 <script src="{{ url_for('static', filename='js/admin-address-autocomplete.js') }}" defer></script>
 <style>
+  form[data-address-autocomplete] {
+    overflow: visible;
+  }
   form[data-address-autocomplete] fieldset {
+    overflow: visible;
+  }
+  .page-shell:has(form[data-address-autocomplete]) {
     overflow: visible;
   }
   .address-suggest-wrap {
     position: relative;
+    width: 100%;
+    z-index: 1;
   }
   .address-suggest-results {
     display: none;
@@ -12,7 +20,7 @@
     left: 0;
     right: 0;
     top: 100%;
-    z-index: 50;
+    z-index: 1200;
     margin-top: 4px;
     max-height: 220px;
     overflow-y: auto;
@@ -20,6 +28,22 @@
     border: 1px solid var(--color-border, #d1d5db);
     border-radius: 6px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+  }
+  .address-suggest-results.is-open {
+    display: block;
+  }
+  .address-suggest-results:not([hidden]).is-open {
+    display: block !important;
+  }
+  .address-suggest-empty {
+    margin: 4px 0 0;
+    font-size: 0.875rem;
+    color: var(--color-text-muted, #6b7280);
+  }
+  .address-suggest-debug {
+    margin: 2px 0 0;
+    font-size: 0.75rem;
+    color: var(--color-text-muted, #9ca3af);
   }
   .address-suggest-item {
     display: block;

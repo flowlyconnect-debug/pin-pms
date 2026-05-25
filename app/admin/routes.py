@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import logging
 import secrets
 import time
 import uuid
@@ -850,7 +851,18 @@ def api_address_suggest():
         limit = int(limit_raw)
     except (TypeError, ValueError):
         limit = 5
+
+    geocoding_log = logging.getLogger("app.integrations.geocoding.service")
+    geocoding_log.info(
+        "address-suggest endpoint query=%r limit=%d provider=%s api_key_configured=%s",
+        q,
+        limit,
+        (current_app.config.get("GEOCODING_PROVIDER") or "digitransit"),
+        bool((current_app.config.get("GEOCODING_API_KEY") or "").strip()),
+    )
+
     items = suggest_addresses(q, limit=limit)
+    geocoding_log.info("address-suggest endpoint query=%r result_count=%d", q, len(items))
     return json_ok(items)
 
 
