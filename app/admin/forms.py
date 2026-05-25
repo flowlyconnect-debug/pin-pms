@@ -8,12 +8,13 @@ from wtforms import (
     DecimalField,
     IntegerField,
     PasswordField,
+    RadioField,
     SelectField,
     SelectMultipleField,
     StringField,
     TextAreaField,
 )
-from wtforms.fields import DateTimeLocalField
+from wtforms.fields import DateField, DateTimeLocalField
 from wtforms.validators import DataRequired, Email, Length, NumberRange, Optional, ValidationError
 
 from app.api.models import ALLOWED_API_KEY_SCOPES
@@ -178,3 +179,60 @@ class LeaseTemplateForm(FlaskForm):
     description = TextAreaField("Kuvaus", validators=[Optional()])
     body_markdown = TextAreaField("Sisalto (Markdown)", validators=[DataRequired(), Length(min=1)])
     is_default = BooleanField("Oletuspohja")
+
+
+class ReservationWizardPropertyForm(FlaskForm):
+    property_id = SelectField(
+        "Kohde",
+        validators=[DataRequired()],
+        coerce=int,
+    )
+
+
+class ReservationWizardUnitDatesForm(FlaskForm):
+    unit_id = SelectField(
+        "Huone",
+        validators=[DataRequired()],
+        coerce=int,
+    )
+    check_in = DateField(
+        "Saapuminen",
+        validators=[DataRequired()],
+        format="%Y-%m-%d",
+    )
+    check_out = DateField(
+        "Lähtö",
+        validators=[DataRequired()],
+        format="%Y-%m-%d",
+    )
+
+
+class ReservationWizardGuestForm(FlaskForm):
+    guest_mode = RadioField(
+        "Vieras",
+        choices=[("existing", "Olemassa oleva vieras"), ("new", "Uusi vieras")],
+        default="existing",
+        validators=[DataRequired()],
+    )
+    guest_id = SelectField(
+        "Valitse vieras",
+        validators=[Optional()],
+        coerce=int,
+    )
+    first_name = StringField("Etunimi", validators=[Optional(), Length(max=255)])
+    last_name = StringField("Sukunimi", validators=[Optional(), Length(max=255)])
+    email = StringField("Sähköposti", validators=[Optional(), Length(max=255)])
+    phone = StringField("Puhelin", validators=[Optional(), Length(max=50)])
+
+
+class ReservationWizardConfirmForm(FlaskForm):
+    amount = DecimalField(
+        "Summa",
+        validators=[Optional(), NumberRange(min=0)],
+        places=2,
+    )
+    currency = StringField(
+        "Valuutta",
+        validators=[Optional(), Length(min=3, max=3)],
+        default="EUR",
+    )

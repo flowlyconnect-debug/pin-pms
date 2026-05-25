@@ -1,0 +1,36 @@
+{% extends "admin/reservations/_wizard_layout.html" %}
+{% set wizard_title = "Uusi varaus — Vahvistus" %}
+
+{% block wizard_content %}
+  <section class="wizard-summary">
+    <h2>Yhteenveto</h2>
+    <dl>
+      <dt>Kohde</dt>
+      <dd>{{ preview.property_name }}</dd>
+      <dt>Huone</dt>
+      <dd>{{ preview.unit_name }}</dd>
+      <dt>Saapuminen</dt>
+      <dd>{{ preview.check_in }}</dd>
+      <dt>Lähtö</dt>
+      <dd>{{ preview.check_out }}</dd>
+      <dt>Vieras</dt>
+      <dd>{{ preview.guest_name }}{% if preview.guest_id %} (#{{ preview.guest_id }}){% endif %}</dd>
+      {% if preview.amount %}
+        <dt>Hinta</dt>
+        <dd>{{ preview.amount }} {{ preview.currency }}</dd>
+      {% endif %}
+    </dl>
+  </section>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <label for="amount">Summa (valinnainen)</label>
+    {{ form.amount(id="amount", step="0.01", min="0") }}
+    <label for="currency">Valuutta</label>
+    {{ form.currency(id="currency", maxlength="3") }}
+    <div class="actions">
+      <button type="submit" name="action" value="confirm">Vahvista varaus</button>
+      <button type="submit" name="action" value="back" class="btn btn-secondary">Takaisin</button>
+      <button type="submit" name="action" value="cancel" class="btn btn-secondary">Peruuta</button>
+    </div>
+  </form>
+{% endblock %}

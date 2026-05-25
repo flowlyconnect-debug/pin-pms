@@ -106,7 +106,7 @@ def test_admin_pages_inline_scripts_are_csp_safe(client, admin_user):
 
     routes = [
         "/admin/calendar",
-        "/admin/reservations/new",
+        "/admin/reservations/new/quick",
         f"/admin/reservations/{reservation_id}/edit",
         "/admin/leases/new",
         f"/admin/leases/{lease_id}/edit",

@@ -1,0 +1,109 @@
+{% extends "admin/reservations/_wizard_layout.html" %}
+{% set wizard_title = "Uusi varaus — Vieras" %}
+
+{% block head_extra %}
+  <script src="{{ url_for('static', filename='js/admin-form-helpers.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-reservations.js') }}" defer></script>
+  <style>
+    .guest-search-wrap { position: relative; }
+    .guest-results {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      z-index: 30;
+      margin-top: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+    }
+    .guest-result {
+      display: block;
+      width: 100%;
+      padding: 8px 10px;
+      text-align: left;
+      background: #fff;
+      color: #111827;
+      border: 0;
+      border-bottom: 1px solid #e5e7eb;
+      cursor: pointer;
+      font: inherit;
+    }
+    .guest-result:hover { background: #f3f4f6; }
+    .guest-result:last-child { border-bottom: 0; }
+    .guest-no-results { padding: 8px 10px; color: #6b7280; }
+    .wizard-guest-panel { margin-top: 1rem; }
+    .wizard-guest-panel[hidden] { display: none; }
+  </style>
+{% endblock %}
+
+{% block wizard_content %}
+  <form method="post" id="reservation-wizard-guest-form">
+    {{ form.hidden_tag() }}
+    <fieldset>
+      <legend>Vieraan valinta</legend>
+      {% for subfield in form.guest_mode %}
+        <label class="radio-inline">
+          {{ subfield() }} {{ subfield.label.text }}
+        </label>
+      {% endfor %}
+    </fieldset>
+
+    <div id="wizard-guest-existing" class="wizard-guest-panel">
+      <div class="guest-search-wrap" data-guest-search-url="{{ guest_search_url }}">
+        <label for="guest_search">Hae vierasta</label>
+        <input type="text" id="guest_search" placeholder="Hae nimellä tai sähköpostilla..." autocomplete="off">
+        <div id="guest_search_results" class="guest-results" aria-live="polite"></div>
+      </div>
+      <label for="guest_id">Valittu vieras</label>
+      {{ form.guest_id(id="guest_id") }}
+    </div>
+
+    <div id="wizard-guest-new" class="wizard-guest-panel" hidden>
+      <label for="first_name">Etunimi</label>
+      {{ form.first_name(id="first_name") }}
+      <label for="last_name">Sukunimi</label>
+      {{ form.last_name(id="last_name") }}
+      <label for="email">Sähköposti</label>
+      {{ form.email(id="email") }}
+      <label for="phone">Puhelin</label>
+      {{ form.phone(id="phone") }}
+    </div>
+
+    <div class="actions">
+      <button type="submit" name="action" value="next">Seuraava</button>
+      <button type="submit" name="action" value="back" class="btn btn-secondary">Takaisin</button>
+      <button type="submit" name="action" value="cancel" class="btn btn-secondary">Peruuta</button>
+    </div>
+  </form>
+  <script>
+    (function () {
+      var form = document.getElementById("reservation-wizard-guest-form");
+      if (!form) return;
+      var modeInputs = form.querySelectorAll('input[name="guest_mode"]');
+      var existingPanel = document.getElementById("wizard-guest-existing");
+      var newPanel = document.getElementById("wizard-guest-new");
+      function syncPanels() {
+        var mode = "existing";
+        modeInputs.forEach(function (input) {
+          if (input.checked) mode = input.value;
+        });
+        if (mode === "new") {
+          existingPanel.hidden = true;
+          newPanel.hidden = false;
+        } else {
+          existingPanel.hidden = false;
+          newPanel.hidden = true;
+        }
+      }
+      modeInputs.forEach(function (input) {
+        input.addEventListener("change", syncPanels);
+      });
+      syncPanels();
+    })();
+  </script>
+{% endblock %}

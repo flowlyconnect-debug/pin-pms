@@ -41,9 +41,14 @@ def test_admin_can_open_reservation_creation_form(client, admin_user):
     db.session.add(Unit(property_id=prop.id, name="101", unit_type="double"))
     db.session.commit()
 
-    response = client.get("/admin/reservations/new")
+    response = client.get("/admin/reservations/new", follow_redirects=True)
     assert response.status_code == 200
-    assert b"Uusi varaus" in response.data
+    assert b"Vaihe 1 / 4" in response.data
+    assert b"Kohde" in response.data
+
+    quick = client.get("/admin/reservations/new/quick")
+    assert quick.status_code == 200
+    assert b"Pikalomake" in quick.data
 
 
 def test_normal_user_cannot_access_pms_pages(client, regular_user):

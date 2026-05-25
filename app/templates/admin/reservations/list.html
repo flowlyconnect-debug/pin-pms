@@ -10,7 +10,8 @@
 {% block content %}
   <div class="page-header">
     <div class="page-header-actions">
-      <a class="btn btn-primary" href="{{ url_for('admin.reservations_new') }}">Uusi varaus</a>
+      <a class="btn btn-primary" href="{{ url_for('admin.reservations_wizard_step', step=1) }}">Luo varaus</a>
+      <a class="btn btn-secondary" href="{{ url_for('admin.reservations_new_quick') }}">Pikalomake</a>
     </div>
   </div>
   {{ render_filters("reservations", filters) }}

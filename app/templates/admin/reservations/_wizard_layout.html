@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ wizard_title }} · Pin PMS{% endblock %}
+{% block page_title %}{{ wizard_title }}{% endblock %}
+
+{% block content %}
+  <p class="meta">Vaihe {{ step }} / 4</p>
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Varauslistaan</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_new_quick') }}">Pikalomake</a>
+  </div>
+  <h1>{{ wizard_title }}</h1>
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  {% block wizard_content %}{% endblock %}
+{% endblock %}

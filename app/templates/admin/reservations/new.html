@@ -48,12 +48,13 @@
   <div id="reservation-form-page" data-guest-search-url="{{ url_for('admin.api_guests_search') }}">
   <div class="actions">
     <a class="btn btn-secondary" href="{{ url_for('admin.reservations_list') }}">Takaisin varauksiin</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.reservations_wizard_step', step=1) }}">Ohjattu luonti</a>
   </div>
-  <h1>Uusi varaus</h1>
+  <h1>{% if is_quick_form %}Pikalomake — uusi varaus{% else %}Uusi varaus{% endif %}</h1>
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
-  <form method="post">
+  <form method="post" action="{{ url_for('admin.reservations_new') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="unit_id">Huone</label>
     <select id="unit_id" name="unit_id" required>

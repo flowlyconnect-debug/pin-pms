@@ -45,6 +45,10 @@ from app.admin.forms import (
     LeaseTemplateForm,
     OrganizationForm,
     PropertyForm,
+    ReservationWizardConfirmForm,
+    ReservationWizardGuestForm,
+    ReservationWizardPropertyForm,
+    ReservationWizardUnitDatesForm,
     SettingForm,
     UnitForm,
     UserCreateForm,
@@ -78,6 +82,7 @@ from app.gdpr.services import (
     export_user_data,
 )
 from app.guests import services as guest_service
+from app.guests.models import Guest
 from app.integrations.geocoding import suggest_addresses
 from app.integrations.ical.service import IcalService, IcalServiceError
 from app.maintenance import services as maintenance_service
@@ -1720,9 +1725,86 @@ def reservations_list():
     )
 
 
+def _reservation_wizard_state() -> dict:
+    raw = session.get(reservation_service.RESERVATION_WIZARD_SESSION_KEY)
+    state = reservation_service.wizard_state_empty()
+    if isinstance(raw, dict):
+        for key in state:
+            if key in raw:
+                state[key] = raw[key]
+    return state
+
+
+def _reservation_wizard_save(state: dict) -> None:
+    session[reservation_service.RESERVATION_WIZARD_SESSION_KEY] = state
+    session.modified = True
+
+
+def _reservation_wizard_clear() -> None:
+    session.pop(reservation_service.RESERVATION_WIZARD_SESSION_KEY, None)
+
+
+def _reservation_wizard_require_step(min_step: int) -> dict | None:
+    """Return wizard state if prerequisites for ``min_step`` are met, else redirect."""
+
+    state = _reservation_wizard_state()
+    if min_step >= 2 and not state.get("property_id"):
+        flash("Valitse ensin kohde.")
+        return None
+    if min_step >= 3 and not (state.get("unit_id") and state.get("check_in") and state.get("check_out")):
+        flash("Valitse huone ja päivät.")
+        return None
+    if min_step >= 4 and not (state.get("guest_id") or (state.get("guest_name") or "").strip()):
+        flash("Valitse tai luo vieras.")
+        return None
+    return state
+
+
+def _reservation_wizard_seed_from_query() -> None:
+    """Pre-fill wizard from availability/calendar deep links (unit + dates)."""
+
+    unit_id_raw = (request.args.get("unit_id") or "").strip()
+    if not unit_id_raw:
+        return
+    try:
+        unit_id = int(unit_id_raw)
+    except ValueError:
+        return
+
+    org_id = _pms_org_id()
+    unit = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(Unit.id == unit_id, Property.organization_id == org_id)
+        .first()
+    )
+    if unit is None:
+        return
+
+    state = _reservation_wizard_state()
+    state["property_id"] = unit.property_id
+    state["unit_id"] = unit.id
+    for session_key, arg_name in (("check_in", "start_date"), ("check_out", "end_date")):
+        value = (request.args.get(arg_name) or "").strip()
+        if not value:
+            continue
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            continue
+        state[session_key] = value
+    _reservation_wizard_save(state)
+
+
 @admin_bp.route("/reservations/new", methods=["GET", "POST"])
 @require_admin_pms_access
 def reservations_new():
+    if request.method == "GET":
+        _reservation_wizard_seed_from_query()
+        state = _reservation_wizard_state()
+        if state.get("unit_id") and state.get("check_in") and state.get("check_out"):
+            return redirect(url_for("admin.reservations_wizard_step", step=2))
+        return redirect(url_for("admin.reservations_wizard_step", step=1))
+
     units, _ = _reservation_form_choices(organization_id=_pms_org_id())
     form = {
         "unit_id": "",
@@ -1736,57 +1818,342 @@ def reservations_new():
     }
     error: str | None = None
 
-    if request.method == "GET":
-        allowed_unit_ids = {str(unit.id) for unit in units}
-        unit_id = (request.args.get("unit_id") or "").strip()
-        if unit_id in allowed_unit_ids:
-            form["unit_id"] = unit_id
-        for field in ("start_date", "end_date"):
-            value = (request.args.get(field) or "").strip()
-            try:
-                if value:
-                    date.fromisoformat(value)
-            except ValueError:
-                continue
-            form[field] = value
-    elif request.method == "POST":
-        form["unit_id"] = (request.form.get("unit_id") or "").strip()
-        form["guest_id"] = (request.form.get("guest_id") or "").strip()
-        form["guest_search"] = (request.form.get("guest_search") or "").strip()
-        form["guest_name"] = (request.form.get("guest_name") or "").strip()
-        form["start_date"] = (request.form.get("start_date") or "").strip()
-        form["end_date"] = (request.form.get("end_date") or "").strip()
-        form["amount"] = (request.form.get("amount") or "").strip()
-        form["currency"] = (request.form.get("currency") or "").strip().upper() or "EUR"
+    form["unit_id"] = (request.form.get("unit_id") or "").strip()
+    form["guest_id"] = (request.form.get("guest_id") or "").strip()
+    form["guest_search"] = (request.form.get("guest_search") or "").strip()
+    form["guest_name"] = (request.form.get("guest_name") or "").strip()
+    form["start_date"] = (request.form.get("start_date") or "").strip()
+    form["end_date"] = (request.form.get("end_date") or "").strip()
+    form["amount"] = (request.form.get("amount") or "").strip()
+    form["currency"] = (request.form.get("currency") or "").strip().upper() or "EUR"
 
-        if not form["unit_id"] or not form["start_date"] or not form["end_date"]:
-            error = "Huone ja päivämäärät ovat pakollisia."
+    if not form["unit_id"] or not form["start_date"] or not form["end_date"]:
+        error = "Huone ja päivämäärät ovat pakollisia."
+    else:
+        try:
+            parsed_guest_id = int(form["guest_id"]) if form["guest_id"] else None
+            row = reservation_service.create_reservation(
+                organization_id=_pms_org_id(),
+                unit_id=int(form["unit_id"]),
+                guest_id=parsed_guest_id,
+                guest_name=form["guest_name"] or None,
+                start_date_raw=form["start_date"],
+                end_date_raw=form["end_date"],
+                amount=form["amount"],
+                currency=form["currency"],
+                actor_user_id=current_user.id,
+            )
+        except (TypeError, ValueError):
+            error = "Huoneen ja asiakkaan tunnisteiden tulee olla numeroita."
+        except reservation_service.ReservationServiceError as err:
+            error = err.message
         else:
-            try:
-                parsed_guest_id = int(form["guest_id"]) if form["guest_id"] else None
-                row = reservation_service.create_reservation(
-                    organization_id=_pms_org_id(),
-                    unit_id=int(form["unit_id"]),
-                    guest_id=parsed_guest_id,
-                    guest_name=form["guest_name"] or None,
-                    start_date_raw=form["start_date"],
-                    end_date_raw=form["end_date"],
-                    amount=form["amount"],
-                    currency=form["currency"],
-                    actor_user_id=current_user.id,
-                )
-            except (TypeError, ValueError):
-                error = "Huoneen ja asiakkaan tunnisteiden tulee olla numeroita."
-            except reservation_service.ReservationServiceError as err:
-                error = err.message
-            else:
-                flash("Varaus luotu.")
-                return redirect(url_for("admin.reservations_detail", reservation_id=row["id"]))
+            flash("Varaus luotu.")
+            return redirect(url_for("admin.reservations_detail", reservation_id=row["id"]))
 
     return render_template(
         "admin/reservations/new.html",
         units=units,
         form=form,
+        error=error,
+    )
+
+
+@admin_bp.route("/reservations/new/quick", methods=["GET"])
+@require_admin_pms_access
+def reservations_new_quick():
+    units, _ = _reservation_form_choices(organization_id=_pms_org_id())
+    form = {
+        "unit_id": "",
+        "guest_id": "",
+        "guest_search": "",
+        "guest_name": "",
+        "start_date": "",
+        "end_date": "",
+        "amount": "",
+        "currency": "EUR",
+    }
+    allowed_unit_ids = {str(unit.id) for unit in units}
+    unit_id = (request.args.get("unit_id") or "").strip()
+    if unit_id in allowed_unit_ids:
+        form["unit_id"] = unit_id
+    for field in ("start_date", "end_date"):
+        value = (request.args.get(field) or "").strip()
+        try:
+            if value:
+                date.fromisoformat(value)
+        except ValueError:
+            continue
+        form[field] = value
+    return render_template(
+        "admin/reservations/new.html",
+        units=units,
+        form=form,
+        error=None,
+        is_quick_form=True,
+    )
+
+
+@admin_bp.post("/reservations/new/cancel")
+@require_admin_pms_access
+def reservations_wizard_cancel():
+    _reservation_wizard_clear()
+    flash("Varauksen luonti peruutettu.")
+    return redirect(url_for("admin.reservations_list"))
+
+
+@admin_bp.route("/reservations/new/step/<int:step>", methods=["GET", "POST"])
+@require_admin_pms_access
+def reservations_wizard_step(step: int):
+    if step not in {1, 2, 3, 4}:
+        abort(404)
+
+    org_id = _pms_org_id()
+
+    if step == 1:
+        return _reservation_wizard_step_property(org_id)
+    if step == 2:
+        state = _reservation_wizard_require_step(2)
+        if state is None:
+            return redirect(url_for("admin.reservations_wizard_step", step=1))
+        return _reservation_wizard_step_unit_dates(org_id, state)
+    if step == 3:
+        state = _reservation_wizard_require_step(3)
+        if state is None:
+            return redirect(url_for("admin.reservations_wizard_step", step=2))
+        return _reservation_wizard_step_guest(org_id, state)
+    state = _reservation_wizard_require_step(4)
+    if state is None:
+        return redirect(url_for("admin.reservations_wizard_step", step=3))
+    return _reservation_wizard_step_confirm(org_id, state)
+
+
+def _reservation_wizard_step_property(organization_id: int):
+    properties = (
+        Property.query.filter_by(organization_id=organization_id)
+        .order_by(Property.name.asc(), Property.id.asc())
+        .all()
+    )
+    form = ReservationWizardPropertyForm()
+    form.property_id.choices = [(p.id, p.name) for p in properties]
+    state = _reservation_wizard_state()
+    error: str | None = None
+
+    if request.method == "POST":
+        if request.form.get("action") == "cancel":
+            _reservation_wizard_clear()
+            flash("Varauksen luonti peruutettu.")
+            return redirect(url_for("admin.reservations_list"))
+        if form.validate_on_submit():
+            try:
+                reservation_service.get_property_for_wizard(
+                    organization_id=organization_id,
+                    property_id=form.property_id.data,
+                )
+            except reservation_service.ReservationServiceError as err:
+                error = err.message
+            else:
+                state["property_id"] = form.property_id.data
+                _reservation_wizard_save(state)
+                return redirect(url_for("admin.reservations_wizard_step", step=2))
+        error = error or "Valitse kohde."
+    elif state.get("property_id"):
+        form.property_id.data = int(state["property_id"])
+
+    return render_template(
+        "admin/reservations/wizard_step1.html",
+        form=form,
+        step=1,
+        error=error,
+    )
+
+
+def _reservation_wizard_step_unit_dates(organization_id: int, state: dict):
+    property_id = int(state["property_id"])
+    units = (
+        Unit.query.filter_by(property_id=property_id)
+        .order_by(Unit.name.asc(), Unit.id.asc())
+        .all()
+    )
+    form = ReservationWizardUnitDatesForm()
+    form.unit_id.choices = [(u.id, u.name) for u in units]
+    error: str | None = None
+
+    if request.method == "POST":
+        if request.form.get("action") == "back":
+            return redirect(url_for("admin.reservations_wizard_step", step=1))
+        if request.form.get("action") == "cancel":
+            _reservation_wizard_clear()
+            flash("Varauksen luonti peruutettu.")
+            return redirect(url_for("admin.reservations_list"))
+        if form.validate_on_submit():
+            try:
+                reservation_service.validate_wizard_step_dates(
+                    organization_id=organization_id,
+                    property_id=property_id,
+                    unit_id=form.unit_id.data,
+                    check_in_raw=form.check_in.data.isoformat(),
+                    check_out_raw=form.check_out.data.isoformat(),
+                )
+            except reservation_service.ReservationServiceError as err:
+                error = err.message
+            else:
+                state["unit_id"] = form.unit_id.data
+                state["check_in"] = form.check_in.data.isoformat()
+                state["check_out"] = form.check_out.data.isoformat()
+                _reservation_wizard_save(state)
+                return redirect(url_for("admin.reservations_wizard_step", step=3))
+        error = error or "Tarkista huoneen ja päivien valinnat."
+    else:
+        if state.get("unit_id"):
+            form.unit_id.data = int(state["unit_id"])
+        if state.get("check_in"):
+            form.check_in.data = date.fromisoformat(str(state["check_in"]))
+        if state.get("check_out"):
+            form.check_out.data = date.fromisoformat(str(state["check_out"]))
+
+    prop = reservation_service.get_property_for_wizard(
+        organization_id=organization_id,
+        property_id=property_id,
+    )
+    return render_template(
+        "admin/reservations/wizard_step2.html",
+        form=form,
+        step=2,
+        property_name=prop.name,
+        error=error,
+    )
+
+
+def _reservation_wizard_step_guest(organization_id: int, state: dict):
+    guest_rows, _ = guest_service.list_guests(
+        organization_id=organization_id,
+        page=1,
+        per_page=500,
+    )
+    form = ReservationWizardGuestForm()
+    form.guest_id.choices = [(0, "— Valitse —")] + [
+        (r["id"], r["full_name"] or f"#{r['id']}") for r in guest_rows
+    ]
+    error: str | None = None
+
+    if request.method == "POST":
+        if request.form.get("action") == "back":
+            return redirect(url_for("admin.reservations_wizard_step", step=2))
+        if request.form.get("action") == "cancel":
+            _reservation_wizard_clear()
+            flash("Varauksen luonti peruutettu.")
+            return redirect(url_for("admin.reservations_list"))
+        if form.validate_on_submit():
+            mode = form.guest_mode.data
+            if mode == "existing":
+                guest_id = form.guest_id.data
+                if not guest_id:
+                    error = "Valitse vieras listasta."
+                else:
+                    guest = Guest.query.filter_by(
+                        id=guest_id, organization_id=organization_id
+                    ).first()
+                    if guest is None:
+                        error = "Valittua vierasta ei löytynyt."
+                    else:
+                        state["guest_id"] = guest.id
+                        state["guest_name"] = guest.full_name
+                        _reservation_wizard_save(state)
+                        return redirect(url_for("admin.reservations_wizard_step", step=4))
+            else:
+                payload = {
+                    "first_name": (form.first_name.data or "").strip(),
+                    "last_name": (form.last_name.data or "").strip(),
+                    "email": (form.email.data or "").strip(),
+                    "phone": (form.phone.data or "").strip(),
+                }
+                if not payload["first_name"] or not payload["last_name"]:
+                    error = "Etunimi ja sukunimi ovat pakollisia uudelle vieraalle."
+                else:
+                    try:
+                        created = guest_service.create_guest(
+                            organization_id, payload, current_user
+                        )
+                    except guest_service.GuestServiceError as err:
+                        if "email already exists" in err.message:
+                            error = "Sähköpostilla on jo vieras tässä organisaatiossa."
+                        else:
+                            error = err.message
+                    else:
+                        state["guest_id"] = created["id"]
+                        state["guest_name"] = created["full_name"]
+                        _reservation_wizard_save(state)
+                        return redirect(url_for("admin.reservations_wizard_step", step=4))
+        if not error:
+            error = "Tarkista vieraan tiedot."
+    else:
+        if state.get("guest_id"):
+            form.guest_mode.data = "existing"
+            form.guest_id.data = int(state["guest_id"])
+
+    return render_template(
+        "admin/reservations/wizard_step3.html",
+        form=form,
+        step=3,
+        error=error,
+        guest_search_url=url_for("admin.api_guests_search"),
+    )
+
+
+def _reservation_wizard_step_confirm(organization_id: int, state: dict):
+    form = ReservationWizardConfirmForm()
+    error: str | None = None
+    preview: dict | None = None
+
+    try:
+        preview = reservation_service.build_reservation_preview(
+            organization_id=organization_id,
+            wizard_state=state,
+        )
+    except reservation_service.ReservationServiceError as err:
+        flash(err.message)
+        return redirect(url_for("admin.reservations_wizard_step", step=3))
+
+    if request.method == "POST":
+        if request.form.get("action") == "back":
+            return redirect(url_for("admin.reservations_wizard_step", step=3))
+        if request.form.get("action") == "cancel":
+            _reservation_wizard_clear()
+            flash("Varauksen luonti peruutettu.")
+            return redirect(url_for("admin.reservations_list"))
+        if form.validate_on_submit():
+            state["amount"] = str(form.amount.data) if form.amount.data is not None else None
+            state["currency"] = (form.currency.data or "EUR").strip().upper()
+            _reservation_wizard_save(state)
+            try:
+                row = reservation_service.create_reservation_from_wizard(
+                    organization_id=organization_id,
+                    wizard_state=state,
+                    actor_user_id=current_user.id,
+                )
+            except reservation_service.ReservationServiceError as err:
+                error = err.message
+            else:
+                _reservation_wizard_clear()
+                flash("Varaus luotu.")
+                return redirect(
+                    url_for("admin.reservations_detail", reservation_id=row["id"])
+                )
+        error = error or "Vahvistus epäonnistui."
+    else:
+        if state.get("amount"):
+            try:
+                form.amount.data = Decimal(str(state["amount"]))
+            except (InvalidOperation, ValueError):
+                pass
+        form.currency.data = state.get("currency") or "EUR"
+
+    return render_template(
+        "admin/reservations/wizard_step4.html",
+        form=form,
+        step=4,
+        preview=preview,
         error=error,
     )
 

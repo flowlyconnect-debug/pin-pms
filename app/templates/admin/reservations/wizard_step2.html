@@ -1,0 +1,20 @@
+{% extends "admin/reservations/_wizard_layout.html" %}
+{% set wizard_title = "Uusi varaus — Huone ja päivät" %}
+
+{% block wizard_content %}
+  <p class="meta">Kohde: <strong>{{ property_name }}</strong></p>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <label for="unit_id">Huone</label>
+    {{ form.unit_id(id="unit_id", required=True) }}
+    <label for="check_in">Saapuminen</label>
+    {{ form.check_in(id="check_in", type="date", required=True) }}
+    <label for="check_out">Lähtö</label>
+    {{ form.check_out(id="check_out", type="date", required=True) }}
+    <div class="actions">
+      <button type="submit" name="action" value="next">Seuraava</button>
+      <button type="submit" name="action" value="back" class="btn btn-secondary">Takaisin</button>
+      <button type="submit" name="action" value="cancel" class="btn btn-secondary">Peruuta</button>
+    </div>
+  </form>
+{% endblock %}

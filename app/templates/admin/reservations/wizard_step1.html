@@ -1,0 +1,14 @@
+{% extends "admin/reservations/_wizard_layout.html" %}
+{% set wizard_title = "Uusi varaus — Kohde" %}
+
+{% block wizard_content %}
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <label for="property_id">Kohde</label>
+    {{ form.property_id(id="property_id", required=True) }}
+    <div class="actions">
+      <button type="submit" name="action" value="next">Seuraava</button>
+      <button type="submit" name="action" value="cancel" class="btn btn-secondary">Peruuta</button>
+    </div>
+  </form>
+{% endblock %}

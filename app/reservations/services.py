@@ -45,6 +45,7 @@ _PAYMENT_STATUSES = frozenset({"pending", "paid", "cancelled"})
 _CALENDAR_EVENT_TYPES = frozenset({"reservations", "leases", "invoices", "maintenance"})
 _QUICK_AVAILABILITY_RANGES = frozenset({"today", "tomorrow", "weekend", "7d"})
 _QUICK_AVAILABILITY_FREE_STATUSES = frozenset({"free", "checkout"})
+RESERVATION_WIZARD_SESSION_KEY = "reservation_wizard"
 
 
 @dataclass
@@ -129,6 +130,41 @@ def _parse_currency(raw: Any) -> str:
             status=400,
         )
     return text
+
+
+def _validate_reservation_dates_and_overlap(
+    *,
+    unit_id: int,
+    start_date_raw: str,
+    end_date_raw: str,
+    exclude_reservation_id: int | None = None,
+) -> tuple[date, date]:
+    """Parse stay dates and ensure checkout is after check-in with no overlap."""
+
+    start_date = _parse_iso_date(start_date_raw, "start_date")
+    end_date = _parse_iso_date(end_date_raw, "end_date")
+    if start_date >= end_date:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Field 'start_date' must be before 'end_date'.",
+            status=400,
+        )
+
+    overlap_query = Reservation.query.filter(
+        Reservation.unit_id == unit_id,
+        Reservation.status != "cancelled",
+        Reservation.start_date < end_date,
+        Reservation.end_date > start_date,
+    )
+    if exclude_reservation_id is not None:
+        overlap_query = overlap_query.filter(Reservation.id != exclude_reservation_id)
+    if overlap_query.first() is not None:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Unit already has an overlapping reservation for the given dates.",
+            status=400,
+        )
+    return start_date, end_date
 
 
 def _scoped_reservation_query(*, organization_id: int):
@@ -972,19 +1008,12 @@ def update_reservation(
     currency = _parse_currency(data.get("currency"))
 
     if status == "confirmed":
-        overlapping = Reservation.query.filter(
-            Reservation.unit_id == unit.id,
-            Reservation.id != reservation_id,
-            Reservation.status != "cancelled",
-            Reservation.start_date < end_date,
-            Reservation.end_date > start_date,
-        ).first()
-        if overlapping is not None:
-            raise ReservationServiceError(
-                code="validation_error",
-                message="Unit already has an overlapping reservation for the given dates.",
-                status=400,
-            )
+        _validate_reservation_dates_and_overlap(
+            unit_id=unit.id,
+            start_date_raw=start_date.isoformat(),
+            end_date_raw=end_date.isoformat(),
+            exclude_reservation_id=reservation_id,
+        )
 
     before = {
         "unit_id": row.unit_id,
@@ -1110,27 +1139,11 @@ def create_reservation(
             status=400,
         )
 
-    start_date = _parse_iso_date(start_date_raw, "start_date")
-    end_date = _parse_iso_date(end_date_raw, "end_date")
-    if start_date >= end_date:
-        raise ReservationServiceError(
-            code="validation_error",
-            message="Field 'start_date' must be before 'end_date'.",
-            status=400,
-        )
-
-    overlapping = Reservation.query.filter(
-        Reservation.unit_id == unit.id,
-        Reservation.status != "cancelled",
-        Reservation.start_date < end_date,
-        Reservation.end_date > start_date,
-    ).first()
-    if overlapping is not None:
-        raise ReservationServiceError(
-            code="validation_error",
-            message="Unit already has an overlapping reservation for the given dates.",
-            status=400,
-        )
+    start_date, end_date = _validate_reservation_dates_and_overlap(
+        unit_id=unit.id,
+        start_date_raw=start_date_raw,
+        end_date_raw=end_date_raw,
+    )
 
     row = Reservation(
         unit_id=unit.id,
@@ -1197,6 +1210,172 @@ def create_reservation(
         build_reservation_created_payload(row),
     )
     return _serialize_reservation(row)
+
+
+def wizard_state_empty() -> dict:
+    return {
+        "property_id": None,
+        "unit_id": None,
+        "check_in": None,
+        "check_out": None,
+        "guest_id": None,
+        "guest_name": None,
+        "amount": None,
+        "currency": "EUR",
+    }
+
+
+def get_property_for_wizard(*, organization_id: int, property_id: int) -> Property:
+    row = Property.query.filter_by(id=property_id, organization_id=organization_id).first()
+    if row is None:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Valittu kohde ei kuulu organisaatioosi.",
+            status=400,
+        )
+    return row
+
+
+def get_unit_for_wizard(
+    *,
+    organization_id: int,
+    property_id: int,
+    unit_id: int,
+) -> Unit:
+    unit = (
+        Unit.query.join(Property, Unit.property_id == Property.id)
+        .filter(
+            Unit.id == unit_id,
+            Property.id == property_id,
+            Property.organization_id == organization_id,
+        )
+        .first()
+    )
+    if unit is None:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Valittu huone ei kuulu valittuun kohteeseen.",
+            status=400,
+        )
+    return unit
+
+
+def validate_wizard_step_dates(
+    *,
+    organization_id: int,
+    property_id: int,
+    unit_id: int,
+    check_in_raw: str,
+    check_out_raw: str,
+) -> tuple[date, date]:
+    """Wizard step 2: tenant-safe unit check plus shared date/overlap validation."""
+
+    get_property_for_wizard(organization_id=organization_id, property_id=property_id)
+    unit = get_unit_for_wizard(
+        organization_id=organization_id,
+        property_id=property_id,
+        unit_id=unit_id,
+    )
+    try:
+        return _validate_reservation_dates_and_overlap(
+            unit_id=unit.id,
+            start_date_raw=check_in_raw,
+            end_date_raw=check_out_raw,
+        )
+    except ReservationServiceError as exc:
+        if exc.code == "validation_error" and "before 'end_date'" in exc.message:
+            raise ReservationServiceError(
+                code=exc.code,
+                message="Saapumispäivän on oltava ennen lähtöpäivää.",
+                status=exc.status,
+            ) from exc
+        if exc.code == "validation_error" and "overlapping" in exc.message:
+            raise ReservationServiceError(
+                code=exc.code,
+                message="Huoneella on jo päällekkäinen varaus valituilla päivillä.",
+                status=exc.status,
+            ) from exc
+        raise
+
+
+def build_reservation_preview(
+    *,
+    organization_id: int,
+    wizard_state: Mapping[str, Any],
+) -> dict:
+    """Load display labels for wizard confirmation (step 4)."""
+
+    property_id = wizard_state.get("property_id")
+    unit_id = wizard_state.get("unit_id")
+    check_in = wizard_state.get("check_in")
+    check_out = wizard_state.get("check_out")
+    if not property_id or not unit_id or not check_in or not check_out:
+        raise ReservationServiceError(
+            code="validation_error",
+            message="Varauksen tiedot ovat puutteellisia.",
+            status=400,
+        )
+
+    prop = get_property_for_wizard(organization_id=organization_id, property_id=int(property_id))
+    unit = get_unit_for_wizard(
+        organization_id=organization_id,
+        property_id=int(property_id),
+        unit_id=int(unit_id),
+    )
+
+    guest_id = wizard_state.get("guest_id")
+    guest_label = (wizard_state.get("guest_name") or "").strip()
+    guest: Guest | None = None
+    if guest_id is not None:
+        guest = Guest.query.filter_by(id=int(guest_id), organization_id=organization_id).first()
+        if guest is None:
+            raise ReservationServiceError(
+                code="validation_error",
+                message="Valittua vierasta ei löytynyt.",
+                status=400,
+            )
+        guest_label = _display_guest_name(guest=guest, guest_name=guest_label)
+
+    amount_raw = wizard_state.get("amount")
+    amount_display = None
+    if amount_raw is not None and str(amount_raw).strip():
+        amount_display = str(_parse_amount(amount_raw))
+    currency = _parse_currency(wizard_state.get("currency"))
+
+    return {
+        "property_id": prop.id,
+        "property_name": prop.name,
+        "unit_id": unit.id,
+        "unit_name": unit.name,
+        "check_in": str(check_in),
+        "check_out": str(check_out),
+        "guest_id": guest.id if guest is not None else None,
+        "guest_name": guest_label,
+        "amount": amount_display,
+        "currency": currency,
+    }
+
+
+def create_reservation_from_wizard(
+    *,
+    organization_id: int,
+    wizard_state: Mapping[str, Any],
+    actor_user_id: int | None = None,
+) -> dict:
+    """Create a reservation from wizard session state using ``create_reservation``."""
+
+    preview = build_reservation_preview(organization_id=organization_id, wizard_state=wizard_state)
+    return create_reservation(
+        organization_id=organization_id,
+        unit_id=int(preview["unit_id"]),
+        guest_id=preview["guest_id"],
+        guest_name=preview["guest_name"] or None,
+        start_date_raw=preview["check_in"],
+        end_date_raw=preview["check_out"],
+        amount=wizard_state.get("amount"),
+        currency=wizard_state.get("currency") or "EUR",
+        actor_user_id=actor_user_id,
+    )
 
 
 def move_reservation(
