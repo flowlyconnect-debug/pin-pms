@@ -2,22 +2,30 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Mapping
 
+from flask import current_app, url_for
+
 from app.audit import record as audit_record
 from app.audit.models import AuditStatus
+from app.email.models import TemplateKey
+from app.email.services import EmailTemplateNotFound, send_template
 from app.extensions import db
 from app.guests.models import Guest
 from app.maintenance.models import MaintenanceRequest
 from app.notifications import services as notification_service
 from app.properties.models import Property, Unit
 from app.reservations.models import Reservation
+from app.settings import services as settings_service
 from app.users.models import User
 from app.webhooks.events import MAINTENANCE_REQUESTED
 from app.webhooks.publisher import publish as publish_webhook_event
 from app.webhooks.schemas import build_maintenance_requested_payload
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -89,6 +97,122 @@ def _get_row(*, organization_id: int, request_id: int) -> MaintenanceRequest | N
         id=request_id,
         organization_id=organization_id,
     ).first()
+
+
+def _mask_email(value: str) -> str:
+    addr = (value or "").strip()
+    if "@" not in addr:
+        return "***"
+    local, _, domain = addr.partition("@")
+    if len(local) <= 2:
+        visible_local = local[:1] + "*"
+    else:
+        visible_local = local[:2] + "***"
+    return f"{visible_local}@{domain}"
+
+
+def _maintenance_notifications_enabled() -> bool:
+    return bool(
+        settings_service.get("maintenance.email_notifications_enabled", default=True)
+    )
+
+
+def _resolve_maintenance_recipient_email(
+    *, organization_id: int, property_id: int
+) -> str | None:
+    prop = Property.query.filter_by(
+        id=property_id,
+        organization_id=organization_id,
+    ).first()
+    if prop is not None:
+        prop_email = (prop.maintenance_email or "").strip()
+        if prop_email:
+            return prop_email
+    default_email = (settings_service.get("maintenance.default_email", default="") or "").strip()
+    return default_email or None
+
+
+def _maintenance_detail_url(request_id: int) -> str:
+    with current_app.test_request_context():
+        return url_for(
+            "admin.maintenance_requests_detail",
+            request_id=request_id,
+            _external=True,
+        )
+
+
+def _maintenance_email_context(row: MaintenanceRequest) -> dict[str, Any]:
+    prop = row.property
+    unit = row.unit
+    return {
+        "organization_id": row.organization_id,
+        "property_name": prop.name if prop is not None else "-",
+        "unit_name": unit.name if unit is not None else "-",
+        "priority": row.priority_label,
+        "status": row.status,
+        "description": (row.description or row.title or "").strip() or "-",
+        "maintenance_url": _maintenance_detail_url(row.id),
+    }
+
+
+def queue_maintenance_email_notification(
+    row: MaintenanceRequest,
+    *,
+    event_type: str,
+) -> None:
+    """Queue a maintenance notification email without affecting the saved request."""
+    if not _maintenance_notifications_enabled():
+        return
+
+    to_email = _resolve_maintenance_recipient_email(
+        organization_id=row.organization_id,
+        property_id=row.property_id,
+    )
+    if not to_email:
+        logger.warning(
+            "Maintenance request %s: no maintenance recipient email "
+            "(property_id=%s, organization_id=%s, event=%s)",
+            row.id,
+            row.property_id,
+            row.organization_id,
+            event_type,
+        )
+        return
+
+    try:
+        queued = send_template(
+            TemplateKey.MAINTENANCE_REQUEST,
+            to=to_email,
+            context=_maintenance_email_context(row),
+        )
+    except EmailTemplateNotFound:
+        logger.exception(
+            "Maintenance request %s: email template %s missing",
+            row.id,
+            TemplateKey.MAINTENANCE_REQUEST,
+        )
+        return
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "Maintenance request %s: failed to queue maintenance email",
+            row.id,
+        )
+        return
+
+    if queued:
+        audit_record(
+            "maintenance_request.email_queued",
+            status=AuditStatus.SUCCESS,
+            organization_id=row.organization_id,
+            target_type="maintenance_request",
+            target_id=row.id,
+            context={
+                "event_type": event_type,
+                "property_id": row.property_id,
+                "recipient_email": _mask_email(to_email),
+            },
+            commit=True,
+        )
 
 
 def _serialize(row: MaintenanceRequest) -> dict[str, Any]:
@@ -300,6 +424,7 @@ def create_maintenance_request(
         organization_id,
         build_maintenance_requested_payload(row),
     )
+    queue_maintenance_email_notification(row, event_type="created")
     return _serialize(row)
 
 
@@ -326,6 +451,9 @@ def update_maintenance_request(
 
     old_status = row.status
     old_assignee = row.assigned_to_id
+    old_priority = row.priority
+    notify_assigned = False
+    notify_urgent = False
 
     if "title" in data:
         t = str(data["title"] or "").strip()
@@ -349,6 +477,8 @@ def update_maintenance_request(
                 status=400,
             )
         row.priority = pr
+        if pr == "urgent" and old_priority != "urgent":
+            notify_urgent = True
 
     if "status" in data:
         st = str(data["status"] or "").strip().lower()
@@ -459,6 +589,7 @@ def update_maintenance_request(
                 )
             row.assigned_to_id = aid_int
         if row.assigned_to_id != old_assignee:
+            notify_assigned = True
             audit_record(
                 "maintenance_request.assigned",
                 status=AuditStatus.SUCCESS,
@@ -472,6 +603,10 @@ def update_maintenance_request(
             )
 
     db.session.commit()
+    if notify_assigned:
+        queue_maintenance_email_notification(row, event_type="assigned")
+    elif notify_urgent:
+        queue_maintenance_email_notification(row, event_type="urgent_priority")
     return _serialize(row)
 
 

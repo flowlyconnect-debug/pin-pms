@@ -82,6 +82,7 @@ class TemplateKey:
     INVOICE_OVERDUE = "invoice_overdue"
     INVOICE_PAID = "invoice_paid"
     LEASE_SIGN_REQUEST = "lease_sign_request"
+    MAINTENANCE_REQUEST = "maintenance_request"
 
     ALL = (
         WELCOME_EMAIL,
@@ -96,6 +97,7 @@ class TemplateKey:
         INVOICE_OVERDUE,
         INVOICE_PAID,
         LEASE_SIGN_REQUEST,
+        MAINTENANCE_REQUEST,
     )
 
 

@@ -74,6 +74,8 @@
       {{ form.description(id="description", rows="4") }}
       <label for="url">Verkkosivu</label>
       {{ form.url(id="url", type="url") }}
+      <label for="maintenance_email">Huoltajan sähköposti</label>
+      {{ form.maintenance_email(id="maintenance_email", type="email", autocomplete="email") }}
     </fieldset>
     <div class="actions">
       <button type="submit" data-variant="primary">Tallenna kohde</button>

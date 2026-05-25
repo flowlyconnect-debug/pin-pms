@@ -123,6 +123,19 @@ class PropertyForm(FlaskForm):
     has_air_conditioning = BooleanField("Ilmastointi")
     description = TextAreaField("Kuvaus", validators=[Optional()])
     url = StringField("Verkko-osoite", validators=[Optional(), Length(max=500)])
+    maintenance_email = StringField(
+        "Huoltajan sähköposti",
+        validators=[Optional(), Length(max=255)],
+    )
+
+    def validate_maintenance_email(self, field):
+        value = (field.data or "").strip()
+        if not value:
+            field.data = None
+            return
+        if "@" not in value or " " in value:
+            raise ValidationError("Anna kelvollinen sähköpostiosoite.")
+        field.data = value
 
     def validate_url(self, field):
         value = (field.data or "").strip()

@@ -52,4 +52,18 @@ SEED_SETTINGS: list[SettingSeed] = [
         "description": "Oletus-ALV-kanta laskuille (%)",
         "is_secret": False,
     },
+    {
+        "key": "maintenance.default_email",
+        "value": "",
+        "type": "string",
+        "description": "Organisaation oletusosoite huoltopyyntöjen sähköposti-ilmoituksille.",
+        "is_secret": False,
+    },
+    {
+        "key": "maintenance.email_notifications_enabled",
+        "value": "true",
+        "type": "bool",
+        "description": "Lähetetäänkö huoltopyyntöjen sähköposti-ilmoitukset huoltajalle.",
+        "is_secret": False,
+    },
 ]

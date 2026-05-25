@@ -27,6 +27,7 @@ class Property(TimestampMixin, db.Model):
     has_air_conditioning = db.Column(db.Boolean, nullable=False, default=False)
     description = db.Column(db.Text, nullable=True)
     url = db.Column(db.String(500), nullable=True)
+    maintenance_email = db.Column(db.String(255), nullable=True)
 
     organization = db.relationship("Organization", back_populates="properties", lazy="joined")
     units = db.relationship(

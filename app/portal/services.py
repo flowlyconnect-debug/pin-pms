@@ -393,6 +393,9 @@ def create_maintenance_request(
     )
     db.session.add(row)
     db.session.commit()
+    from app.maintenance.services import queue_maintenance_email_notification
+
+    queue_maintenance_email_notification(row, event_type="created")
     return {
         "id": row.id,
         "title": row.title,

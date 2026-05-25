@@ -49,6 +49,7 @@ def _serialize_property(row: Property) -> dict:
         "has_air_conditioning": row.has_air_conditioning,
         "description": row.description,
         "url": row.url,
+        "maintenance_email": row.maintenance_email,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
@@ -145,6 +146,7 @@ def create_property(
     has_air_conditioning: bool = False,
     description: str | None = None,
     url: str | None = None,
+    maintenance_email: str | None = None,
     actor_user_id: int | None = None,
 ) -> dict:
     normalized_name = (name or "").strip()
@@ -172,6 +174,7 @@ def create_property(
         has_air_conditioning=bool(has_air_conditioning),
         description=(description or "").strip() or None,
         url=(url or "").strip() or None,
+        maintenance_email=(maintenance_email or "").strip() or None,
     )
     db.session.add(row)
     db.session.commit()
@@ -218,6 +221,7 @@ def update_property(
     has_air_conditioning: bool = False,
     description: str | None = None,
     url: str | None = None,
+    maintenance_email: str | None = None,
     actor_user_id: int | None = None,
 ) -> dict:
     row = Property.query.filter_by(id=property_id, organization_id=organization_id).first()
@@ -251,6 +255,7 @@ def update_property(
     row.has_air_conditioning = bool(has_air_conditioning)
     row.description = (description or "").strip() or None
     row.url = (url or "").strip() or None
+    row.maintenance_email = (maintenance_email or "").strip() or None
     db.session.commit()
     audit_record(
         "property_updated",

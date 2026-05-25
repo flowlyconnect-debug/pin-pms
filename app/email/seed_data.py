@@ -396,4 +396,40 @@ SEED_TEMPLATES: list[TemplateSeed] = [
         "description": "Hyvityksen valmistumisviesti.",
         "available_variables": ["invoice_number", "amount", "currency", "from_name"],
     },
+    {
+        "key": "maintenance_request",
+        "subject": "Huoltopyyntö: {{ property_name }}",
+        "body_text": (
+            "Uusi tai päivitetty huoltopyyntö.\n\n"
+            "Kohde: {{ property_name }}\n"
+            "Yksikkö: {{ unit_name }}\n"
+            "Prioriteetti: {{ priority }}\n"
+            "Tila: {{ status }}\n\n"
+            "{{ description }}\n\n"
+            "Avaa pyyntö: {{ maintenance_url }}\n\n"
+            "— {{ from_name }}\n"
+        ),
+        "body_html": (
+            "<p>Uusi tai päivitetty huoltopyyntö.</p>"
+            "<ul>"
+            "<li><strong>Kohde:</strong> {{ property_name }}</li>"
+            "<li><strong>Yksikkö:</strong> {{ unit_name }}</li>"
+            "<li><strong>Prioriteetti:</strong> {{ priority }}</li>"
+            "<li><strong>Tila:</strong> {{ status }}</li>"
+            "</ul>"
+            "<p>{{ description }}</p>"
+            '<p><a href="{{ maintenance_url }}">Avaa huoltopyyntö</a></p>'
+            "<p>— {{ from_name }}</p>"
+        ),
+        "description": "Ilmoitus huoltajalle uudesta tai päivittyneestä huoltopyynnöstä.",
+        "available_variables": [
+            "property_name",
+            "unit_name",
+            "priority",
+            "status",
+            "description",
+            "maintenance_url",
+            "from_name",
+        ],
+    },
 ]

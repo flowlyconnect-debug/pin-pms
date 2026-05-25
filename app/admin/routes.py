@@ -1227,6 +1227,7 @@ def properties_new():
                 has_air_conditioning=form.has_air_conditioning.data,
                 description=form.description.data,
                 url=form.url.data,
+                maintenance_email=form.maintenance_email.data,
                 actor_user_id=current_user.id,
             )
         except property_service.PropertyServiceError as err:
@@ -1438,6 +1439,7 @@ def properties_edit(property_id: int):
                 has_air_conditioning=form.has_air_conditioning.data,
                 description=form.description.data,
                 url=form.url.data,
+                maintenance_email=form.maintenance_email.data,
                 actor_user_id=current_user.id,
             )
         except property_service.PropertyServiceError as err:
