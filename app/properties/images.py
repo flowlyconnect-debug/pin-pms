@@ -4,7 +4,6 @@ import os
 import secrets
 from dataclasses import dataclass
 from io import BytesIO
-
 from urllib.parse import quote
 
 from flask import current_app
