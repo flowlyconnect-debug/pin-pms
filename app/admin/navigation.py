@@ -53,7 +53,9 @@ SIDEBAR_GROUPS: tuple[NavGroup, ...] = (
         id="primary",
         title="Päätoiminnot",
         items=(
-            NavItem("Etusivu", "admin.admin_home", "dashboard", active_endpoints=("admin.admin_home",)),
+            NavItem(
+                "Etusivu", "admin.admin_home", "dashboard", active_endpoints=("admin.admin_home",)
+            ),
             NavItem(
                 "Kalenteri",
                 "admin.calendar_page",
@@ -365,7 +367,11 @@ def _user_has_access(access: NavAccess, *, is_superadmin: bool, has_pms: bool) -
 
 
 def _user_can_see_nav(user) -> tuple[bool, bool]:
-    if not user or isinstance(user, AnonymousUserMixin) or not getattr(user, "is_authenticated", False):
+    if (
+        not user
+        or isinstance(user, AnonymousUserMixin)
+        or not getattr(user, "is_authenticated", False)
+    ):
         return False, False
     from app.users.models import UserRole
 
@@ -405,7 +411,9 @@ def is_endpoint_active(item: NavItem, endpoint: str) -> bool:
     if item.active_match == "prefix":
         return any(endpoint.startswith(rule) for rule in rules)
     if item.active_match == "any":
-        return endpoint in rules or any(endpoint.startswith(rule) for rule in rules if rule.endswith("_"))
+        return endpoint in rules or any(
+            endpoint.startswith(rule) for rule in rules if rule.endswith("_")
+        )
     return endpoint == item.endpoint
 
 
@@ -420,7 +428,9 @@ def sidebar_groups_for_user(user) -> list[NavGroup]:
     groups: list[NavGroup] = []
     for group in SIDEBAR_GROUPS:
         items = tuple(
-            item for item in group.items if filter_nav_item(item, is_superadmin=is_superadmin, has_pms=has_pms)
+            item
+            for item in group.items
+            if filter_nav_item(item, is_superadmin=is_superadmin, has_pms=has_pms)
         )
         if items:
             groups.append(NavGroup(id=group.id, title=group.title, items=items))

@@ -261,9 +261,7 @@ def test_parses_street_layer_feature(app):
         "Valtionkatu Helsinki",
     ],
 )
-def test_sample_queries_use_search_fallback_when_autocomplete_empty(
-    app, monkeypatch, query
-):
+def test_sample_queries_use_search_fallback_when_autocomplete_empty(app, monkeypatch, query):
     calls: list[str] = []
 
     class FakeResponse:
@@ -371,7 +369,9 @@ def test_address_suggest_endpoint_json_for_logged_in_admin(client, admin_user, m
         def json(self):
             return _sample_digitransit_body()
 
-    monkeypatch.setattr("app.integrations.geocoding.service.requests.get", lambda *a, **k: FakeResponse())
+    monkeypatch.setattr(
+        "app.integrations.geocoding.service.requests.get", lambda *a, **k: FakeResponse()
+    )
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
     response = client.get("/admin/api/address-suggest?q=Manner")

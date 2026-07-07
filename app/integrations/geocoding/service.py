@@ -334,9 +334,7 @@ def _digitransit_properties(feature: dict[str, Any]) -> dict[str, Any]:
 
 
 def _street_line_from_props(props: dict[str, Any], *, layer: str) -> str:
-    housenumber = str(
-        props.get("housenumber") or props.get("number") or ""
-    ).strip()
+    housenumber = str(props.get("housenumber") or props.get("number") or "").strip()
     street = str(props.get("street") or "").strip()
     name = str(props.get("name") or "").strip()
 

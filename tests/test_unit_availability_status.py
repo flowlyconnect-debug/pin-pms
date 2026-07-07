@@ -26,7 +26,9 @@ def _login(client, *, email: str, password: str):
     return client.post("/login", data={"email": email, "password": password})
 
 
-def _seed_property_with_unit(*, organization_id: int, property_name: str, unit_name: str) -> tuple[Property, Unit]:
+def _seed_property_with_unit(
+    *, organization_id: int, property_name: str, unit_name: str
+) -> tuple[Property, Unit]:
     prop = Property(organization_id=organization_id, name=property_name, address=None)
     db.session.add(prop)
     db.session.flush()
@@ -327,9 +329,7 @@ def test_list_units_with_availability_status_query_count_is_bounded(app, admin_u
         # Luodaan kymmenen huonetta saman omistajan alle.
         property_id = None
         unit_ids: list[int] = []
-        prop = Property(
-            organization_id=admin_user.organization_id, name="Big Hotel", address=None
-        )
+        prop = Property(organization_id=admin_user.organization_id, name="Big Hotel", address=None)
         db.session.add(prop)
         db.session.flush()
         property_id = prop.id
@@ -367,9 +367,9 @@ def test_list_units_with_availability_status_query_count_is_bounded(app, admin_u
         # Funktion pitää tehdä korkeintaan kolme SELECT-kyselyä
         # riippumatta siitä, montako huonetta organisaatiossa on.
         assert len(rows) == 10
-        assert counter["count"] <= 4, (
-            f"Liian monta SELECT-kyselyä ({counter['count']}); N+1-ongelma?"
-        )
+        assert (
+            counter["count"] <= 4
+        ), f"Liian monta SELECT-kyselyä ({counter['count']}); N+1-ongelma?"
 
 
 # ---------------------------------------------------------------------------
@@ -417,6 +417,4 @@ def test_admin_css_defines_unit_availability_status_badge_classes():
         css = handle.read()
 
     for variant in ("free", "reserved", "transition", "maintenance", "blocked"):
-        assert f".status-badge--{variant}" in css, (
-            f"admin.css puuttuu .status-badge--{variant}"
-        )
+        assert f".status-badge--{variant}" in css, f"admin.css puuttuu .status-badge--{variant}"

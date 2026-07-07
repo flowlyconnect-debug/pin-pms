@@ -1325,9 +1325,7 @@ def properties_images(property_id: int):
     image_rows = property_image_service.list_property_images(
         organization_id=_pms_org_id(), property_id=property_id
     )
-    images = [
-        property_image_service.serialize_property_image_for_admin(row) for row in image_rows
-    ]
+    images = [property_image_service.serialize_property_image_for_admin(row) for row in image_rows]
     return render_template(
         "admin/properties/images.html",
         row=property_row,
@@ -1757,7 +1755,9 @@ def _reservation_wizard_require_step(min_step: int) -> dict | None:
     if min_step >= 2 and not state.get("property_id"):
         flash("Valitse ensin kohde.")
         return None
-    if min_step >= 3 and not (state.get("unit_id") and state.get("check_in") and state.get("check_out")):
+    if min_step >= 3 and not (
+        state.get("unit_id") and state.get("check_in") and state.get("check_out")
+    ):
         flash("Valitse huone ja päivät.")
         return None
     if min_step >= 4 and not (state.get("guest_id") or (state.get("guest_name") or "").strip()):
@@ -1977,9 +1977,7 @@ def _reservation_wizard_step_property(organization_id: int):
 def _reservation_wizard_step_unit_dates(organization_id: int, state: dict):
     property_id = int(state["property_id"])
     units = (
-        Unit.query.filter_by(property_id=property_id)
-        .order_by(Unit.name.asc(), Unit.id.asc())
-        .all()
+        Unit.query.filter_by(property_id=property_id).order_by(Unit.name.asc(), Unit.id.asc()).all()
     )
     form = ReservationWizardUnitDatesForm()
     form.unit_id.choices = [(u.id, u.name) for u in units]
@@ -2078,9 +2076,7 @@ def _reservation_wizard_step_guest(organization_id: int, state: dict):
                     error = "Etunimi ja sukunimi ovat pakollisia uudelle vieraalle."
                 else:
                     try:
-                        created = guest_service.create_guest(
-                            organization_id, payload, current_user
-                        )
+                        created = guest_service.create_guest(organization_id, payload, current_user)
                     except guest_service.GuestServiceError as err:
                         if "email already exists" in err.message:
                             error = "Sähköpostilla on jo vieras tässä organisaatiossa."
@@ -2143,9 +2139,7 @@ def _reservation_wizard_step_confirm(organization_id: int, state: dict):
             else:
                 _reservation_wizard_clear()
                 flash("Varaus luotu.")
-                return redirect(
-                    url_for("admin.reservations_detail", reservation_id=row["id"])
-                )
+                return redirect(url_for("admin.reservations_detail", reservation_id=row["id"]))
         error = error or "Vahvistus epäonnistui."
     else:
         if state.get("amount"):
@@ -3725,9 +3719,7 @@ def reservations_bulk():
         # HTML-form POST — generoi avain automaattisesti, jotta käyttäjä
         # ei näe raakaa JSON-virhettä. JSON-pyynnöiltä avain vaaditaan.
         if _wants_json():
-            return json_error(
-                "idempotency_key_required", "Idempotency key required.", status=400
-            )
+            return json_error("idempotency_key_required", "Idempotency key required.", status=400)
         idem_key = uuid.uuid4().hex
     if len(ids) > 1000:
         if _wants_json():

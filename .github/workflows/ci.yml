@@ -31,6 +31,9 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      FORCE_SQLITE_TEST_DB: "1"
+      UPLOADS_DIR: ${{ github.workspace }}/.test-uploads
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]

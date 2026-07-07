@@ -14,6 +14,7 @@ def create_reservation_via_wizard(
     *,
     check_in: date | None = None,
     check_out: date | None = None,
+    expect_success: bool = True,
 ) -> None:
     """Drive the four wizard steps in the browser (existing guest, EUR 100)."""
 
@@ -31,6 +32,11 @@ def create_reservation_via_wizard(
     page.fill("input[name=check_in]", check_in.isoformat())
     page.fill("input[name=check_out]", check_out.isoformat())
     page.click("button[name=action][value=next]")
+
+    if not expect_success:
+        page.wait_for_url("**/reservations/new/step/2")
+        assert "päällekkäinen" in page.locator("body").inner_text()
+        return
 
     # Step 3 — guest (pick the seeded existing guest)
     page.wait_for_url("**/reservations/new/step/3")
@@ -70,13 +76,22 @@ def test_reservation_appears_in_calendar_events(admin_page, live_server, seed):
 
 
 def test_overlapping_reservation_is_rejected(admin_page, live_server, seed):
-    create_reservation_via_wizard(admin_page, live_server, seed)
-    # Second, identical booking attempt must not create a duplicate.
-    create_reservation_via_wizard(admin_page, live_server, seed)
+    from app.reservations.models import Reservation
 
-    resp = admin_page.request.get(f"{live_server}/admin/reservations")
-    html = resp.text()
-    assert html.count(f"(#{seed.guest_id})") == 1, "duplicate overlapping reservation created"
+    create_reservation_via_wizard(admin_page, live_server, seed)
+    create_reservation_via_wizard(
+        admin_page,
+        live_server,
+        seed,
+        expect_success=False,
+    )
+
+    active = (
+        Reservation.query.filter_by(unit_id=seed.unit_id)
+        .filter(Reservation.status != "cancelled")
+        .count()
+    )
+    assert active == 1, "duplicate overlapping reservation created"
 
 
 def test_admin_can_edit_reservation_dates(admin_page, live_server, seed):

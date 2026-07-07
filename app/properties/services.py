@@ -519,9 +519,7 @@ def list_units_with_availability_status(
     )
     if property_id is not None:
         units_rows = units_rows.filter(Property.id == property_id)
-    units_rows = units_rows.order_by(
-        Property.name.asc(), Unit.name.asc(), Unit.id.asc()
-    ).all()
+    units_rows = units_rows.order_by(Property.name.asc(), Unit.name.asc(), Unit.id.asc()).all()
 
     if not units_rows:
         return []
@@ -542,9 +540,7 @@ def list_units_with_availability_status(
             )
             .filter(
                 Reservation.unit_id.in_(unit_ids),
-                func.lower(func.coalesce(Reservation.status, "")).in_(
-                    ACTIVE_RESERVATION_STATUSES
-                ),
+                func.lower(func.coalesce(Reservation.status, "")).in_(ACTIVE_RESERVATION_STATUSES),
                 Reservation.end_date >= today,
             )
             .order_by(
@@ -607,22 +603,12 @@ def list_units_with_availability_status(
     for row in units_rows:
         current_list = current_reservations.get(row.unit_id, [])
         ongoing = next(
-            (
-                r
-                for r in current_list
-                if r["start_date"] < today < r["end_date"]
-            ),
+            (r for r in current_list if r["start_date"] < today < r["end_date"]),
             None,
         )
-        ending_today = next(
-            (r for r in current_list if r["end_date"] == today), None
-        )
+        ending_today = next((r for r in current_list if r["end_date"] == today), None)
         starting_today = next(
-            (
-                r
-                for r in current_list
-                if r["start_date"] == today and r["end_date"] > today
-            ),
+            (r for r in current_list if r["start_date"] == today and r["end_date"] > today),
             None,
         )
         next_res = next_reservations.get(row.unit_id)

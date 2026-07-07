@@ -18,6 +18,13 @@ def test_superadmin_edits_setting_and_sees_new_value(superadmin_page, live_serve
     assert settings_service.get("company_name") == "E2E Yritys Oy"
 
 
-def test_settings_require_superadmin(admin_page, live_server, seed):
-    resp = admin_page.request.get(f"{live_server}/admin/settings", max_redirects=0)
-    assert resp.status in (302, 303, 403)
+def test_settings_edit_requires_superadmin(admin_page, live_server, seed):
+    """Org admins may open the settings hub; editing values is superadmin-only."""
+    hub = admin_page.request.get(f"{live_server}/admin/settings", max_redirects=0)
+    assert hub.status == 200
+
+    edit = admin_page.request.get(
+        f"{live_server}/admin/settings/company_name",
+        max_redirects=0,
+    )
+    assert edit.status in (302, 303, 403)

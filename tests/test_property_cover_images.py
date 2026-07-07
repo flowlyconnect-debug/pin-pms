@@ -162,9 +162,7 @@ def test_set_cover_image_moves_image_first(app, admin_user):
 
 def test_get_cover_images_for_properties_returns_first_per_property(app, admin_user):
     org_id = admin_user.organization_id
-    props = [
-        Property(organization_id=org_id, name=f"P{i}", address=None) for i in range(2)
-    ]
+    props = [Property(organization_id=org_id, name=f"P{i}", address=None) for i in range(2)]
     db.session.add_all(props)
     db.session.commit()
     for prop in props:
@@ -308,9 +306,7 @@ def test_upload_generates_400px_thumbnail(client, app, api_key, regular_user):
     from app.storage.local import LocalStorage
 
     _configure_local_storage(app)
-    prop = Property(
-        organization_id=regular_user.organization_id, name="Thumb 400", address=None
-    )
+    prop = Property(organization_id=regular_user.organization_id, name="Thumb 400", address=None)
     db.session.add(prop)
     db.session.commit()
 

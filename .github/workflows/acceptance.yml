@@ -10,6 +10,9 @@ on:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    env:
+      FORCE_SQLITE_TEST_DB: "1"
+      UPLOADS_DIR: ${{ github.workspace }}/.test-uploads
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,17 +44,13 @@ jobs:
           python-version: "3.12"
       - name: Create .env for Docker Compose
         run: |
-          cat > .env <<'EOF'
-          FLASK_ENV=testing
-          SECRET_KEY=acceptance-test-secret
-          POSTGRES_DB=pin_pms_test
-          POSTGRES_USER=pin_pms
-          POSTGRES_PASSWORD=pin_pms_password
-          POSTGRES_HOST=127.0.0.1
-          POSTGRES_PORT=5432
-          DATABASE_URL=
-          MAIL_DEV_LOG_ONLY=1
-          EOF
+          cp .env.example .env
+          sed -i 's/^POSTGRES_DB=.*/POSTGRES_DB=pin_pms_test/' .env
+          sed -i 's/^POSTGRES_USER=.*/POSTGRES_USER=pin_pms/' .env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=pin_pms_password/' .env
+          sed -i 's/^SECRET_KEY=.*/SECRET_KEY=acceptance-test-secret/' .env
+          sed -i 's/^MAIL_DEV_LOG_ONLY=.*/MAIL_DEV_LOG_ONLY=1/' .env
+          sed -i 's/^FLASK_ENV=.*/FLASK_ENV=testing/' .env
       - name: Show Docker versions
         run: |
           docker --version

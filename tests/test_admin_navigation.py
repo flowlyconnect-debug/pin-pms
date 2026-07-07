@@ -120,7 +120,10 @@ def test_daily_nav_active_on_own_pages():
     from app.admin.navigation import SIDEBAR_GROUPS
 
     invoices = next(
-        item for group in SIDEBAR_GROUPS for item in group.items if item.endpoint == "admin.invoices_list"
+        item
+        for group in SIDEBAR_GROUPS
+        for item in group.items
+        if item.endpoint == "admin.invoices_list"
     )
     assert is_endpoint_active(invoices, "admin.invoices_edit")
     assert not is_endpoint_active(invoices, "admin.settings_list")

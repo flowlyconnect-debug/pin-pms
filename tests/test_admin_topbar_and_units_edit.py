@@ -48,9 +48,7 @@ def test_topbar_title_changes_on_units_edit(client, admin_user):
     """Huoneen muokkausnäkymässä yläpalkki näyttää 'Muokkaa huonetta'."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    prop = Property(
-        organization_id=admin_user.organization_id, name="Topbar-koti", address=None
-    )
+    prop = Property(organization_id=admin_user.organization_id, name="Topbar-koti", address=None)
     db.session.add(prop)
     db.session.flush()
     unit = Unit(property_id=prop.id, name="TB-1", unit_type="std")
@@ -85,9 +83,7 @@ def test_unit_edit_page_loads_when_area_sqm_is_set(client, admin_user):
     takaisin Decimaleiksi ennen lomakkeen alustusta."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    prop = Property(
-        organization_id=admin_user.organization_id, name="Decimal Hotel", address=None
-    )
+    prop = Property(organization_id=admin_user.organization_id, name="Decimal Hotel", address=None)
     db.session.add(prop)
     db.session.flush()
     unit = Unit(
@@ -115,9 +111,7 @@ def test_unit_edit_page_loads_when_area_sqm_is_none(client, admin_user):
     """Tyhjälläkin pinta-alalla muokkaussivun tulee latautua ilman 500-virhettä."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    prop = Property(
-        organization_id=admin_user.organization_id, name="None Hotel", address=None
-    )
+    prop = Property(organization_id=admin_user.organization_id, name="None Hotel", address=None)
     db.session.add(prop)
     db.session.flush()
     unit = Unit(property_id=prop.id, name="N-1", unit_type=None, area_sqm=None)
@@ -185,9 +179,7 @@ def test_unit_edit_post_still_persists_changes(client, admin_user):
     """Korjaus ei saa rikkoa POST-tallennusta."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    prop = Property(
-        organization_id=admin_user.organization_id, name="Post Hotel", address=None
-    )
+    prop = Property(organization_id=admin_user.organization_id, name="Post Hotel", address=None)
     db.session.add(prop)
     db.session.flush()
     unit = Unit(property_id=prop.id, name="P-1", area_sqm=Decimal("10.00"))

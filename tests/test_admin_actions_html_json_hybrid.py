@@ -36,7 +36,9 @@ def _login(client, *, email: str, password: str):
     return client.post("/login", data={"email": email, "password": password})
 
 
-def _seed_property_with_unit(*, organization_id: int, name: str = "Hotel", unit: str = "U1") -> Unit:
+def _seed_property_with_unit(
+    *, organization_id: int, name: str = "Hotel", unit: str = "U1"
+) -> Unit:
     prop = Property(organization_id=organization_id, name=name, address=None)
     db.session.add(prop)
     db.session.flush()
@@ -119,9 +121,7 @@ def test_invoice_mark_paid_invalid_state_html_redirects_with_flash(client, admin
     inv = _open_invoice_for(admin_user.organization_id, admin_user.id)
 
     # Ensimmäinen merkintä onnistuu
-    client.post(
-        f"/admin/invoices/{inv['id']}/mark-paid", headers={"Accept": "text/html"}
-    )
+    client.post(f"/admin/invoices/{inv['id']}/mark-paid", headers={"Accept": "text/html"})
     # Toisesta saadaan invalid-state HTML-näkymässä
     response = client.post(
         f"/admin/invoices/{inv['id']}/mark-paid",
@@ -322,9 +322,7 @@ def _seed_maintenance(*, organization_id: int, actor_user_id: int):
 
 def test_maintenance_resolve_html_redirects(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    req = _seed_maintenance(
-        organization_id=admin_user.organization_id, actor_user_id=admin_user.id
-    )
+    req = _seed_maintenance(organization_id=admin_user.organization_id, actor_user_id=admin_user.id)
 
     response = client.post(
         f"/admin/maintenance-requests/{req['id']}/resolve",
@@ -338,9 +336,7 @@ def test_maintenance_resolve_html_redirects(client, admin_user):
 
 def test_maintenance_resolve_json_returns_envelope(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    req = _seed_maintenance(
-        organization_id=admin_user.organization_id, actor_user_id=admin_user.id
-    )
+    req = _seed_maintenance(organization_id=admin_user.organization_id, actor_user_id=admin_user.id)
 
     response = client.post(
         f"/admin/maintenance-requests/{req['id']}/resolve",
@@ -355,9 +351,7 @@ def test_maintenance_resolve_json_returns_envelope(client, admin_user):
 
 def test_maintenance_cancel_json_requires_confirmation(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    req = _seed_maintenance(
-        organization_id=admin_user.organization_id, actor_user_id=admin_user.id
-    )
+    req = _seed_maintenance(organization_id=admin_user.organization_id, actor_user_id=admin_user.id)
 
     response = client.post(
         f"/admin/maintenance-requests/{req['id']}/cancel",
@@ -370,9 +364,7 @@ def test_maintenance_cancel_json_requires_confirmation(client, admin_user):
 
 def test_maintenance_cancel_json_envelope_when_confirmed(client, admin_user):
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    req = _seed_maintenance(
-        organization_id=admin_user.organization_id, actor_user_id=admin_user.id
-    )
+    req = _seed_maintenance(organization_id=admin_user.organization_id, actor_user_id=admin_user.id)
 
     response = client.post(
         f"/admin/maintenance-requests/{req['id']}/cancel",
@@ -419,9 +411,7 @@ def test_property_detail_does_not_require_separate_query_per_unit(client, admin_
     monta huonetta sisältävässä kohteessa."""
 
     _login(client, email=admin_user.email, password=admin_user.password_plain)
-    prop = Property(
-        organization_id=admin_user.organization_id, name="Big House", address=None
-    )
+    prop = Property(organization_id=admin_user.organization_id, name="Big House", address=None)
     db.session.add(prop)
     db.session.flush()
     for i in range(8):

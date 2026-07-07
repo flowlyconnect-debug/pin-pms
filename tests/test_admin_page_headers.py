@@ -42,9 +42,9 @@ def test_admin_list_page_heading_once_in_main(client, admin_user, path: str, hea
     html = response.get_data(as_text=True)
     assert "<title>" in html
     visible = _main_visible_text(html)
-    assert _word_count(visible, heading) == 1, (
-        f"expected exactly one {heading!r} in #main-content visible text, got {_word_count(visible, heading)}"
-    )
+    assert (
+        _word_count(visible, heading) == 1
+    ), f"expected exactly one {heading!r} in #main-content visible text, got {_word_count(visible, heading)}"
 
 
 def test_no_duplicate_page_title_h1_in_properties_list(client, admin_user):

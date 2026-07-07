@@ -272,8 +272,7 @@ def availability_matrix(
 
     if unit_map:
         reservation_query = (
-            Reservation.query
-            .join(Unit, Reservation.unit_id == Unit.id)
+            Reservation.query.join(Unit, Reservation.unit_id == Unit.id)
             .join(Property, Unit.property_id == Property.id)
             .filter(
                 Property.organization_id == organization_id,

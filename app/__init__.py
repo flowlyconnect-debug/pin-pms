@@ -65,6 +65,7 @@ def create_app(config_object: str = "default") -> Flask:
     register_models()
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in to continue."
     csrf.init_app(app)
     limiter.init_app(app)

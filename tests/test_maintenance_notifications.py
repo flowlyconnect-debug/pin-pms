@@ -351,9 +351,7 @@ def test_assignee_change_sends_only_on_change(
     assert len(calls) == 2
 
 
-def test_send_template_queues_real_row(
-    app, organization, admin_user, maintenance_notify_setup
-):
+def test_send_template_queues_real_row(app, organization, admin_user, maintenance_notify_setup):
     from app.email.models import OutgoingEmail, OutgoingEmailStatus, TemplateKey
     from app.maintenance import services as maintenance_service
 

@@ -112,14 +112,10 @@ def _mask_email(value: str) -> str:
 
 
 def _maintenance_notifications_enabled() -> bool:
-    return bool(
-        settings_service.get("maintenance.email_notifications_enabled", default=True)
-    )
+    return bool(settings_service.get("maintenance.email_notifications_enabled", default=True))
 
 
-def _resolve_maintenance_recipient_email(
-    *, organization_id: int, property_id: int
-) -> str | None:
+def _resolve_maintenance_recipient_email(*, organization_id: int, property_id: int) -> str | None:
     prop = Property.query.filter_by(
         id=property_id,
         organization_id=organization_id,

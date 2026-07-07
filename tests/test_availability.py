@@ -349,7 +349,9 @@ def test_availability_matrix_finds_reservation_in_visible_range(client, admin_us
         any(css in (cell.get("class") or []) for css in status_classes)
         for cell in soup.select(".availability-table td")
     )
-    free_cells = [cell for cell in soup.select(".availability-table td") if "Vapaa" in cell.get_text()]
+    free_cells = [
+        cell for cell in soup.select(".availability-table td") if "Vapaa" in cell.get_text()
+    ]
     assert len(free_cells) < len(soup.select(".availability-table td"))
 
 
@@ -417,7 +419,9 @@ def test_availability_reserved_first_day_shows_guest_name(client, admin_user):
     soup = BeautifulSoup(response.get_data(as_text=True), "html.parser")
 
     non_empty_texts = [
-        a.get_text(strip=True) for a in soup.select(".availability-table td a") if a.get_text(strip=True)
+        a.get_text(strip=True)
+        for a in soup.select(".availability-table td a")
+        if a.get_text(strip=True)
     ]
     assert "Ville Testaaja" in non_empty_texts
     assert non_empty_texts.count("Ville Testaaja") == 1
