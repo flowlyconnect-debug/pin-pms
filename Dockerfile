@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     postgresql-client \
+    libjpeg62-turbo \
+    libopenjp2-7 \
+    libtiff6 \
+    libfreetype6 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
