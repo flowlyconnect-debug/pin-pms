@@ -38,22 +38,22 @@ jobs:
       - name: Run unit tests in container
         run: |
           set -o pipefail
-          if ! docker run --rm \
+          docker run --rm \
             -e FORCE_SQLITE_TEST_DB=1 \
             -e UPLOADS_DIR=/tmp/test-uploads \
             pindora-pms:ci \
-            python -m pytest tests/ -q --ignore=tests/integration; then
-            {
-              echo "## Pytest collect (debug)"
-              echo '```'
-              docker run --rm \
-                -e FORCE_SQLITE_TEST_DB=1 \
-                pindora-pms:ci \
-                python -m pytest tests/ --collect-only 2>&1 | tail -60
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
+            sh -c "python -m pytest tests/ --collect-only 2>&1 | tail -50" | tee collect.txt || true
+          if grep -q "ERROR collecting" collect.txt; then
+            while IFS= read -r line; do
+              echo "::error title=pytest collect::$line"
+            done < collect.txt
+            exit 2
           fi
+          docker run --rm \
+            -e FORCE_SQLITE_TEST_DB=1 \
+            -e UPLOADS_DIR=/tmp/test-uploads \
+            pindora-pms:ci \
+            python -m pytest tests/ -q --ignore=tests/integration
 
   docker-build:
     runs-on: ubuntu-latest
