@@ -330,7 +330,21 @@ def test_acceptance_init_template_criteria(compose_stack: dict[str, str]) -> Non
     assert email_cmd.returncode == 0
     assert "Traceback" not in (email_cmd.stdout + email_cmd.stderr)
 
-    totp_secret = superadmin_info["totp_secret"]
+    # TOTP secret is provisioned on first successful login, not at CLI creation.
+    totp_info = _query_json(
+        web_service,
+        (
+            "import json; "
+            "from app import create_app; "
+            "from app.users.models import User; "
+            "app=create_app(); "
+            "ctx=app.app_context(); ctx.push(); "
+            f"u=User.query.filter_by(email={email!r}).first(); "
+            "print(json.dumps({'totp_secret': u.totp_secret if u else None})); "
+            "ctx.pop()"
+        ),
+    )
+    totp_secret = totp_info["totp_secret"]
     assert totp_secret
     verify_page = session.get(f"{base_url}/2fa/verify", timeout=5)
     csrf_verify = _extract_csrf(verify_page.text)

@@ -1,0 +1,5 @@
+# CI override: bind web to an ephemeral host port (GitHub runners often block :5000).
+services:
+  web:
+    ports:
+      - "0:5000"

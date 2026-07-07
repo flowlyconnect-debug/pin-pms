@@ -276,7 +276,11 @@ def _build_test_database_url() -> str:
 # Set TEST_DATABASE_URL at module-import time so :class:`TestConfig` (whose
 # class-level attribute reads ``os.getenv("TEST_DATABASE_URL")`` at import
 # time) sees the right value before ``create_app("testing")`` runs.
-if not os.environ.get("TEST_DATABASE_URL"):
+# FORCE_SQLITE_TEST_DB always wins so a stale shell/CI TEST_DATABASE_URL cannot
+# override the SQLite URL chosen for this process.
+if (os.getenv("FORCE_SQLITE_TEST_DB") or "").strip() == "1" or not os.environ.get(
+    "TEST_DATABASE_URL"
+):
     os.environ["TEST_DATABASE_URL"] = _build_test_database_url()
 
 
