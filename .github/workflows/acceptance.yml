@@ -31,11 +31,27 @@ jobs:
       ACCEPTANCE_SUPERADMIN_PASSWORD: ChangeMeAcceptance123!
       ACCEPTANCE_ORG_NAME: Acceptance Test Org
       MAIL_DEV_LOG_ONLY: "1"
+      POSTGRES_DB: pin_pms_test
+      POSTGRES_USER: pin_pms
+      POSTGRES_PASSWORD: pin_pms_password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Create .env for Docker Compose
+        run: |
+          cat > .env <<'EOF'
+          FLASK_ENV=testing
+          SECRET_KEY=acceptance-test-secret
+          POSTGRES_DB=pin_pms_test
+          POSTGRES_USER=pin_pms
+          POSTGRES_PASSWORD=pin_pms_password
+          POSTGRES_HOST=127.0.0.1
+          POSTGRES_PORT=5432
+          DATABASE_URL=
+          MAIL_DEV_LOG_ONLY=1
+          EOF
       - name: Show Docker versions
         run: |
           docker --version

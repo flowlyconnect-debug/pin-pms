@@ -6,8 +6,8 @@ import pyotp
 
 from app.admin.navigation import (
     SETTINGS_HUB_ACTIVE_ENDPOINTS,
-    is_endpoint_active,
     SETTINGS_NAV_ITEM,
+    is_endpoint_active,
 )
 
 

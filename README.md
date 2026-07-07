@@ -260,6 +260,18 @@ admin actions are allowed.
 
 ## Running tests
 
+Kaikki testit yhdellä komennolla (HTML-raportit `reports/`-kansioon):
+
+```bash
+python scripts/test.py           # backend + Playwright E2E   (= make test)
+python scripts/test.py backend   # vain backend               (= make test-backend)
+python scripts/test.py e2e       # vain selaintestit          (= make test-e2e)
+```
+
+Playwright-selaintestit (`e2e/`) vaativat kertaluonteisen asennuksen:
+`python -m playwright install chromium`. Ne ajavat sovellusta omassa
+SQLite-live-serverissä — Postgresia ei tarvita. Täysi ohje: `docs/TESTING.md`.
+
 Unit tests (default):
 
 ```bash

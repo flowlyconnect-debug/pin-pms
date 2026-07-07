@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
 from flask import current_app, url_for
+from sqlalchemy import or_
 
 from app.audit import record as audit_record
 from app.audit.models import ActorType, AuditStatus
@@ -14,8 +15,6 @@ from app.billing.models import Invoice, Lease
 from app.core.security import hash_token
 from app.email.models import TemplateKey
 from app.email.services import EmailTemplateNotFound, send_template
-from sqlalchemy import or_
-
 from app.extensions import db
 from app.integrations.pindora_lock.service import PindoraLockService
 from app.maintenance.models import MaintenanceRequest
@@ -26,8 +25,8 @@ from app.portal.models import (
     PortalCheckInToken,
     PortalMagicLinkToken,
 )
-from app.properties.models import Property, PropertyImage, Unit
 from app.properties import images as property_image_service
+from app.properties.models import Property, PropertyImage, Unit
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
 from app.webhooks.events import GUEST_CHECKED_IN, GUEST_CHECKED_OUT

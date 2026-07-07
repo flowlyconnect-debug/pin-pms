@@ -41,7 +41,7 @@ def test_create_queues_email_to_property_maintenance_address(
     app, organization, admin_user, maintenance_notify_setup, monkeypatch
 ):
     from app.audit.models import AuditLog
-    from app.email.models import OutgoingEmail, TemplateKey
+    from app.email.models import TemplateKey
     from app.maintenance import services as maintenance_service
 
     prop, unit = _property_and_unit(
@@ -292,10 +292,11 @@ def test_urgent_priority_sends_only_on_change(
 def test_assignee_change_sends_only_on_change(
     app, organization, admin_user, maintenance_notify_setup, monkeypatch
 ):
+    from werkzeug.security import generate_password_hash
+
     from app.extensions import db
     from app.maintenance import services as maintenance_service
     from app.users.models import User, UserRole
-    from werkzeug.security import generate_password_hash
 
     prop, unit = _property_and_unit(
         organization_id=organization.id,

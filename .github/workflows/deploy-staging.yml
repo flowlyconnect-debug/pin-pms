@@ -8,7 +8,28 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # Required repository secrets: STAGING_HOST, STAGING_USER, STAGING_SSH_KEY
+      # (Settings → Secrets and variables → Actions). See deploy/README.md.
+      - name: Verify staging deploy secrets
+        id: secrets
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        run: |
+          missing=()
+          [ -z "$STAGING_HOST" ] && missing+=("STAGING_HOST")
+          [ -z "$STAGING_USER" ] && missing+=("STAGING_USER")
+          [ -z "$STAGING_SSH_KEY" ] && missing+=("STAGING_SSH_KEY")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::warning::Skipping staging deploy. Configure repository secrets: ${missing[*]}"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy over SSH
+        if: steps.secrets.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.STAGING_HOST }}

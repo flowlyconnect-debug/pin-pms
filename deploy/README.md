@@ -7,6 +7,18 @@ These are *examples* — copy them, replace placeholder hostnames and
 paths with the real ones for your environment, and review every directive
 before enabling.
 
+## GitHub Actions staging deploy
+
+The workflow `.github/workflows/deploy-staging.yml` runs on every push to
+`main`. It is skipped (with a warning) until these **repository secrets**
+are configured under Settings → Secrets and variables → Actions:
+
+| Secret | Purpose |
+|---|---|
+| `STAGING_HOST` | SSH hostname or IP of the staging server |
+| `STAGING_USER` | SSH user (e.g. deploy account) |
+| `STAGING_SSH_KEY` | Private key for that user (PEM, full key including headers) |
+
 ## Files
 
 | File | Target | Purpose |

@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from io import BytesIO
 
-import pytest
 from PIL import Image
 
 from app.extensions import db
@@ -172,7 +171,6 @@ def test_admin_property_image_serve_without_public_base_url(client, app, admin_u
 
 
 def test_properties_list_uses_admin_image_src(client, app, admin_user):
-    from app.properties import images as image_service
 
     app.config["STORAGE_BACKEND"] = "local"
     app.config["STORAGE_PUBLIC_BASE_URL"] = ""

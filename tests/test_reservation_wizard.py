@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import date
 
 from app.extensions import db
+from app.guests.models import Guest
 from app.properties.models import Property, Unit
 from app.reservations import services as reservation_service
 from app.reservations.models import Reservation
-from app.guests.models import Guest
 
 
 def _login(client, *, email: str, password: str):
@@ -37,7 +37,7 @@ def test_wizard_step1_saves_property_to_session(client, admin_user):
     prop, _unit = _seed_property_unit(admin_user)
 
     response = client.post(
-        f"/admin/reservations/new/step/1",
+        "/admin/reservations/new/step/1",
         data={"property_id": str(prop.id), "csrf_token": _csrf(client)},
         follow_redirects=False,
     )

@@ -43,6 +43,8 @@ requirements-dev.lock
 .coverage
 .coverage.*
 htmlcov/
+reports/
+.test-uploads/
 .tox/
 .nox/
 coverage.xml
