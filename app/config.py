@@ -473,6 +473,9 @@ class TestConfig(BaseConfig):
         "CHECKIN_FERNET_KEY",
         "1zakWgvYOaHtecRaBwIRHYuB8waN6MZPwAo5FGIx9Bg=",
     )
+    # BaseConfig resolves ICAL_FEED_SECRET at class body time (before TestConfig's
+    # SECRET_KEY override), so CI without ICAL_FEED_SECRET in the env leaves it empty.
+    ICAL_FEED_SECRET = os.getenv("ICAL_FEED_SECRET", "test-ical-feed-secret")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "TEST_DATABASE_URL",
         "postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/pindora_test",
