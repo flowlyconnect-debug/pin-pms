@@ -14,6 +14,8 @@ from app.billing.models import Invoice, Lease
 from app.core.security import hash_token
 from app.email.models import TemplateKey
 from app.email.services import EmailTemplateNotFound, send_template
+from sqlalchemy import or_
+
 from app.extensions import db
 from app.integrations.pindora_lock.service import PindoraLockService
 from app.maintenance.models import MaintenanceRequest
@@ -25,6 +27,7 @@ from app.portal.models import (
     PortalMagicLinkToken,
 )
 from app.properties.models import Property, PropertyImage, Unit
+from app.properties import images as property_image_service
 from app.reservations.models import Reservation
 from app.users.models import User, UserRole
 from app.webhooks.events import GUEST_CHECKED_IN, GUEST_CHECKED_OUT
@@ -171,6 +174,36 @@ def get_reservation(*, organization_id: int, guest_id: int, reservation_id: int)
         if row.unit is not None
         else []
     )
+    images: list[dict] = []
+    for image in image_rows:
+        url_src = property_image_service.portal_property_image_url(
+            storage_key=image.storage_key,
+            reservation_id=row.id,
+        )
+        thumbnail_src = property_image_service.portal_property_image_url(
+            storage_key=image.thumbnail_storage_key,
+            reservation_id=row.id,
+        )
+        current_app.logger.info(
+            "portal_reservation_image",
+            extra={
+                "image_id": image.id,
+                "reservation_id": row.id,
+                "storage_key": image.storage_key,
+                "thumbnail_storage_key": image.thumbnail_storage_key,
+                "thumbnail_src": thumbnail_src,
+            },
+        )
+        images.append(
+            {
+                "id": image.id,
+                "url": image.url,
+                "thumbnail_url": image.thumbnail_url,
+                "url_src": url_src,
+                "thumbnail_src": thumbnail_src,
+                "alt_text": image.alt_text,
+            }
+        )
     return {
         "id": row.id,
         "unit_id": row.unit_id,
@@ -183,16 +216,78 @@ def get_reservation(*, organization_id: int, guest_id: int, reservation_id: int)
         "amount": str(row.amount) if row.amount is not None else None,
         "currency": row.currency,
         "payment_status": row.payment_status,
-        "images": [
-            {
-                "id": image.id,
-                "url": image.url,
-                "thumbnail_url": image.thumbnail_url,
-                "alt_text": image.alt_text,
-            }
-            for image in image_rows
-        ],
+        "images": images,
     }
+
+
+def resolve_property_image_for_guest(
+    *,
+    organization_id: int,
+    guest_id: int,
+    reservation_id: int,
+    key: str,
+) -> tuple[str, str]:
+    """Return ``(filesystem_path, mimetype)`` for a property image the guest may view."""
+
+    from pathlib import Path
+
+    from app.storage.local import LocalStorage
+
+    reservation = (
+        _scoped_reservation_query(organization_id=organization_id, guest_id=guest_id)
+        .filter(Reservation.id == reservation_id)
+        .first()
+    )
+    if reservation is None or reservation.unit is None:
+        current_app.logger.warning(
+            "portal_property_image_denied",
+            extra={"key": key, "reservation_id": reservation_id, "reason": "reservation_not_found"},
+        )
+        raise PortalServiceError(code="not_found", message="Reservation not found.", status=404)
+
+    image = PropertyImage.query.filter(
+        PropertyImage.organization_id == organization_id,
+        PropertyImage.property_id == reservation.unit.property_id,
+        or_(
+            PropertyImage.storage_key == key,
+            PropertyImage.thumbnail_storage_key == key,
+        ),
+    ).first()
+    if image is None:
+        current_app.logger.warning(
+            "portal_property_image_denied",
+            extra={
+                "key": key,
+                "reservation_id": reservation_id,
+                "property_id": reservation.unit.property_id,
+                "reason": "image_not_on_property",
+            },
+        )
+        raise PortalServiceError(code="not_found", message="Image not found.", status=404)
+
+    path: Path = LocalStorage().path_for_key(key=key)
+    if not path.exists() or not path.is_file():
+        current_app.logger.warning(
+            "portal_property_image_not_found",
+            extra={
+                "key": key,
+                "reservation_id": reservation_id,
+                "storage_path": str(path),
+                "found": False,
+            },
+        )
+        raise PortalServiceError(code="not_found", message="Image file not found.", status=404)
+
+    current_app.logger.info(
+        "portal_property_image_served",
+        extra={
+            "key": key,
+            "reservation_id": reservation_id,
+            "storage_path": str(path),
+            "found": True,
+        },
+    )
+    return str(path), image.content_type
 
 
 def get_unit_for_guest(*, organization_id: int, guest_id: int, unit_id: int) -> dict:
@@ -564,12 +659,31 @@ def complete_checkin(
     reservation = Reservation.query.filter_by(id=token_row.reservation_id).first()
     if reservation is None:
         raise PortalServiceError(code="not_found", message="Reservation not found.", status=404)
-    lock_code = issue_access_code_for_reservation(
-        reservation_id=reservation.id,
-        organization_id=reservation.unit.property.organization_id,
-        actor_user_id=reservation.guest_id,
-        idempotency_key=idempotency_key,
-    )
+    try:
+        lock_code = issue_access_code_for_reservation(
+            reservation_id=reservation.id,
+            organization_id=reservation.unit.property.organization_id,
+            actor_user_id=reservation.guest_id,
+            idempotency_key=idempotency_key,
+        )
+    except PortalServiceError:
+        raise
+    except Exception:
+        # A lock-vendor outage (e.g. Pindora API down) must never surface as
+        # an unhandled 500 to the guest — return a handled, retryable error.
+        db.session.rollback()
+        current_app.logger.exception(
+            "Lock provider error while issuing access code for reservation %s",
+            reservation.id,
+        )
+        raise PortalServiceError(
+            code="lock_provider_error",
+            message=(
+                "Avainkoodin luonti epäonnistui tilapäisen häiriön vuoksi. "
+                "Yritä hetken kuluttua uudelleen."
+            ),
+            status=503,
+        ) from None
     if lock_code is None:
         raise PortalServiceError(
             code="no_lock", message="No lock configured for this reservation.", status=400

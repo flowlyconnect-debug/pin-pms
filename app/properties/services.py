@@ -30,6 +30,9 @@ class PropertyServiceError(Exception):
     status: int
 
 
+_FLOOR_PLAN_UNSET = object()
+
+
 def _serialize_property(row: Property) -> dict:
     return {
         "id": row.id,
@@ -394,7 +397,8 @@ def update_unit(
     has_wifi: bool = True,
     max_guests: int | None = 2,
     description: str | None = None,
-    floor_plan_image_id: int | None = None,
+    floor_plan_image_id: int | None | object = _FLOOR_PLAN_UNSET,
+    clear_floor_plan_image: bool = False,
     actor_user_id: int | None = None,
 ) -> dict:
     row = (
@@ -446,7 +450,10 @@ def update_unit(
     row.has_wifi = bool(has_wifi)
     row.max_guests = max_guests_value
     row.description = (description or "").strip() or None
-    row.floor_plan_image_id = floor_plan_image_id
+    if clear_floor_plan_image:
+        row.floor_plan_image_id = None
+    elif floor_plan_image_id is not _FLOOR_PLAN_UNSET:
+        row.floor_plan_image_id = floor_plan_image_id
     db.session.commit()
     audit_record(
         "unit_updated",

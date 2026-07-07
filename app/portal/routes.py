@@ -11,6 +11,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     session,
     url_for,
 )
@@ -131,6 +132,37 @@ def reservation_detail(user, reservation_id: int):
     except portal_service.PortalServiceError:
         abort(404)
     return render_template("portal/reservation_detail.html", row=row)
+
+
+@portal_bp.get("/property-images/<path:key>")
+@require_portal_login
+def serve_property_image(user, key: str):
+    """Serve local property image bytes to authenticated portal guests."""
+
+    if (current_app.config.get("STORAGE_BACKEND") or "local").strip().lower() != "local":
+        abort(404)
+
+    reservation_id_raw = (request.args.get("reservation") or "").strip()
+    try:
+        reservation_id = int(reservation_id_raw)
+    except ValueError:
+        current_app.logger.warning(
+            "portal_property_image_denied",
+            extra={"key": key, "reason": "missing_reservation"},
+        )
+        abort(404)
+
+    try:
+        path, mimetype = portal_service.resolve_property_image_for_guest(
+            organization_id=user.organization_id,
+            guest_id=user.id,
+            reservation_id=reservation_id,
+            key=key,
+        )
+    except portal_service.PortalServiceError:
+        abort(404)
+
+    return send_file(path, mimetype=mimetype, conditional=True)
 
 
 @portal_bp.get("/units/<int:unit_id>")

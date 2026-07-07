@@ -1555,27 +1555,31 @@ def units_edit(unit_id: int):
 
     if form.validate_on_submit():
         try:
-            row = property_service.update_unit(
-                organization_id=_pms_org_id(),
-                unit_id=unit_id,
-                name=form.name.data,
-                unit_type=form.unit_type.data,
-                floor=form.floor.data,
-                area_sqm=form.area_sqm.data,
-                bedrooms=form.bedrooms.data,
-                has_kitchen=form.has_kitchen.data,
-                has_bathroom=form.has_bathroom.data,
-                has_balcony=form.has_balcony.data,
-                has_terrace=form.has_terrace.data,
-                has_dishwasher=form.has_dishwasher.data,
-                has_washing_machine=form.has_washing_machine.data,
-                has_tv=form.has_tv.data,
-                has_wifi=form.has_wifi.data,
-                max_guests=form.max_guests.data,
-                description=form.description.data,
-                floor_plan_image_id=form.floor_plan_image_id.data,
-                actor_user_id=current_user.id,
-            )
+            update_kwargs: dict = {
+                "organization_id": _pms_org_id(),
+                "unit_id": unit_id,
+                "name": form.name.data,
+                "unit_type": form.unit_type.data,
+                "floor": form.floor.data,
+                "area_sqm": form.area_sqm.data,
+                "bedrooms": form.bedrooms.data,
+                "has_kitchen": form.has_kitchen.data,
+                "has_bathroom": form.has_bathroom.data,
+                "has_balcony": form.has_balcony.data,
+                "has_terrace": form.has_terrace.data,
+                "has_dishwasher": form.has_dishwasher.data,
+                "has_washing_machine": form.has_washing_machine.data,
+                "has_tv": form.has_tv.data,
+                "has_wifi": form.has_wifi.data,
+                "max_guests": form.max_guests.data,
+                "description": form.description.data,
+                "actor_user_id": current_user.id,
+            }
+            if form.clear_floor_plan_image.data:
+                update_kwargs["clear_floor_plan_image"] = True
+            elif form.floor_plan_image_id.data is not None:
+                update_kwargs["floor_plan_image_id"] = form.floor_plan_image_id.data
+            row = property_service.update_unit(**update_kwargs)
         except property_service.PropertyServiceError as err:
             error = err.message
         else:

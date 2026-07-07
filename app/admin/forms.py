@@ -185,6 +185,7 @@ class UnitForm(FlaskForm):
     floor_plan_image_id = IntegerField(
         "Pohjapiirroskuvan ID", validators=[Optional(), NumberRange(min=1)]
     )
+    clear_floor_plan_image = BooleanField("Poista pohjakuva")
 
 
 class LeaseTemplateForm(FlaskForm):

@@ -47,6 +47,7 @@
       {{ form.description(id="description", rows="4") }}
       <label for="floor_plan_image_id">Pohjakuva</label>
       {{ form.floor_plan_image_id(id="floor_plan_image_id", min="1") }}
+      <label>{{ form.clear_floor_plan_image() }} Poista pohjakuvaviite</label>
     </fieldset>
     <div class="actions">
       <button type="submit" data-variant="primary">Tallenna huone</button>

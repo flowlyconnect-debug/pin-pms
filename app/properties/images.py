@@ -118,6 +118,15 @@ def browser_image_url(*, storage_key: str) -> str:
     return storage_get_url(storage_key)
 
 
+def portal_property_image_url(*, storage_key: str, reservation_id: int) -> str:
+    """URL suitable for ``<img src>`` in logged-in portal HTML."""
+
+    if uses_admin_image_proxy():
+        encoded = quote(storage_key.lstrip("/"), safe="/")
+        return f"/portal/property-images/{encoded}?reservation={reservation_id}"
+    return storage_get_url(storage_key)
+
+
 def serialize_cover_image(row: PropertyImage) -> dict:
     return serialize_property_image_for_admin(row)
 
