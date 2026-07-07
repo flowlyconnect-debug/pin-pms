@@ -37,18 +37,6 @@ jobs:
         run: docker build -t pindora-pms:ci .
       - name: Run unit tests in container
         run: |
-          set -o pipefail
-          docker run --rm \
-            -e FORCE_SQLITE_TEST_DB=1 \
-            -e UPLOADS_DIR=/tmp/test-uploads \
-            pindora-pms:ci \
-            sh -c "python -m pytest tests/ --collect-only 2>&1 | tail -50" | tee collect.txt || true
-          if grep -q "ERROR collecting" collect.txt; then
-            while IFS= read -r line; do
-              echo "::error title=pytest collect::$line"
-            done < collect.txt
-            exit 2
-          fi
           docker run --rm \
             -e FORCE_SQLITE_TEST_DB=1 \
             -e UPLOADS_DIR=/tmp/test-uploads \
