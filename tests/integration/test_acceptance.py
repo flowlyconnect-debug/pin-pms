@@ -346,6 +346,25 @@ def test_acceptance_init_template_criteria(compose_stack: dict[str, str]) -> Non
     )
     totp_secret = totp_info["totp_secret"]
     assert totp_secret
+
+    setup_page = session.get(f"{base_url}/2fa/setup", timeout=5)
+    assert setup_page.status_code == 200
+    csrf_setup = _extract_csrf(setup_page.text)
+    setup_res = session.post(
+        f"{base_url}/2fa/setup",
+        data={
+            "csrf_token": csrf_setup,
+            "code": pyotp.TOTP(totp_secret).now(),
+        },
+        allow_redirects=False,
+        timeout=5,
+    )
+    assert setup_res.status_code in (302, 303)
+    assert "/2fa/backup-codes" in (setup_res.headers.get("Location") or "")
+
+    backup_codes_page = session.get(f"{base_url}/2fa/backup-codes", timeout=5)
+    assert backup_codes_page.status_code == 200
+
     verify_page = session.get(f"{base_url}/2fa/verify", timeout=5)
     csrf_verify = _extract_csrf(verify_page.text)
     verify_res = session.post(

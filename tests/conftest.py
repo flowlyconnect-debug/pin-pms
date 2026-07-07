@@ -36,7 +36,6 @@ import secrets
 import tempfile
 from pathlib import Path
 
-import psycopg2
 import pyotp
 import pytest
 from werkzeug.security import generate_password_hash
@@ -131,6 +130,12 @@ def _default_postgres_sslmode(host: str) -> str | None:
     return "require"
 
 
+def _psycopg2():
+    import psycopg2
+
+    return psycopg2
+
+
 def _psycopg2_connect_params(p: dict[str, object], *, dbname: str) -> dict[str, object]:
     """Build kwargs for ``psycopg2.connect`` including optional ``sslmode``."""
 
@@ -152,7 +157,7 @@ def _probe_working_postgres_port(host: str, user: str, password: str) -> int | N
 
     for port in (5433, 5432):
         try:
-            conn = psycopg2.connect(
+            conn = _psycopg2().connect(
                 host=host,
                 port=port,
                 user=user,
@@ -256,7 +261,7 @@ def _build_test_database_url() -> str:
         try:
             probe_kw = _psycopg2_connect_params(p, dbname="postgres")
             probe_kw["connect_timeout"] = 2
-            probe = psycopg2.connect(**probe_kw)
+            probe = _psycopg2().connect(**probe_kw)
             probe.close()
         except Exception:
             sqlite_path = _SQLITE_TEST_DB_PATH.resolve()
@@ -309,8 +314,8 @@ def _ensure_test_database() -> None:
     try:
         kw = _psycopg2_connect_params(p, dbname="postgres")
         kw["connect_timeout"] = 15
-        conn = psycopg2.connect(**kw)
-    except psycopg2.OperationalError as exc:
+        conn = _psycopg2().connect(**kw)
+    except _psycopg2().OperationalError as exc:
         raise RuntimeError(
             "Could not connect to PostgreSQL for tests. Start Postgres locally, copy "
             ".env.example to .env with matching POSTGRES_* values, or set "
