@@ -1,0 +1,5 @@
+{
+  "tests/test_critical_journeys.py::test_pindora_provision_failure_returns_handled_error_on_checkin": true,
+  "tests/test_critical_journeys.py::test_admin_routes_require_login_and_role": true,
+  "tests/test_critical_journeys.py::test_reservation_confirmation_email_has_correct_content": true
+}
