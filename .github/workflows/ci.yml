@@ -51,8 +51,15 @@ jobs:
       - name: Run unit tests
         run: |
           mkdir -p .test-uploads
-          python -c "import psycopg2; print('psycopg2', psycopg2.__version__)"
-          pytest tests/ -q --ignore=tests/integration -p no:playwright
+          if ! python -m pytest tests/ --collect-only -q > /tmp/pytest-collect.txt 2> /tmp/pytest-collect.err; then
+            tail -40 /tmp/pytest-collect.err || true
+            tail -40 /tmp/pytest-collect.txt || true
+            while IFS= read -r line; do
+              echo "::error title=pytest collect::$line"
+            done < /tmp/pytest-collect.err
+            exit 2
+          fi
+          python -m pytest tests/ -q --ignore=tests/integration -p no:playwright
 
   docker-build:
     runs-on: ubuntu-latest
