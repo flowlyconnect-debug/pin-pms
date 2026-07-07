@@ -33,15 +33,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build application image
-        run: docker build -t pindora-pms:ci .
-      - name: Run unit tests in container
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
         run: |
-          docker run --rm \
-            -e FORCE_SQLITE_TEST_DB=1 \
-            -e UPLOADS_DIR=/tmp/test-uploads \
-            pindora-pms:ci \
-            python -m pytest tests/ -q --ignore=tests/integration
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run unit tests
+        env:
+          FORCE_SQLITE_TEST_DB: "1"
+          UPLOADS_DIR: ${{ runner.temp }}/test-uploads
+        run: |
+          mkdir -p "$UPLOADS_DIR"
+          python -m pytest tests/ -q --ignore=tests/integration -p no:cov
 
   docker-build:
     runs-on: ubuntu-latest
