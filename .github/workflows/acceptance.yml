@@ -22,8 +22,6 @@ jobs:
           docker run --rm \
             -e FORCE_SQLITE_TEST_DB=1 \
             -e UPLOADS_DIR=/tmp/test-uploads \
-            -v "${{ github.workspace }}:/app" \
-            -w /app \
             pindora-pms:ci \
             python -m pytest tests/ -v --ignore=tests/integration
 

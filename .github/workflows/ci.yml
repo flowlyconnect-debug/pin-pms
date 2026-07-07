@@ -37,13 +37,23 @@ jobs:
         run: docker build -t pindora-pms:ci .
       - name: Run unit tests in container
         run: |
-          docker run --rm \
+          set -o pipefail
+          if ! docker run --rm \
             -e FORCE_SQLITE_TEST_DB=1 \
             -e UPLOADS_DIR=/tmp/test-uploads \
-            -v "${{ github.workspace }}:/app" \
-            -w /app \
             pindora-pms:ci \
-            python -m pytest tests/ -q --ignore=tests/integration
+            python -m pytest tests/ -q --ignore=tests/integration; then
+            {
+              echo "## Pytest collect (debug)"
+              echo '```'
+              docker run --rm \
+                -e FORCE_SQLITE_TEST_DB=1 \
+                pindora-pms:ci \
+                python -m pytest tests/ --collect-only 2>&1 | tail -60
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
   docker-build:
     runs-on: ubuntu-latest
