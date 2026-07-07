@@ -331,7 +331,10 @@ def test_acceptance_init_template_criteria(compose_stack: dict[str, str]) -> Non
     assert email_cmd.returncode == 0
     assert "Traceback" not in (email_cmd.stdout + email_cmd.stderr)
 
-    # TOTP secret is provisioned on first successful login, not at CLI creation.
+    # TOTP secret is provisioned on first /2fa/setup visit, not at CLI creation.
+    setup_page = session.get(f"{base_url}/2fa/setup", timeout=5)
+    assert setup_page.status_code == 200
+
     totp_info = _query_json(
         web_service,
         (
@@ -347,9 +350,6 @@ def test_acceptance_init_template_criteria(compose_stack: dict[str, str]) -> Non
     )
     totp_secret = totp_info["totp_secret"]
     assert totp_secret
-
-    setup_page = session.get(f"{base_url}/2fa/setup", timeout=5)
-    assert setup_page.status_code == 200
     csrf_setup = _extract_csrf(setup_page.text)
     setup_res = session.post(
         f"{base_url}/2fa/setup",
