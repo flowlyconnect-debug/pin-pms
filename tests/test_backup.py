@@ -4,15 +4,28 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 from pathlib import Path
 
 import pytest
 
 
+def _pg_dump_integration_available() -> bool:
+    if not shutil.which("pg_dump"):
+        return False
+    if (os.getenv("FORCE_SQLITE_TEST_DB") or "").strip() == "1":
+        return False
+    test_url = (os.getenv("TEST_DATABASE_URL") or "").strip().lower()
+    return not test_url.startswith("sqlite")
+
+
 @pytest.mark.skipif(
-    not shutil.which("pg_dump"),
-    reason="pg_dump must be on PATH (install PostgreSQL client tools, or run tests in Linux/Docker).",
+    not _pg_dump_integration_available(),
+    reason=(
+        "pg_dump integration requires a live PostgreSQL test database "
+        "(skipped when FORCE_SQLITE_TEST_DB or sqlite TEST_DATABASE_URL is used)."
+    ),
 )
 def test_create_backup_writes_gzipped_file_and_db_row(app, tmp_path, monkeypatch):
     """``create_backup`` produces a non-empty ``.sql.gz`` and a SUCCESS row.
