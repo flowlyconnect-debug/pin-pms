@@ -301,9 +301,10 @@ def test_acceptance_init_template_criteria(compose_stack: dict[str, str]) -> Non
             "from app import create_app; "
             "from app.api.models import ApiKey; "
             "from app.extensions import db; "
+            "from sqlalchemy import text; "
             "app=create_app(); "
             "ctx=app.app_context(); ctx.push(); "
-            'rows = db.session.execute("""SELECT column_name FROM information_schema.columns WHERE table_name=\'api_keys\'""").fetchall(); '
+            'rows = db.session.execute(text("""SELECT column_name FROM information_schema.columns WHERE table_name=\'api_keys\'""")).fetchall(); '
             "cols=[r[0] for r in rows]; "
             "row=ApiKey.query.order_by(ApiKey.id.desc()).first(); "
             "print(json.dumps({'columns': cols, 'key_hash': row.key_hash if row else '', 'key_prefix': row.key_prefix if row else ''})); "
