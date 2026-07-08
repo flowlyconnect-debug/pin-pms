@@ -22,7 +22,7 @@ jobs:
         run: python scripts/test.py e2e
       - name: Upload report + failure screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-report
           path: reports/
